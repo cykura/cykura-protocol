@@ -1,11 +1,20 @@
+pub mod context;
+pub mod states;
+use crate::context::*;
+use crate::states::factory::OwnerChangedEvent;
+use crate::states::fee::FeeAmountEnabledEvent;
+
 use anchor_lang::prelude::*;
-use std::mem::size_of;
 
 declare_id!("37kn8WUzihQoAnhYxueA2BnqCA7VRnrVvYoHy1hQ6Veu");
 
 #[program]
 pub mod cyclos_protocol_v2 {
     use super::*;
+
+    // ---------------------------------------------------------------------
+    // 1. Factory instructions
+
     pub fn initialize(ctx: Context<Initialize>, bump: u8) -> ProgramResult {
         ctx.accounts.factory_state.bump = bump;
         ctx.accounts.factory_state.owner = ctx.accounts.owner.key();
@@ -48,59 +57,22 @@ pub mod cyclos_protocol_v2 {
 
         Ok(())
     }
+
+    pub fn set_owner(ctx: Context<Todo>) -> ProgramResult {
+        todo!("Update owner and emit event. Read owner pubkey from ctx")
+    }
+
+    pub fn create_pool(ctx: Context<Todo>) -> ProgramResult {
+        todo!("Unique pool for [tokenA, tokenB, fee] where tokenA > tokenB")
+    }
+
+    // ---------------------------------------------------------------------
+    // 1. Pool instructions
+
 }
 
 #[derive(Accounts)]
-#[instruction(bump: u8)]
-pub struct Initialize<'info> {
-    pub owner: Signer<'info>,
-
-    #[account(
-        init,
-        seeds = [],
-        bump = bump,
-        payer = owner,
-        space = size_of::<FactoryState>() + 10
-    )]
-    pub factory_state: Box<Account<'info, FactoryState>>,
-    pub system_program: Program<'info, System>,
-}
-
-#[derive(Accounts)]
-#[instruction(fee: u32, tick_spacing: u16, fee_bump: u8)]
-pub struct EnableFeeAmount<'info> {
-    pub owner: Signer<'info>,
-
-    #[account(
-        mut,
-        seeds = [],
-        bump = factory_state.bump,
-        constraint = owner.key() == factory_state.owner
-    )]
-    pub factory_state: Box<Account<'info, FactoryState>>,
-
-    #[account(
-        init,
-        seeds = [&fee.to_be_bytes()],
-        bump = fee_bump,
-        payer = owner,
-        space = size_of::<FeeState>() + 10
-    )]
-    pub fee_state: Box<Account<'info, FeeState>>,
-    pub system_program: Program<'info, System>,
-}
-
-#[account]
-pub struct FactoryState {
-    pub bump: u8,
-    pub owner: Pubkey,
-}
-
-#[account]
-pub struct FeeState {
-    pub bump: u8,
-    pub fee: u32, 
-    pub tick_spacing: u16,
+pub struct Todo {
 }
 
 // Error Codes
@@ -112,19 +84,3 @@ pub enum ErrorCode {
     TickSpacingLimit,
 }
 
-// Events
-#[event]
-pub struct OwnerChangedEvent {
-    #[index]
-    pub old_owner: Pubkey,
-    #[index]
-    pub new_owner: Pubkey,
-}
-
-#[event]
-pub struct FeeAmountEnabledEvent {
-    #[index]
-    pub fee: u32,
-    #[index]
-    pub tick_spacing: u16,
-}
