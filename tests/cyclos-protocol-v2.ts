@@ -3,16 +3,32 @@ import { Program, web3, BN } from '@project-serum/anchor';
 import { CyclosProtocolV2 } from '../target/types/cyclos_protocol_v2';
 const { PublicKey,  } = anchor.web3;
 
-describe('cyclos-protocol-v2', async () => {
+describe('cyclos-protocol-v2', () => {
 
   // Configure the client to use the local cluster.
   anchor.setProvider(anchor.Provider.env());
 
   const program = anchor.workspace.CyclosProtocolV2 as Program<CyclosProtocolV2>;
 
-  const [factoryState, factoryStateBump] = await PublicKey.findProgramAddress([], program.programId);
-  console.log("Factory", factoryState.toString(), factoryStateBump);
-  
+  let factoryState: web3.PublicKey
+  let factoryStateBump: number
+  let feeState: web3.PublicKey
+  let feeStateBump: number
+
+  const fee = 500;
+  const tickSpacing = 10;
+
+  before(async () => {
+    [factoryState, factoryStateBump] = await PublicKey.findProgramAddress([], program.programId);
+    console.log("Factory", factoryState.toString(), factoryStateBump);
+
+    [feeState, feeStateBump] = await PublicKey.findProgramAddress(
+      [numberToBigEndian(fee)],
+      program.programId
+      );
+    console.log("Fee", feeState.toString(), feeStateBump);
+  })
+
   it('Is initialized!', async () => {
     // Add your test here.
     const tx = await program.rpc.initialize(factoryStateBump, {
@@ -24,15 +40,6 @@ describe('cyclos-protocol-v2', async () => {
     });
     console.log("Your transaction signature", tx);
   });
-
-  const fee = 500;
-  const tickSpacing = 10;
-
-  const [feeState, feeStateBump] = await PublicKey.findProgramAddress(
-    [numberToBigEndian(fee)], 
-    program.programId
-    );
-  console.log("Fee", feeState.toString(), feeStateBump);
 
   it('Enable Fee amount', async () => {
     // Add your test here.

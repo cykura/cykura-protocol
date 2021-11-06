@@ -1,15 +1,17 @@
 pub mod context;
 pub mod states;
+pub mod libraries;
 use crate::context::*;
 use crate::states::factory::OwnerChangedEvent;
 use crate::states::fee::FeeAmountEnabledEvent;
-
 use anchor_lang::prelude::*;
 
 declare_id!("37kn8WUzihQoAnhYxueA2BnqCA7VRnrVvYoHy1hQ6Veu");
 
 #[program]
 pub mod cyclos_protocol_v2 {
+    use anchor_lang::solana_program::system_program;
+
     use super::*;
 
     // ---------------------------------------------------------------------
@@ -19,12 +21,8 @@ pub mod cyclos_protocol_v2 {
         ctx.accounts.factory_state.bump = bump;
         ctx.accounts.factory_state.owner = ctx.accounts.owner.key();
 
-        // TODO : Figure out how to give default Pubkey
-        // let pk: [u8;32] = [0; 32];
-        // msg!("Default pubkey {}", default_address::ID);
-
         emit!(OwnerChangedEvent {
-            old_owner: ctx.accounts.owner.key(),
+            old_owner: system_program::ID,
             new_owner: ctx.accounts.owner.key(),
         });
 
