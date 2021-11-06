@@ -1,3 +1,5 @@
+/// Store data for each valid tick
+/// A tick is valid if it is a multiple of tick_spacing
 /// Ref- https://github.com/Uniswap/v3-core/blob/main/contracts/libraries/Tick.sol
 
 use anchor_lang::prelude::*;
