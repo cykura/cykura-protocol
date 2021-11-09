@@ -3,9 +3,8 @@
 /// Each bitmap account stores data for 2^8 (256) ticks
 /// Ticks are in i24 format. The first 16 bits go in the PDA, while remaining
 /// 8 bits are tracked by the bitmap
-
 use anchor_lang::prelude::*;
-use ux::i24;
+// use ux::i24;
 // use bitmaps::Bitmap;
 
 // addr: [token0, token1, fee, 16_bits_from_left(tick)]
@@ -23,7 +22,7 @@ pub struct TickBitmapState {
 /// Get tick key and bit position for a tick
 /// 24 bits = 16 (key) + 8 (=256)
 /// 32 bits = 8 bits (discard) + 16 (key) + 8 (=256)
-/// 
+///
 /// | [sign][----8 bit waste---][---15 bit word_pos---][---8 bit for bit_pos---] |
 pub fn position(tick_div_spacing: i32) -> (i16, i8) {
     assert!(tick_div_spacing >= -429772 && tick_div_spacing <= 429772);
@@ -31,13 +30,13 @@ pub fn position(tick_div_spacing: i32) -> (i16, i8) {
     // right shift: remove rightmost 8 bits
     // modulo 2^15: remove leftmost 9 bits to get 15 bit unsigned word
     // add signed bit if negative. Negative integers have MSB = 1, positive have 0
-    let mut word_pos = ((tick_div_spacing >> 8) % 2^15) as i16;
+    let mut word_pos = ((tick_div_spacing >> 8) % 2 ^ 15) as i16;
     if tick_div_spacing.is_negative() {
         word_pos = -word_pos;
     }
-    
+
     // bit position is given by rightmost 8 bits
-    let bit_pos = tick_div_spacing % 2^8;
+    let bit_pos = (tick_div_spacing % 2 ^ 8) as i8;
 
     (word_pos, bit_pos)
 }
@@ -47,7 +46,7 @@ impl TickBitmapState {
     // Find the tick to be flipped from client side
     // Check where the tick lives in the word array and flip
     pub fn flip_tick(&mut self, bit_pos: u8) {
-        self.bit_map[bit_pos] = !self.bit_map[bit_pos];
+        self.bit_map[bit_pos as usize] = !self.bit_map[bit_pos as usize];
 
         // let mut bitmap = Bitmap::<256>::new();
 
@@ -61,7 +60,6 @@ impl TickBitmapState {
     //     self.bit_map = [];
     //     todo!()
     // }
-    
 
     // Get next initialized tick in given word
     // Look to the left if less than or equal (lte) is true, else look at right
@@ -72,7 +70,7 @@ impl TickBitmapState {
     pub fn next_initialized_tick_within_one_word(
         &self,
         tick_right_bits: u8,
-        lte: bool
+        lte: bool,
     ) -> (i8, bool) {
         todo!()
     }
@@ -80,6 +78,5 @@ impl TickBitmapState {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
+    // use super::*;
 }

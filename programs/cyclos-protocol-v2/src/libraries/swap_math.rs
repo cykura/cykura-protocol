@@ -116,7 +116,7 @@ pub fn compute_swap_step(
         amount_remaining.abs() as u64 - amount_in
     }else {
         // Else take pip percentage as fee
-        (amount_in as f64 * (1E6 - (fee_pips as f64)) / 1E6) as u64;
+        (amount_in as f64 * (1E6 - (fee_pips as f64)) / 1E6) as u64
     };
 
     (sqrt_price_next, amount_in, amount_out, fee_amount)

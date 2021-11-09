@@ -1,3 +1,5 @@
+use std::ops::Sub;
+
 /// Store owed liquidity, fee growth per unit liquidity fees per position
 use anchor_lang::prelude::*;
 use ux::i24;
@@ -36,29 +38,33 @@ impl PositionState {
             assert!(self.liquidity > 0, "No pokes for 0 liquidity positions");
             self.liquidity
         } else {
-            self.liqudity.checked_add(liquidity_delta).unwrap()
+            if liquidity_delta > 0 {
+                self.liquidity.checked_add(liquidity_delta.abs() as u32).unwrap()
+            }else {
+                self.liquidity.checked_sub(liquidity_delta.abs() as u32).unwrap()
+            }
         };
 
         // Calculate accumulated Fees
-        let token_owed_0 = (self.liquidity as u64)
-            .checked_mul(fee_growth_inside_0.checked_sub(self.fee_growth_inside_0_last))
+        let tokens_owed_0 = (self.liquidity as u64)
+            .checked_mul(fee_growth_inside_0.sub(self.fee_growth_inside_0_last) as u64)
             .unwrap();
 
-        let token_owed_1 = (self.liquidity as u64)
-            .checked_mul(fee_growth_inside_1.checked_sub(self.fee_growth_inside_1_last))
+        let tokens_owed_1 = (self.liquidity as u64)
+            .checked_mul(fee_growth_inside_1.sub(self.fee_growth_inside_1_last) as u64)
             .unwrap();
 
         // Update the position
-        if (liquidity_delta != 0) {
+        if liquidity_delta != 0 {
             self.liquidity = liqudity_next;
         }
         self.fee_growth_inside_0_last = fee_growth_inside_0;
         self.fee_growth_inside_1_last = fee_growth_inside_1;
 
-        if (token_owned_0 > 0 || token_owned_1 > 0) {
+        if tokens_owed_0 > 0 || tokens_owed_1 > 0 {
             // overflow is acceptable, have to withdraw before you hit type(u64).max fees
-            self.token_owed_0 += token_owed_0;
-            self.token_owed_1 += token_owed_1;
+            self.tokens_owed_0 += tokens_owed_0;
+            self.tokens_owed_1 += tokens_owed_1;
         }
     }
 
@@ -81,7 +87,7 @@ impl PositionState {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    // use super::*;
 
     #[test]
     fn pool_udpate() {
