@@ -5,6 +5,8 @@ use crate::context::*;
 use crate::states::factory::OwnerChangedEvent;
 use crate::states::fee::FeeAmountEnabledEvent;
 use anchor_lang::prelude::*;
+use crate::states::pool::*;
+use crate::states::position::*;
 
 declare_id!("37kn8WUzihQoAnhYxueA2BnqCA7VRnrVvYoHy1hQ6Veu");
 
@@ -73,7 +75,7 @@ pub mod cyclos_protocol_v2 {
     pub fn create_pool(ctx: Context<Todo>, sqrt_price: f64) -> ProgramResult {
         todo!()
     }
-
+    
     // ---------------------------------------------------------------------
     // 3. Position instructions
 
@@ -198,4 +200,27 @@ pub enum ErrorCode {
     FeeLimit,
     #[msg("Tick spacing should be less than 16384")]
     TickSpacingLimit,
+}
+
+
+/// Update position with given liquidity_delta
+/// Skipped TWAP calculation for now.
+/// Position liquidity and flipped state in bitmap is updated
+/// From Pools._update_position()
+pub fn update_position(position: PositionState, pool: PoolState, liquidity_delta: u32, tick: i32) {
+
+    // update the ticks if liquidity present
+    if(liquidity_delta != 0){
+        // Skip TWAP things for now.
+    }
+    todo!();
+}
+
+/// Update position with new liquidity, and find Δtoken0 and Δtoken1 required
+/// to produce this liquidity_delta
+/// mint() -> modify_position() -> update_position() -> update()
+///
+/// TODO check what noDelegateCall does
+pub fn modify_position(position: PositionState, pool: PoolState, liquidity_delta: u32) -> (i64, i64) {
+    todo!()
 }
