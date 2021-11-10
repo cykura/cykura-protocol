@@ -5,7 +5,7 @@
 /// 8 bits are tracked by the bitmap
 use anchor_lang::prelude::*;
 // use ux::i24;
-// use bitmaps::Bitmap;
+use bitmaps::Bitmap;
 
 // addr: [token0, token1, fee, 16_bits_from_left(tick)]
 #[account]
@@ -14,12 +14,18 @@ pub struct TickBitmapState {
     pub token_0: Pubkey,
     pub token_1: Pubkey,
     pub fee: Pubkey,
-
     pub left_16_bits_of_tick: u16,
-    pub bit_map: [bool; 256],
+    pub bitmap: [u128; 2],
 }
 
-/// Get tick key and bit position for a tick
+// Get tick / spacing
+// Tick should be a multiple of spacing
+pub fn get_tick_div_spacing(tick: i32, spacing: i32) -> i32 {
+    assert_eq!(tick % spacing, 0);
+    tick / spacing
+}
+
+/// Get tick key and bit position for a tick/spacing
 /// 24 bits = 16 (key) + 8 (=256)
 /// 32 bits = 8 bits (discard) + 16 (key) + 8 (=256)
 ///
@@ -42,41 +48,70 @@ pub fn position(tick_div_spacing: i32) -> (i16, i8) {
 }
 
 impl TickBitmapState {
+    pub fn decode_bitmap(&self) -> bitmaps::Bitmap<256> {
+        Bitmap::<256>::from(self.bitmap)
+    }
+
     // Flip tick if it's a multiple of spacing, else panic
     // Find the tick to be flipped from client side
     // Check where the tick lives in the word array and flip
+    // TODO externally find bit_pos using tick: i32, and impose tick % tick_spacing condition
     pub fn flip_tick(&mut self, bit_pos: u8) {
-        self.bit_map[bit_pos as usize] = !self.bit_map[bit_pos as usize];
-
-        // let mut bitmap = Bitmap::<256>::new();
-
-        // let bitmap_as_num = bitmap
+        let mut bitmap = self.decode_bitmap();
+        bitmap.set(bit_pos as usize, !bitmap.get(bit_pos as usize));
+        self.bitmap = *bitmap.as_value();
     }
-    // pub fn flip_tick(&mut self, tick: i32, tick_spacing: i32) {
-    //     assert!(tick % tick_spacing == 0, "Tick is not a multiple of Tick Spacing");
-
-    //     let (word_pos, bit_pos) = position(tick / tick_spacing);
-
-    //     self.bit_map = [];
-    //     todo!()
-    // }
 
     // Get next initialized tick in given word
     // Look to the left if less than or equal (lte) is true, else look at right
     // Modification: use right bits instead of entire tick. Left bits are used
     // to find PDA
-    // Use simple looping. Mask bitwise logic avoided due to use of bool array
-    // TODO will [bool; 256] hit stack size limit?
+    // Use simple looping for now
+    // TODO explore mask to remove looping
+    // TODO externally find bit_pos using tick: i32, and impose tick % tick_spacing condition
+    // Returns bit position of next tick, and whether it is initialized
     pub fn next_initialized_tick_within_one_word(
         &self,
-        tick_right_bits: u8,
+        current_bit_pos: u8,
         lte: bool,
-    ) -> (i8, bool) {
-        todo!()
+    ) -> (u8, bool) {
+        let bitmap = self.decode_bitmap();
+
+        if lte {
+            // check to the left
+            for i in current_bit_pos..=0 {
+                let tick = bitmap.get(i as usize);
+                if tick == true {
+                    return (i, true);
+                }
+            }
+            (0, false)
+        } else {
+            for i in (current_bit_pos + 1)..(bitmap.len() as u8) {
+                let tick = bitmap.get(i as usize);
+                if tick == true {
+                    return (i, true);
+                }
+            }
+            (bitmap.len() as u8 - 1, false)
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    // use super::*;
+    use super::*;
+    #[test]
+    fn bitmap_test() {
+        let mut bitmap = Bitmap::<256>::new();
+        println!("BItmap length {}", bitmap.len());
+
+        bitmap.set(0, true);
+        let converted_bitmap = bitmap.as_value() as &[u128; 2];
+        msg!("Converted bitmap {:?}", converted_bitmap);
+
+        let arr = [10_u128, 50];
+        let decoded_bitmap = Bitmap::<256>::from(arr);
+        msg!("Decoded bitmap {:?}", decoded_bitmap.into_value());
+    }
 }

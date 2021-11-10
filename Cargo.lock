@@ -221,6 +221,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "bitmaps"
+version = "3.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "303cec55cd9c5fde944b061b902f142b52a8bb5438cc822481ea1e3ebc96bbcb"
+
+[[package]]
 name = "blake3"
 version = "0.3.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -411,6 +417,7 @@ name = "cyclos-protocol-v2"
 version = "0.1.0"
 dependencies = [
  "anchor-lang",
+ "bitmaps",
  "ux",
 ]
 
