@@ -8,45 +8,43 @@ Faithful port of Uniswap v3
 
 - Task tracker: https://github.com/orgs/cyclos-io/projects/1
 
+# Max values
 
-# Float support in anchor
+| Variable             | Type        | MIN                | MAX                                         | Rationale                                                                           |
+| -------------------- | ----------- | ------------------ | ------------------------------------------- | ----------------------------------------------------------------------------------- |
+| Liquidity            | u32         | u32::MIN = 0       | u32::MAX = 2^32 - 1                         | x = L/√P and y= L√P. To get x and y as u64, L and P should be u32                   |
+| sqrt_price           | f64         | 1.0001^(-443636/2) = 
+2.32835×10^-10
+  | u32::MAX as f64 = 4294967295 = 4.29 x 10^9               | Float needed because it's a square root. Min can't be 0 (needs i=infinity) |
+| tick i               | i32         | -443636            | floor (log (√1.0001) (4294967295)) = 443636 | Minimum will be negative of MAX                                                     |
+| tick_spacing         | u16         |                    |                                             |                                                                                     |
+| liquidity_net        | u32         |                    |                                             |                                                                                     |
+| liquidity_gross      | u32         |                    |                                             |                                                                                     |
+| fee_growth           | f64         |                    |                                             |                                                                                     |
+| protocol_fees        | u64         |                    |                                             |                                                                                     |
+| bitmap               | [bool; 256] |                    |                                             |                                                                                     |
+| tokens_owed_0, tokens_owed_1        | u64         |                    |                                             |                                                                                     |
 
-1. IDL should emit "f64" instead of
-```json
-"type": {
-    "defined": "f64"
-}`
-```
 
-2. Add f64 in idl.ts and common.ts
+# Unresolved questions
 
-```
-IdlError: Type not found: {"name":"sqrtPrice","type":{"defined":"f64"}}
-    at Function.fieldLayout (/home/hp/Documents/cyclos/cyclos-protocol-v2/node_modules/@project-serum/anchor/src/coder/idl.ts:89:19)
-    at /home/hp/Documents/cyclos/cyclos-protocol-v2/node_modules/@project-serum/anchor/src/coder/idl.ts:117:28
-    at Array.map (<anonymous>)
-    at Function.typeDefLayout (/home/hp/Documents/cyclos/cyclos-protocol-v2/node_modules/@project-serum/anchor/src/coder/idl.ts:116:48)
-    at /home/hp/Documents/cyclos/cyclos-protocol-v2/node_modules/@project-serum/anchor/src/coder/accounts.ts:26:39
-    at Array.map (<anonymous>)
-    at new AccountsCoder (/home/hp/Documents/cyclos/cyclos-protocol-v2/node_modules/@project-serum/anchor/src/coder/accounts.ts:25:49)
-    at new Coder (/home/hp/Documents/cyclos/cyclos-protocol-v2/node_modules/@project-serum/anchor/src/coder/index.ts:40:21)
-    at new Program (/home/hp/Documents/cyclos/cyclos-protocol-v2/node_modules/@project-serum/anchor/src/program/index.ts:264:19)
-    at /home/hp/Documents/cyclos/cyclos-protocol-v2/node_modules/@project-serum/anchor/src/workspace.ts:58:34
-    at Array.forEach (<anonymous>)
-    at Object.get (/home/hp/Documents/cyclos/cyclos-protocol-v2/node_modules/@project-serum/anchor/src/workspace.ts:51:33)
-    at Suite.<anonymous> (/home/hp/Documents/cyclos/cyclos-protocol-v2/tests/cyclos-protocol-v2.ts:11:36)
-    at Object.create (/usr/local/lib/node_modules/ts-mocha/node_modules/mocha/lib/interfaces/common.js:148:19)
-    at context.describe.context.context (/usr/local/lib/node_modules/ts-mocha/node_modules/mocha/lib/interfaces/bdd.js:42:27)
-    at Object.<anonymous> (/home/hp/Documents/cyclos/cyclos-protocol-v2/tests/cyclos-protocol-v2.ts:6:1)
-    at Module._compile (node:internal/modules/cjs/loader:1101:14)
-    at Module.m._compile (/usr/local/lib/node_modules/ts-mocha/node_modules/ts-node/src/index.ts:439:23)
-    at Module._extensions..js (node:internal/modules/cjs/loader:1153:10)
-    at Object.require.extensions.<computed> [as .ts] (/usr/local/lib/node_modules/ts-mocha/node_modules/ts-node/src/index.ts:442:12)
-    at Module.load (node:internal/modules/cjs/loader:981:32)
-    at Function.Module._load (node:internal/modules/cjs/loader:822:12)
-    at Module.require (node:internal/modules/cjs/loader:1005:19)
-    at require (node:internal/modules/cjs/helpers:102:18)
-    at Object.exports.requireOrImport (/usr/local/lib/node_modules/ts-mocha/node_modules/mocha/lib/esm-utils.js:42:12)
-    at Object.exports.loadFilesAsync (/usr/local/lib/node_modules/ts-mocha/node_modules/mocha/lib/esm-utils.js:55:34)
-    at singleRun (/usr/local/lib/node_modules/ts-mocha/node_modules/mocha/lib/cli/run-helpers.js:125:3)
-```
+1. How to replicate Uniswap's rounding? We're using floats which give results directly?
+    - No point of rounding up where floats are returned.
+    - Rounding up can be done when finding integers. +1 if modulo is not zero. Can use to find fees in [SwapMath.sol](https://github.com/Uniswap/v3-core/blob/f03155670ec1667406b83a539e23dcccf32a03bc/contracts/libraries/SwapMath.sol) and [Pool.sol](https://github.com/Uniswap/v3-core/blob/234f27b9bc745eee37491802aa37a0202649e344/contracts/UniswapV3Pool.sol)
+
+2. Should we avoid floats?
+    - Reasons to avoid
+        1. Cannot round up / down
+        2. Higher compute cost
+        3. div mod ?
+    - Reasons to use
+        1. Ready function to find log to base
+        2. Anchor will support floats
+    - Alternatives
+        1. Use synthetify's number or [fixed crate](https://github.com/Synthetify/synthetify-protocol/blob/master/programs/exchange/src/decimal.rs)
+        2. Will need custom formula for log
+            - Change of base rule: from log2 to log1.0001
+            - https://stackoverflow.com/questions/3272424/compute-fast-log-base-2-ceiling
+            
+
+<!-- ln(a/b) = ln(a) - ln(b)  a = number, b = decimal ->
