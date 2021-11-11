@@ -77,3 +77,19 @@ pub struct CreatePool<'info> {
     pub pool_state: Box<Account<'info, PoolState>>,
     pub system_program: Program<'info, System>,
 }
+
+#[derive(Accounts)]
+#[instruction(bump: u8)]
+pub struct SetOwner<'info> {
+    pub owner: Signer<'info>,
+    pub new_owner: AccountInfo<'info>,
+
+    #[account(
+        mut,
+        seeds = [],
+        bump = factory_state.bump,
+        // TODO error message
+        constraint = owner.key() == factory_state.owner
+    )]
+    pub factory_state: Box<Account<'info, FactoryState>>,
+}

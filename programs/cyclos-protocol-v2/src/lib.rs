@@ -58,8 +58,15 @@ pub mod cyclos_protocol_v2 {
         Ok(())
     }
 
-    pub fn set_owner(ctx: Context<Todo>) -> ProgramResult {
-        todo!("Update owner and emit event. Read owner pubkey from ctx")
+    pub fn set_owner(ctx: Context<SetOwner>) -> ProgramResult {
+        ctx.accounts.factory_state.owner = ctx.accounts.new_owner.key();
+
+        emit!(OwnerChangedEvent {
+            old_owner: ctx.accounts.owner.key(),
+            new_owner: ctx.accounts.new_owner.key(),
+        });
+
+        Ok(())
     }
 
     // ---------------------------------------------------------------------
@@ -75,7 +82,7 @@ pub mod cyclos_protocol_v2 {
     pub fn create_pool(ctx: Context<Todo>, sqrt_price: f64) -> ProgramResult {
         todo!()
     }
-    
+
     // ---------------------------------------------------------------------
     // 3. Position instructions
 

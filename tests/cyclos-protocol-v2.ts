@@ -53,6 +53,22 @@ describe('cyclos-protocol-v2', () => {
     });
     console.log("Your transaction signature", tx);
   });
+
+  it('Update owner', async () => {
+    // TODO use different keypair for new owner
+    const newOwner = anchor.getProvider().wallet.publicKey
+    const tx = await program.rpc.setOwner({
+      accounts: {
+        owner: anchor.getProvider().wallet.publicKey,
+        factoryState,
+        newOwner: newOwner
+      }
+    });
+
+    // TODO read state and match owner
+  })
+
+
 });
 
 export function numberToBigEndian(num: number) {
