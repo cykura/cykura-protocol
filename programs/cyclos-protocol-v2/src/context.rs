@@ -1,4 +1,6 @@
 use anchor_lang::prelude::*;
+use anchor_spl::associated_token::AssociatedToken;
+use anchor_spl::token::{Mint, TokenAccount, Token};
 use std::mem::size_of;
 
 use crate::states::factory::FactoryState;
@@ -63,19 +65,52 @@ pub struct CreatePosition<'info> {
 }
 
 #[derive(Accounts)]
-#[instruction(fee: u32, token0: Pubkey, token1: Pubkey, bump: u8)]
+#[instruction(pool_state_bump: u8, fee: u32)]
 pub struct CreatePool<'info> {
-    pub owner: Signer<'info>,
+    pub pool_creator: Signer<'info>,
+
+    #[account(
+        constraint = token_0.key() == token_1.key(),
+        constraint = token_0.key() < token_1.key()
+    )]
+    pub token_0: Box<Account<'info, Mint>>,
+    pub token_1: Box<Account<'info, Mint>>,
 
     #[account(
         init,
-        seeds = [token0.as_ref(), token1.as_ref(), &fee.to_be_bytes()],
-        bump = bump,
-        payer = owner,
-        space = size_of::<FeeState>() + 10
+        seeds = [token_0.key().as_ref(), token_1.key().as_ref(), &fee.to_be_bytes()],
+        bump = pool_state_bump,
+        payer = pool_creator,
+        space = size_of::<PoolState>() + 10
     )]
     pub pool_state: Box<Account<'info, PoolState>>,
+
+    #[account(
+        seeds = [&fee.to_be_bytes()],
+        bump = fee_state.bump,
+    )]
+    pub fee_state: Box<Account<'info, FeeState>>,
+
+    // Create associated token accounts for pool_state
+    #[account(
+        init,
+        payer = pool_creator,
+        associated_token::mint = token_0,
+        associated_token::authority = pool_state,
+    )]
+    pub vault_0: Box<Account<'info, TokenAccount>>,
+    #[account(
+        init,
+        payer = pool_creator,
+        associated_token::mint = token_1,
+        associated_token::authority = pool_state,
+    )]
+    pub vault_1: Box<Account<'info, TokenAccount>>,
+    
+    pub rent: Sysvar<'info, Rent>,
     pub system_program: Program<'info, System>,
+    pub token_program: Program<'info, Token>,
+    pub associated_token_program: Program<'info, AssociatedToken>,
 }
 
 #[derive(Accounts)]

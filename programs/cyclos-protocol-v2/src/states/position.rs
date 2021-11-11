@@ -2,7 +2,7 @@ use std::ops::Sub;
 
 /// Store owed liquidity, fee growth per unit liquidity fees per position
 use anchor_lang::prelude::*;
-use ux::i24;
+use super::tick::TickState;
 
 /// addr: [token_0, token_1, fee, owner, tick_lower, tick_upper]
 #[account]
@@ -66,22 +66,6 @@ impl PositionState {
             self.tokens_owed_0 += tokens_owed_0;
             self.tokens_owed_1 += tokens_owed_1;
         }
-    }
-
-    /// Update position with given liquidity_delta
-    /// Position liquidity and flipped state in bitmap is updated
-    /// From Pools._update_position()
-    pub fn update_position(self: &mut Self, liquidity_delta: u32, tick: i24) {
-        todo!()
-    }
-
-    /// Update position with new liquidity, and find Δtoken0 and Δtoken1 required
-    /// to produce this liquidity_delta
-    /// mint() -> modify_position() -> update_position() -> update()
-    ///
-    /// TODO check what noDelegateCall does
-    pub fn modify_position(self: &mut Self, liquidity_delta: u32) -> (i64, i64) {
-        todo!()
     }
 }
 

@@ -4,6 +4,7 @@ use anchor_lang::prelude::*;
 pub const TICK_SPACING_MAX: u16 = 16_384; // exclusive
 pub const FEE_TIER_MAX: u32 = 1_000_000; // exclusive. Stands for 100%
 
+// addr: [fee]
 #[account]
 pub struct FeeState {
     pub bump: u8,

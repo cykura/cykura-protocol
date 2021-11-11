@@ -42,8 +42,11 @@ pub fn get_next_sqrt_price_from_amount_0_rounding_up(
         return sqrt_price;
     };
 
+    // But no rounding off done
     sqrt_price * (liquidity as f64)
         / ((liquidity as f64) + (amount as f64) * if add { sqrt_price } else { -sqrt_price })
+
+    
 }
 
 /// Get new sqrt price when token 1 is added or removed
@@ -72,6 +75,8 @@ pub fn get_next_sqrt_price_from_amount_1_rounding_down(
     amount: u64,
     add: bool,
 ) -> f64 {
+    // But no rounding off done
+
     sqrt_price + if add { amount as f64 } else { -(amount as f64) } / (liquidity as f64)
 }
 
@@ -224,7 +229,9 @@ pub fn get_amount_1_delta_signed(sqrt_price_a: f64, sqrt_price_b: f64, liquidity
 // }
 
 #[cfg(test)]
-mod tests {
+mod sqrt_math {
+    use std::ops::{Add, Div, Sub};
+
     use super::*;
 
     #[test]
@@ -232,5 +239,104 @@ mod tests {
         let res = get_next_sqrt_price_from_amount_0_rounding_up(0.0, 20, 4, true);
         println!("value {} ", res);
         // assert_eq!(2 + 2, 4);
+    }
+
+    #[test]
+    #[should_panic]
+    fn fails_if_price_is_zero() {
+        let res = get_next_sqrt_price_from_input(0.0, 0, 1E18 as u64 / 100, false);
+        println!("{}", res);
+    }
+
+    // Failing: f64 MAX addition does not overflow
+    #[test]
+    #[should_panic]
+    fn fails_if_input_amount_overflows_the_price() {
+        let price = f64::MAX;
+        let liquidity: u32 = 1024;
+        let amount_in: u64 = 1024;
+        //     await expect(sqrtPriceMath.getNextSqrtPriceFromInput(price, liquidity, amountIn, false)).to.be.reverted
+        println!("Before {}", price);
+        println!("Overflown number {}", price.add(1_f64));
+        let res = get_next_sqrt_price_from_input(price.add(1_f64), liquidity, amount_in, false);
+        println!("{}", res);
+    } 
+
+    // Failing
+    #[test]
+    fn fails_if_input_amount_underflows_the_price() {
+        let res =  get_next_sqrt_price_from_input(1.0, 1u32, 2_u64.pow(255), true);
+        println!("{}", res);
+        assert_eq!(
+            get_next_sqrt_price_from_input(1.0, 1u32, 2_u64.pow(255), true),
+            1f64
+        );
+    }
+
+    // Failing
+    #[test]
+    fn input_price_if_amount_in_zero() {
+        let price = 1f64;
+        assert_eq!(
+            get_next_sqrt_price_from_input(price, 1E18 as u32, 0, true),
+            price
+        );
+        assert_eq!(
+            get_next_sqrt_price_from_input(price, 1E18 as u32, 0, false),
+            price
+        );
+    }
+
+    #[test]
+    fn min_price_for_max_inputs() {
+        let sqrt_price = 2_f64.powf(160.0).sub(1_f64);
+        let max_amount_no_overflow = u64::MAX
+            .checked_sub(u64::MAX.div(sqrt_price as u64))
+            .unwrap();
+        assert_eq!(
+            get_next_sqrt_price_from_input(sqrt_price, u32::MAX, max_amount_no_overflow, true),
+            1f64
+        )
+    }
+
+    #[test]
+    fn enough_amount_in() {
+        assert_eq!(
+            get_next_sqrt_price_from_input(1_f64, 1, u64::MAX / 2, true),
+            1_f64
+        )
+    }
+
+    #[test]
+    fn price_for_0_1tokens() {
+        // Calculates prices for 0.1 tokens
+        let price_0 = get_next_sqrt_price_from_input(1f64, 1E18 as u32, 1E17 as u64, false);
+        let price_1 = get_next_sqrt_price_from_input(1f64, 1E18 as u32, 1E17 as u64, true);
+
+        // Need to calcuate actual values
+        todo!();
+        // assert_eq!(price_0, );
+        // assert_eq!(price_1, );
+    }
+
+    // NEED TO CHECK FOR CACULATIONS LATER.
+    //   it('amountIn > type(uint96).max and zeroForOne = true', async () => {
+    //     expect(
+    //       await sqrtPriceMath.getNextSqrtPriceFromInput(
+    //         encodePriceSqrt(1, 1),
+    //         expandTo18Decimals(10),
+    //         BigNumber.from(2).pow(100),
+    //         true
+    //       )
+    //       // perfect answer:
+    //       // https://www.wolframalpha.com/input/?i=624999999995069620+-+%28%281e19+*+1+%2F+%281e19+%2B+2%5E100+*+1%29%29+*+2%5E96%29
+    //     ).to.eq('624999999995069620')
+    //   })
+
+    #[test]
+    #[should_panic]
+    fn fails_if_liquidity_is_zero() {
+        let res = get_next_sqrt_price_from_input(1.0, 0, 1E18 as u64, true);
+        println!("{}", res);
     }
 }

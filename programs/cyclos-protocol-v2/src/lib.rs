@@ -1,20 +1,21 @@
 pub mod context;
-pub mod states;
 pub mod libraries;
+pub mod states;
 use crate::context::*;
 use crate::states::factory::OwnerChangedEvent;
 use crate::states::fee::FeeAmountEnabledEvent;
-use anchor_lang::prelude::*;
 use crate::states::pool::*;
 use crate::states::position::*;
+use anchor_lang::prelude::*;
+use anchor_spl::associated_token::{self};
 
 declare_id!("37kn8WUzihQoAnhYxueA2BnqCA7VRnrVvYoHy1hQ6Veu");
 
 #[program]
 pub mod cyclos_protocol_v2 {
-    use anchor_lang::solana_program::system_program;
-
     use super::*;
+    use crate::libraries::tick_math::get_tick_at_sqrt_price;
+    use anchor_lang::solana_program::system_program;
 
     // ---------------------------------------------------------------------
     // 1. Factory instructions
@@ -47,9 +48,7 @@ pub mod cyclos_protocol_v2 {
             return Err(ErrorCode::TickSpacingLimit.into());
         }
 
-        emit!(FeeAmountEnabledEvent {
-            fee, tick_spacing
-        });
+        emit!(FeeAmountEnabledEvent { fee, tick_spacing });
 
         ctx.accounts.fee_state.bump = fee_bump;
         ctx.accounts.fee_state.fee = fee;
@@ -75,12 +74,90 @@ pub mod cyclos_protocol_v2 {
     /// Create pool and initialize with desired price
     /// Create pool PDA for [token0, token1, fee] where tokenA > tokenB,
     /// then set sqrt_price
-    /// Hardcode an initial protocol fee, not 0 like Uniswap
     ///
     /// Single function in place of Factory.createPool(), PoolDeployer.deploy()
     /// Pool.initialize() and pool.Constructor()
-    pub fn create_pool(ctx: Context<Todo>, sqrt_price: f64) -> ProgramResult {
-        todo!()
+    pub fn create_pool(
+        ctx: Context<CreatePool>,
+        pool_state_bump: u8,
+        fee: u32,
+        sqrt_price: f64,
+    ) -> ProgramResult {
+        // let state = PoolState {
+        //     bump: pool_state_bump,
+        //     token_0: (*ctx.accounts.token_0).key(),
+        //     token_1: (*ctx.accounts.token_1).key(),
+        //     fee,
+        //     tick_spacing: (*ctx.accounts.fee_state).tick_spacing,
+        //     liquidity: 0,
+        //     sqrt_price,
+        //     tick: get_tick_at_sqrt_price(sqrt_price),
+        //     fee_growth_global_0: 0.0,
+        //     fee_growth_global_1: 0.0,
+        //     fee_protocol: 0, // Leftmost 4 bits: fee_token_0, rightmost 4 bits: fee_token_1
+        //     protocol_fees_token_0: 0,
+        //     protocol_fees_token_1: 0,
+        //     unlocked: true,
+        // };
+
+        // ctx.accounts.pool_state.clone()
+        // *ctx.accounts.pool_state = state as Account;
+
+        let tick = get_tick_at_sqrt_price(sqrt_price);
+
+        // Set pool state
+        ctx.accounts.pool_state.bump = pool_state_bump;
+        ctx.accounts.pool_state.token_0 = (*ctx.accounts.token_0).key();
+        ctx.accounts.pool_state.token_1 = (*ctx.accounts.token_1).key();
+        ctx.accounts.pool_state.fee = fee;
+        ctx.accounts.pool_state.tick_spacing = (*ctx.accounts.fee_state).tick_spacing;
+        ctx.accounts.pool_state.sqrt_price = sqrt_price;
+        ctx.accounts.pool_state.tick = tick;
+        ctx.accounts.pool_state.unlocked = true;
+        // protocol fee initially set as 0
+
+        // create associated token accounts for pool, which act as pool vaults
+        if !(*ctx.accounts.vault_0).to_account_info().executable {
+            let create_vault_0_ctx = CpiContext::new(
+                ctx.accounts.associated_token_program.to_account_info(),
+                associated_token::Create {
+                    payer: ctx.accounts.pool_creator.to_account_info(),
+                    associated_token: ctx.accounts.vault_0.to_account_info(),
+                    authority: ctx.accounts.pool_state.to_account_info(),
+                    mint: ctx.accounts.token_0.to_account_info(),
+                    system_program: ctx.accounts.system_program.to_account_info(),
+                    token_program: ctx.accounts.token_program.to_account_info(),
+                    rent: ctx.accounts.rent.to_account_info(),
+                },
+            );
+            associated_token::create(create_vault_0_ctx)?;
+        }
+        if !(*ctx.accounts.vault_1).to_account_info().executable {
+            let create_vault_1_ctx = CpiContext::new(
+                ctx.accounts.associated_token_program.to_account_info(),
+                associated_token::Create {
+                    payer: ctx.accounts.pool_creator.to_account_info(),
+                    associated_token: ctx.accounts.vault_1.to_account_info(),
+                    authority: ctx.accounts.pool_state.to_account_info(),
+                    mint: ctx.accounts.token_1.to_account_info(),
+                    system_program: ctx.accounts.system_program.to_account_info(),
+                    token_program: ctx.accounts.token_program.to_account_info(),
+                    rent: ctx.accounts.rent.to_account_info(),
+                },
+            );
+            associated_token::create(create_vault_1_ctx)?;
+        }
+
+        emit!(InitPoolEvent {
+            pool_state: (*ctx.accounts.pool_state).key(),
+            token_0: (*ctx.accounts.token_0).key(),
+            token_1: (*ctx.accounts.token_1).key(),
+            fee,
+            sqrt_price,
+            tick,
+        });
+
+        Ok(())
     }
 
     // ---------------------------------------------------------------------
@@ -179,7 +256,7 @@ pub mod cyclos_protocol_v2 {
     pub fn set_fee_protocol(
         ctx: Context<Todo>,
         fee_protocol_0: u8,
-        fee_protocol_1: u8
+        fee_protocol_1: u8,
     ) -> ProgramResult {
         todo!()
     }
@@ -189,16 +266,14 @@ pub mod cyclos_protocol_v2 {
     pub fn collect_protocol(
         ctx: Context<Todo>,
         amount_0_requested: u64,
-        amount_1_requested: u64
+        amount_1_requested: u64,
     ) -> ProgramResult {
         todo!()
     }
-
 }
 
 #[derive(Accounts)]
-pub struct Todo {
-}
+pub struct Todo {}
 
 // Error Codes
 #[error]
@@ -209,15 +284,13 @@ pub enum ErrorCode {
     TickSpacingLimit,
 }
 
-
 /// Update position with given liquidity_delta
 /// Skipped TWAP calculation for now.
 /// Position liquidity and flipped state in bitmap is updated
 /// From Pools._update_position()
 pub fn update_position(position: PositionState, pool: PoolState, liquidity_delta: u32, tick: i32) {
-
     // update the ticks if liquidity present
-    if(liquidity_delta != 0){
+    if (liquidity_delta != 0) {
         // Skip TWAP things for now.
     }
     todo!();
@@ -228,6 +301,10 @@ pub fn update_position(position: PositionState, pool: PoolState, liquidity_delta
 /// mint() -> modify_position() -> update_position() -> update()
 ///
 /// TODO check what noDelegateCall does
-pub fn modify_position(position: PositionState, pool: PoolState, liquidity_delta: u32) -> (i64, i64) {
+pub fn modify_position(
+    position: PositionState,
+    pool: PoolState,
+    liquidity_delta: u32,
+) -> (i64, i64) {
     todo!()
 }

@@ -26,7 +26,6 @@ pub struct PoolState {
     pub unlocked: bool,
 }
 
-
 impl PoolState {
     /// protocol_fee_0 is stored as rightmost 4 bits
     /// Divide and get remainder for rightmost bits as u8
@@ -53,12 +52,13 @@ impl PoolState {
     }
 }
 
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn get_tick() {
-
-    }
+#[event]
+pub struct InitPoolEvent {
+    #[index]
+    pub pool_state: Pubkey,
+    pub token_0: Pubkey,
+    pub token_1: Pubkey,
+    pub fee: u32,
+    pub sqrt_price: f64,
+    pub tick: i32,
 }
