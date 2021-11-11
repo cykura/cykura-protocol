@@ -1,8 +1,9 @@
 use anchor_lang::prelude::*;
 use anchor_spl::associated_token::AssociatedToken;
-use anchor_spl::token::{Mint, TokenAccount, Token};
+use anchor_spl::token::{Mint, Token, TokenAccount};
 use std::mem::size_of;
 
+use crate::error::ErrorCode;
 use crate::states::factory::FactoryState;
 use crate::states::fee::FeeState;
 use crate::states::pool::PoolState;
@@ -106,7 +107,7 @@ pub struct CreatePool<'info> {
         associated_token::authority = pool_state,
     )]
     pub vault_1: Box<Account<'info, TokenAccount>>,
-    
+
     pub rent: Sysvar<'info, Rent>,
     pub system_program: Program<'info, System>,
     pub token_program: Program<'info, Token>,
@@ -123,8 +124,83 @@ pub struct SetOwner<'info> {
         mut,
         seeds = [],
         bump = factory_state.bump,
-        // TODO error message
-        constraint = owner.key() == factory_state.owner
+        constraint = owner.key() == factory_state.owner @ErrorCode::NotAnOwner
     )]
     pub factory_state: Box<Account<'info, FactoryState>>,
+}
+
+#[derive(Accounts)]
+pub struct SetFeeProtocol<'info> {
+    pub owner: Signer<'info>,
+    
+    #[account(
+        mut,
+        seeds = [
+            pool_state.token_0.as_ref(),
+            pool_state.token_1.as_ref(),
+            &pool_state.fee.to_be_bytes()
+        ],
+        bump = pool_state.bump,
+    )]
+    pub pool_state: Box<Account<'info, PoolState>>,
+
+    #[account(
+        mut,
+        seeds = [],
+        bump = factory_state.bump,
+        constraint = owner.key() == factory_state.owner @ErrorCode::NotAnOwner
+    )]
+    pub factory_state: Box<Account<'info, FactoryState>>,
+}
+
+#[derive(Accounts)]
+pub struct CollectProtocol<'info> {
+    pub owner: Signer<'info>,
+
+    #[account(
+        mut,
+        seeds = [],
+        bump = factory_state.bump,
+        constraint = owner.key() == factory_state.owner @ErrorCode::NotAnOwner
+    )]
+    pub factory_state: Box<Account<'info, FactoryState>>,
+
+    #[account(
+        mut,
+        seeds = [
+            &pool_state.fee_protocol.to_be_bytes(),
+        ],
+        bump = pool_state.bump,
+    )]
+    pub pool_state: Box<Account<'info, PoolState>>,
+
+    #[account(
+        mut,
+        associated_token::mint = pool_state.token_0.key(),
+        associated_token::authority = pool_state,
+    )]
+    pub vault_0: Box<Account<'info, TokenAccount>>,
+
+    #[account(
+        mut,
+        associated_token::mint = pool_state.token_1.key(),
+        associated_token::authority = pool_state,
+    )]
+    pub vault_1: Box<Account<'info, TokenAccount>>,
+
+    #[account(
+        mut,
+        associated_token::mint = pool_state.token_0.key(),
+        associated_token::authority = owner.key(),
+    )]
+    pub owner_wallet_0: Box<Account<'info, TokenAccount>>,
+
+    #[account(
+        mut,
+        associated_token::mint = pool_state.token_1.key(),
+        associated_token::authority = owner.key(),
+    )]
+    pub owner_wallet_1: Box<Account<'info, TokenAccount>>,
+
+    pub token_program: Program<'info, Token>,
 }

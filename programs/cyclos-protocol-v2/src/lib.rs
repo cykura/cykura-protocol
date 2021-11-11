@@ -1,13 +1,14 @@
 pub mod context;
+pub mod error;
 pub mod libraries;
 pub mod states;
 use crate::context::*;
+use crate::error::ErrorCode;
 use crate::states::factory::OwnerChangedEvent;
 use crate::states::fee::FeeAmountEnabledEvent;
 use crate::states::pool::*;
 use crate::states::position::*;
 use anchor_lang::prelude::*;
-use anchor_spl::associated_token::{self};
 
 declare_id!("37kn8WUzihQoAnhYxueA2BnqCA7VRnrVvYoHy1hQ6Veu");
 
@@ -16,6 +17,7 @@ pub mod cyclos_protocol_v2 {
     use super::*;
     use crate::libraries::tick_math::get_tick_at_sqrt_price;
     use anchor_lang::solana_program::system_program;
+    use anchor_spl::{associated_token, token};
 
     // ---------------------------------------------------------------------
     // 1. Factory instructions
@@ -254,35 +256,142 @@ pub mod cyclos_protocol_v2 {
     /// Both tokens in the pool can have different protocol fees
     /// Compress as a single u8, where fee_protocol_1 are leftmost bits and fee_protocol_0 are rightmost
     pub fn set_fee_protocol(
-        ctx: Context<Todo>,
+        ctx: Context<SetFeeProtocol>,
         fee_protocol_0: u8,
         fee_protocol_1: u8,
     ) -> ProgramResult {
-        todo!()
+        if !ctx.accounts.pool_state.unlocked {
+            return Err(ErrorCode::Locked.into());
+        }
+        ctx.accounts.pool_state.unlocked = false;
+
+        if (fee_protocol_0 == 0 || (fee_protocol_0 >= 4 && fee_protocol_0 <= 10))
+            && (fee_protocol_1 == 0 || (fee_protocol_1 >= 4 && fee_protocol_1 <= 10))
+        {
+            msg!("Error: Protocol fee should be 0 or 1/N where 4 <= N <= 10 ")
+        }
+
+        let fee_protocol_old = ctx.accounts.pool_state.fee_protocol;
+        // 8 bits = [4 bits of fee_protocol_1][4 bits of fee_protocol_0]
+        ctx.accounts.pool_state.fee_protocol = (fee_protocol_1 << 4) + fee_protocol_0;
+
+        emit!(SetFeeProtocolEvent {
+            pool_state: ctx.accounts.pool_state.key(),
+            fee_protocol_0_old: fee_protocol_old % 16,
+            fee_protocol_1_old: fee_protocol_old >> 4,
+            fee_protocol_0,
+            fee_protocol_1,
+        });
+
+        ctx.accounts.pool_state.unlocked = true;
+        Ok(())
     }
 
     /// Collect protocol fees
     /// Amounts can be 0 to collect fees only in the other token
     pub fn collect_protocol(
-        ctx: Context<Todo>,
+        ctx: Context<CollectProtocol>,
         amount_0_requested: u64,
         amount_1_requested: u64,
     ) -> ProgramResult {
-        todo!()
+        if !ctx.accounts.pool_state.unlocked {
+            return Err(ErrorCode::Locked.into());
+        }
+        ctx.accounts.pool_state.unlocked = false;
+        let pool_state = &mut *ctx.accounts.pool_state;
+
+        // Amounts to be transferred to owner = MIN (requested, accrued)
+        // Cannot transfer out more than accrued
+        let mut amount_0 = if amount_0_requested > pool_state.protocol_fees_token_0 {
+            pool_state.protocol_fees_token_0
+        } else {
+            amount_0_requested
+        };
+        let mut amount_1 = if amount_1_requested > pool_state.protocol_fees_token_1 {
+            pool_state.protocol_fees_token_1
+        } else {
+            amount_1_requested
+        };
+
+        let token_0 = pool_state.token_0.clone();
+        let token_1 = pool_state.token_1.clone();
+
+        let seeds = &[
+            &token_0.to_bytes() as &[u8],
+            &token_1.to_bytes() as &[u8],
+            &pool_state.fee.to_be_bytes() as &[u8],
+            &[pool_state.bump],
+        ];
+        let signer_seeds = &[&seeds[..]];
+
+        if amount_0 > 0 {
+            // Note- Uniswap leaves out 1 fee unit in state so
+            // register is not cleared. This saves gas.
+            // If there are 100 unclaimed units, maxiumum 99 can be sent
+            // Retained for API compatibility
+            if amount_0 == pool_state.protocol_fees_token_0 {
+                amount_0 = amount_0.checked_sub(1).unwrap();
+            }
+
+            pool_state.protocol_fees_token_0 = pool_state
+                .protocol_fees_token_0
+                .checked_sub(amount_0)
+                .unwrap();
+
+            // Transfer
+            token::transfer(
+                CpiContext::new_with_signer(
+                    ctx.accounts.token_program.to_account_info().clone(),
+                    token::Transfer {
+                        from: ctx.accounts.vault_0.to_account_info().clone(),
+                        to: ctx.accounts.owner_wallet_0.to_account_info().clone(),
+                        authority: pool_state.to_account_info().clone(),
+                    },
+                    signer_seeds,
+                ),
+                amount_0,
+            )?;
+        }
+        if amount_1 > 0 {
+            // Note- Uniswap leaves out 1 fee unit in state so
+            // register is not cleared. This saves gas.
+            // If there are 100 unclaimed units, maxiumum 99 can be sent
+            if amount_1 == pool_state.protocol_fees_token_1 {
+                amount_1 = amount_1.checked_sub(1).unwrap();
+            }
+            
+            pool_state.protocol_fees_token_1 = pool_state
+                .protocol_fees_token_1
+                .checked_sub(amount_1)
+                .unwrap();
+
+            // Transfer
+            token::transfer(
+                CpiContext::new_with_signer(
+                    ctx.accounts.token_program.to_account_info().clone(),
+                    token::Transfer {
+                        from: ctx.accounts.vault_1.to_account_info().clone(),
+                        to: ctx.accounts.owner_wallet_1.to_account_info().clone(),
+                        authority: pool_state.to_account_info().clone(),
+                    },
+                    signer_seeds,
+                ),
+                amount_1,
+            )?;
+        }
+
+        emit!(CollectProtocolEvent {
+            pool_state: pool_state.key(),
+            amount_0,
+            amount_1,
+        });
+        ctx.accounts.pool_state.unlocked = true;
+        Ok(())
     }
 }
 
 #[derive(Accounts)]
 pub struct Todo {}
-
-// Error Codes
-#[error]
-pub enum ErrorCode {
-    #[msg("Fees collected should be less than 1_000_000 (100%)")]
-    FeeLimit,
-    #[msg("Tick spacing should be less than 16384")]
-    TickSpacingLimit,
-}
 
 /// Update position with given liquidity_delta
 /// Skipped TWAP calculation for now.
@@ -290,7 +399,7 @@ pub enum ErrorCode {
 /// From Pools._update_position()
 pub fn update_position(position: PositionState, pool: PoolState, liquidity_delta: u32, tick: i32) {
     // update the ticks if liquidity present
-    if (liquidity_delta != 0) {
+    if liquidity_delta != 0 {
         // Skip TWAP things for now.
     }
     todo!();

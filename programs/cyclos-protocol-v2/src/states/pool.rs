@@ -62,3 +62,22 @@ pub struct InitPoolEvent {
     pub sqrt_price: f64,
     pub tick: i32,
 }
+
+#[event]
+pub struct SetFeeProtocolEvent {
+    #[index]
+    pub pool_state: Pubkey,
+    pub fee_protocol_0_old: u8,
+    pub fee_protocol_1_old: u8,
+    pub fee_protocol_0: u8,
+    pub fee_protocol_1: u8,
+}
+
+#[event]
+pub struct CollectProtocolEvent {
+    #[index]
+    pub pool_state: Pubkey,
+    pub amount_0: u64,
+    pub amount_1: u64,
+}
+
