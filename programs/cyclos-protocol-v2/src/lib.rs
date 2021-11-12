@@ -8,16 +8,20 @@ use crate::states::factory::OwnerChangedEvent;
 use crate::states::fee::FeeAmountEnabledEvent;
 use crate::states::pool::*;
 use crate::states::position::*;
+use crate::states::tick::*;
+use crate::states::tick_bitmap::TickBitmapState;
+use crate::states::tick_bitmap::get_word_and_bit_pos;
+use anchor_lang::AccountsClose;
 use anchor_lang::prelude::*;
+use crate::libraries::tick_math::get_tick_at_sqrt_price;
+use anchor_lang::solana_program::system_program;
+use anchor_spl::{associated_token, token};
 
 declare_id!("37kn8WUzihQoAnhYxueA2BnqCA7VRnrVvYoHy1hQ6Veu");
 
 #[program]
 pub mod cyclos_protocol_v2 {
     use super::*;
-    use crate::libraries::tick_math::get_tick_at_sqrt_price;
-    use anchor_lang::solana_program::system_program;
-    use anchor_spl::{associated_token, token};
 
     // ---------------------------------------------------------------------
     // 1. Factory instructions
@@ -359,7 +363,7 @@ pub mod cyclos_protocol_v2 {
             if amount_1 == pool_state.protocol_fees_token_1 {
                 amount_1 = amount_1.checked_sub(1).unwrap();
             }
-            
+
             pool_state.protocol_fees_token_1 = pool_state
                 .protocol_fees_token_1
                 .checked_sub(amount_1)
@@ -397,12 +401,85 @@ pub struct Todo {}
 /// Skipped TWAP calculation for now.
 /// Position liquidity and flipped state in bitmap is updated
 /// From Pools._update_position()
-pub fn update_position(position: PositionState, pool: PoolState, liquidity_delta: u32, tick: i32) {
+pub fn update_position<'info>(
+    position_state: &mut Account<'info, PositionState>,
+    pool_state: &Account<'info, PoolState>,
+    tick_lower_state: &mut Account<'info, TickState>,
+    tick_upper_state: &mut Account<'info, TickState>,
+    tick_current: i32, // TODO can be read from pool_state directly?
+    tick_lower_bitmap: &mut Account<'info, TickBitmapState>, // must contain tick
+    tick_upper_bitmap: &mut Account<'info, TickBitmapState>,
+    liquidity_delta: i32,
+) -> ProgramResult {
+
+    let mut flipped_lower = false;
+    let mut flipped_upper = false;
+
     // update the ticks if liquidity present
     if liquidity_delta != 0 {
+        let max_liquidity_per_tick = tick_spacing_to_max_liquidity_per_tick(
+            pool_state.tick_spacing as i32
+        );
         // Skip TWAP things for now.
+
+        // Update tick state and find if tick is flipped
+        flipped_lower = tick_lower_state.update(
+            tick_current,
+            liquidity_delta,
+            pool_state.fee_growth_global_0,
+            pool_state.fee_growth_global_1,
+            false,
+            max_liquidity_per_tick
+        );
+
+        flipped_upper = tick_upper_state.update(
+            tick_current,
+            liquidity_delta,
+            pool_state.fee_growth_global_0,
+            pool_state.fee_growth_global_1,
+            true,
+            max_liquidity_per_tick
+        );
+
+
+        if flipped_lower {
+            let (_, bit_pos) = get_word_and_bit_pos(
+                tick_lower_state.tick / (pool_state.tick_spacing as i32)
+            );
+            tick_lower_bitmap.flip_tick(bit_pos);
+        }
+        if flipped_upper {
+            let (_, bit_pos) = get_word_and_bit_pos(
+                tick_upper_state.tick / (pool_state.tick_spacing as i32)
+            );
+            tick_upper_bitmap.flip_tick(bit_pos);
+        }
     }
-    todo!();
+    // Update fees for position
+    // Poke: to only update fees, liquidity_delta can be passed as 0
+
+    let (fee_growth_inside_0, fee_growth_inside_1) = TickState::get_fee_growth_inside(
+        tick_upper_state,
+        tick_lower_state,
+        tick_current,
+        pool_state.fee_growth_global_0,
+        pool_state.fee_growth_global_1,
+    );
+    position_state.update(liquidity_delta, fee_growth_inside_0, fee_growth_inside_1);
+
+    // Deallocate a tick if it gets uninitialized
+    // If tick is flipped and liquidity_delta is negative, it gets uninitialized
+    if liquidity_delta < 0 {
+        if flipped_lower {
+            tick_lower_state.clear();
+            return tick_lower_state.close(position_state.to_account_info());
+        }
+        if flipped_upper {
+            tick_upper_state.clear();
+            return tick_upper_state.close(position_state.to_account_info());
+        }
+    }
+    Ok(())
 }
 
 /// Update position with new liquidity, and find Δtoken0 and Δtoken1 required

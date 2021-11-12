@@ -3,7 +3,6 @@ use crate::libraries::tick_math::{MAX_TICK, MIN_TICK};
 /// A tick is valid if it is a multiple of tick_spacing
 /// Ref- https://github.com/Uniswap/v3-core/blob/main/contracts/libraries/Tick.sol
 use anchor_lang::prelude::*;
-use ux::i24;
 
 // addr: [token_0, token_1, fee, tick]
 #[account]
@@ -29,8 +28,8 @@ impl TickState {
     /// Formulae 6.17, 6.18, 6.19
     /// Refer to excalidraw explanation
     pub fn get_fee_growth_inside(
-        tick_upper: TickState,
-        tick_lower: TickState,
+        tick_upper: &Account<TickState>,
+        tick_lower: &Account<TickState>,
         tick_current: i32,
         fee_growth_global_0: f64,
         fee_growth_global_1: f64,
@@ -122,7 +121,8 @@ impl TickState {
         flipped
     }
 
-    // Delete this PDA's account data
+    // Clear stored data
+    // Delete account after clearing
     pub fn clear(&mut self) {
         self.bump = 0;
         self.token_0 = Pubkey::default();
@@ -148,10 +148,10 @@ impl TickState {
 
 // Higher the tick distance (less legal ticks), more is the max liquidity per tick
 // Divide u64::MAX by total count of ticks for given spacing
-pub fn tick_spacing_to_max_liquidity_per_tick(tick_spacing: i32) -> u64 {
-    let min_tick = MIN_TICK / tick_spacing * tick_spacing;
-    let max_tick = MAX_TICK / tick_spacing * tick_spacing;
+pub fn tick_spacing_to_max_liquidity_per_tick(tick_spacing: i32) -> u32 {
+    let min_tick = (MIN_TICK / tick_spacing) * tick_spacing;
+    let max_tick = (MAX_TICK / tick_spacing) * tick_spacing;
     let num_ticks = (max_tick - min_tick / tick_spacing) + 1;
-    let max_liquidity = u64::MAX;
-    max_liquidity / num_ticks as u64
+    let max_liquidity = u32::MAX;
+    max_liquidity / (num_ticks.abs() as u32)
 }

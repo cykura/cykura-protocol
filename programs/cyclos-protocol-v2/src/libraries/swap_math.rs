@@ -1,9 +1,9 @@
 // Helper library to find result of a swap within a single tick range
 
 use crate::libraries::sqrt_price_math::{
-    get_amount_0_delta_unsigned, 
-    get_amount_1_delta_unsigned, 
-    get_next_sqrt_price_from_input, 
+    get_amount_0_delta_unsigned,
+    get_amount_1_delta_unsigned,
+    get_next_sqrt_price_from_input,
     get_next_sqrt_price_from_output
 };
 
@@ -70,9 +70,9 @@ pub fn compute_swap_step(
             sqrt_price_target
         } else {
             get_next_sqrt_price_from_output(
-                sqrt_price_current, 
-                liquidity, 
-                amount_remaining.abs() as u64, 
+                sqrt_price_current,
+                liquidity,
+                amount_remaining.abs() as u64,
                 zero_for_one
             )
         }
@@ -120,13 +120,4 @@ pub fn compute_swap_step(
     };
 
     (sqrt_price_next, amount_in, amount_out, fee_amount)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn test_comupte_swap() {
-        todo!()
-    }
 }

@@ -30,7 +30,7 @@ pub fn get_tick_div_spacing(tick: i32, spacing: i32) -> i32 {
 /// 32 bits = 8 bits (discard) + 16 (key) + 8 (=256)
 ///
 /// | [sign][----8 bit waste---][---15 bit word_pos---][---8 bit for bit_pos---] |
-pub fn position(tick_div_spacing: i32) -> (i16, i8) {
+pub fn get_word_and_bit_pos(tick_div_spacing: i32) -> (i16, u8) {
     assert!(tick_div_spacing >= -429772 && tick_div_spacing <= 429772);
 
     // right shift: remove rightmost 8 bits
@@ -42,7 +42,7 @@ pub fn position(tick_div_spacing: i32) -> (i16, i8) {
     }
 
     // bit position is given by rightmost 8 bits
-    let bit_pos = (tick_div_spacing % 2 ^ 8) as i8;
+    let bit_pos = (tick_div_spacing.abs() % 2 ^ 8) as u8;
 
     (word_pos, bit_pos)
 }
