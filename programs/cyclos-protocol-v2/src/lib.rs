@@ -2,29 +2,26 @@ pub mod context;
 pub mod error;
 pub mod libraries;
 pub mod states;
-use crate::context::*;
-use crate::error::ErrorCode;
-use crate::libraries::tick_math::get_tick_at_sqrt_price;
-use crate::states::factory::OwnerChangedEvent;
-use crate::states::fee::FeeAmountEnabledEvent;
-use crate::states::pool::*;
-use crate::states::position::*;
-use crate::states::tick::*;
-use crate::states::tick_bitmap::get_word_and_bit_pos;
-use crate::states::tick_bitmap::TickBitmapState;
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::system_program;
 use anchor_lang::AccountsClose;
 use anchor_spl::{associated_token, token};
-use libraries::sqrt_price_math::get_amount_0_delta_signed;
-use libraries::sqrt_price_math::get_amount_1_delta_signed;
-use libraries::tick_math::get_sqrt_price_at_tick;
+use context::*;
+use error::ErrorCode;
+use libraries::sqrt_price_math::{get_amount_0_delta_signed, get_amount_1_delta_signed};
+use libraries::tick_math::{get_sqrt_price_at_tick, get_tick_at_sqrt_price};
+use states::factory::*;
+use states::fee::*;
+use states::pool::*;
+use states::position::*;
+use states::tick::*;
+use states::tick_bitmap::*;
 
 declare_id!("37kn8WUzihQoAnhYxueA2BnqCA7VRnrVvYoHy1hQ6Veu");
 
 #[program]
 pub mod cyclos_protocol_v2 {
-    use anchor_spl::associated_token::get_associated_token_address;
+    use crate::states::position;
 
     use super::*;
 
@@ -182,13 +179,63 @@ pub mod cyclos_protocol_v2 {
     /// Due tokens must be paid in uniswapV3MintCallback()
     /// TODO study periphery and see what data field does
     pub fn mint(
-        ctx: Context<Todo>,
+        ctx: Context<MintAccount>,
         tick_lower: i32,
         tick_upper: i32,
         amount: u32,
     ) -> ProgramResult {
-        // TODO convert tick_lower and tick_upper to i24
-        todo!()
+        if !ctx.accounts.pool_state.unlocked {
+            return Err(ErrorCode::Locked.into());
+        }
+        ctx.accounts.pool_state.unlocked = false;
+        // ________________________________________________
+        let position_state = &mut *ctx.accounts.position_state;
+        let pool_state = &mut *ctx.accounts.pool_state;
+
+        // u32 makes sure its gt 0
+
+        // let (amount_0, amount_1) = modify_position(
+        //     &mut ctx.accounts.position_state,
+        //     &mut ctx.accounts.pool_state,
+        //     // Need to recheck
+        //     &mut ctx.remaining_accounts.tick_lower_state,
+        //     &mut ctx.remaining_accounts.tick_upper_state,
+        //     tick_current,
+        //     &mut ctx.remaining_accounts.tick_lower_bitmap,
+        //     &mut ctx.remaining_accounts.tick_upper_bitmap,
+        //     amount,
+        // );
+        // TODO: Make modify_position work
+
+        let amount_0 = 0_u64;
+        let amount_1 = 0_u64;
+        let mut balance_0_before = 0_u64;
+        let mut balance_1_before = 0_u64;
+
+        // TODO: Weird Logic - Need to check
+        if amount_0 > 0 {
+            balance_0_before = 0;
+        }
+        if amount_1 > 0 {
+            balance_1_before = 0;
+        }
+        //TODO: Mint Callback
+        //TODO: require check ?
+
+
+        emit!(MintEvent {
+            pool_state: pool_state.key(),
+            mint_creator: ctx.accounts.mint_creator.key(),
+            position_state: position_state.key(),
+            tick_lower,
+            tick_upper,
+            amount,
+            amount_0,
+            amount_1,
+        });
+        // ______________________________________________
+        ctx.accounts.pool_state.unlocked = true;
+        Ok(())
     }
 
     /// Collect tokens owed to a position
@@ -197,18 +244,114 @@ pub mod cyclos_protocol_v2 {
     /// Look at burn()
     /// Read position details (tick_upper, tick_lower) from the Position PDA
     pub fn collect(
-        ctx: Context<Todo>,
+        ctx: Context<MintAccount>,
+        tick_lower: i32,
+        tick_upper: i32,
         amount_0_requested: u64,
         amount_1_requested: u64,
     ) -> ProgramResult {
-        todo!()
+        if !ctx.accounts.pool_state.unlocked {
+            return Err(ErrorCode::Locked.into());
+        }
+        ctx.accounts.pool_state.unlocked = false;
+        // ______________________________________________
+
+        let position_state = &mut *ctx.accounts.position_state;
+        let pool_state = &mut *ctx.accounts.pool_state;
+
+        let amount_0 = if amount_0_requested > position_state.tokens_owed_0 {
+            position_state.tokens_owed_0
+        } else {
+            amount_0_requested
+        };
+
+        let amount_1 = if amount_1_requested > position_state.tokens_owed_1 {
+            position_state.tokens_owed_1
+        } else {
+            amount_1_requested
+        };
+
+        if amount_0 > 0 {
+            position_state.tokens_owed_0 =
+                position_state.tokens_owed_0.checked_sub(amount_0).unwrap();
+            // TODO: Transfer
+        }
+        if amount_1 > 0 {
+            position_state.tokens_owed_1 =
+                position_state.tokens_owed_1.checked_sub(amount_1).unwrap();
+            //  TODO: Transfer
+        }
+
+        emit!(CollectEvent {
+            pool_state: pool_state.key(),
+            tick_lower,
+            tick_upper,
+            amount_0: amount_0 as i64,
+            amount_1: amount_1 as i64,
+        });
+
+        // ______________________________________________
+        ctx.accounts.pool_state.unlocked = true;
+        Ok(())
     }
 
     /// Reduce liquidity in a position by given amount
     /// 'Burned' tokens are tokens made inactive in a position,
     /// but are not yet withdrawn
-    pub fn burn(ctx: Context<Todo>, amount: u32) -> ProgramResult {
-        todo!()
+    pub fn burn(
+        ctx: Context<MintAccount>,
+        tick_lower: i32,
+        tick_upper: i32,
+        amount: i64,
+    ) -> ProgramResult {
+        if !ctx.accounts.pool_state.unlocked {
+            return Err(ErrorCode::Locked.into());
+        }
+        ctx.accounts.pool_state.unlocked = false;
+        // ______________________________________________
+
+        let position_state = &mut *ctx.accounts.position_state;
+        let pool_state = &mut *ctx.accounts.pool_state;
+
+        // let (amount_0, amount_1) = modify_position(
+        //     position_state,
+        //     pool_state,
+        //     // Need to recheck
+        //     &mut ctx.remaining_accounts.tick_lower_state,
+        //     &mut ctx.remaining_accounts.tick_upper_state,
+        //     0,
+        //     &mut ctx.remaining_accounts.tick_lower_bitmap,
+        //     &mut ctx.remaining_accounts.tick_upper_bitmap,
+        //     0,
+        // );
+        // TODO: Make modify_position work
+
+        let amount_0 = 0_i64;
+        let amount_1 = 0_i64;
+
+        if amount_0 > 0 || amount_1 > 0 {
+            position_state.tokens_owed_0 = position_state
+                .tokens_owed_0
+                .checked_add(amount_0.abs() as u64)
+                .unwrap();
+            position_state.tokens_owed_1 = position_state
+                .tokens_owed_1
+                .checked_add(amount_1.abs() as u64)
+                .unwrap();
+        }
+
+        emit!(BurnEvent {
+            pool_state: pool_state.key(),
+            tick_lower,
+            tick_upper,
+            amount,
+            amount_0: amount_0 as i64,
+            amount_1: amount_1 as i64,
+        });
+
+        // ______________________________________________
+        ctx.accounts.pool_state.unlocked = true;
+        Ok(())
     }
 
     // ---------------------------------------------------------------------
@@ -228,7 +371,7 @@ pub mod cyclos_protocol_v2 {
     /// Exact input swap if positive, else exact output swap
     /// @param sqrt_price_limit Limit price √P for slippage
     pub fn swap(
-        ctx: Context<Todo>,
+        ctx: Context<SetFeeProtocol>,
         zero_for_one: bool,
         amount_specified: i64,
         sqrt_price_limit: f64,
@@ -254,7 +397,7 @@ pub mod cyclos_protocol_v2 {
     ///
     /// @param amount_0 Amount of token 0 to donate
     /// @param amount_1 Amount of token 1 to donate
-    pub fn flash(ctx: Context<Todo>, amount_0: u64, amount_1: u64) -> ProgramResult {
+    pub fn flash(ctx: Context<SetFeeProtocol>, amount_0: u64, amount_1: u64) -> ProgramResult {
         todo!()
     }
 
@@ -360,7 +503,7 @@ pub mod cyclos_protocol_v2 {
                     signer_seeds,
                 ),
                 amount_0,
-            )?;
+            )?; //handle error. Possible for it to remain locked , make unlocked=true
         }
         if amount_1 > 0 {
             // Note- Uniswap leaves out 1 fee unit in state so
@@ -387,7 +530,7 @@ pub mod cyclos_protocol_v2 {
                     signer_seeds,
                 ),
                 amount_1,
-            )?;
+            )?; //handle error , make unlocked=true
         }
 
         emit!(CollectProtocolEvent {
@@ -395,13 +538,11 @@ pub mod cyclos_protocol_v2 {
             amount_0,
             amount_1,
         });
+
         ctx.accounts.pool_state.unlocked = true;
         Ok(())
     }
 }
-
-#[derive(Accounts)]
-pub struct Todo {}
 
 /// Update position with given liquidity_delta
 /// Skipped TWAP calculation for now.
@@ -497,7 +638,7 @@ pub fn modify_position<'info>(
     // These are only used in update position.
     // TODO: Need to check the states being passed for redundancy
     tick_lower_bitmap: &mut Account<'info, TickBitmapState>, // must contain tick
-    tick_upper_bitmap: &mut Account<'info, TickBitmapState>, 
+    tick_upper_bitmap: &mut Account<'info, TickBitmapState>,
     liquidity_delta: i32,
 ) -> (i64, i64) {
     // check ticks are in range
@@ -526,7 +667,7 @@ pub fn modify_position<'info>(
                 get_sqrt_price_at_tick(tick_upper_state.tick),
                 liquidity_delta,
             );
-        } 
+        }
         // current tick is within the range
         else if pool_state.tick < tick_upper_state.tick {
             // skipped oracle entry for now
@@ -545,13 +686,15 @@ pub fn modify_position<'info>(
             pool_state.liquidity = if liquidity_delta.is_positive() {
                 pool_state
                     .liquidity
-                    .checked_add(liquidity_delta.abs() as u32).unwrap()
+                    .checked_add(liquidity_delta.abs() as u32)
+                    .unwrap()
             } else {
                 pool_state
                     .liquidity
-                    .checked_sub(liquidity_delta.abs() as u32).unwrap()
+                    .checked_sub(liquidity_delta.abs() as u32)
+                    .unwrap()
             };
-        } 
+        }
         // current tick is above the range
         else {
             amount_1 = get_amount_1_delta_signed(

@@ -1,5 +1,5 @@
 use anchor_lang::prelude::*;
-use anchor_spl::associated_token::{AssociatedToken, get_associated_token_address};
+use anchor_spl::associated_token::{get_associated_token_address, AssociatedToken};
 use anchor_spl::token::{Mint, Token, TokenAccount};
 use std::mem::size_of;
 
@@ -50,13 +50,12 @@ pub struct EnableFeeAmount<'info> {
 }
 
 #[derive(Accounts)]
-#[instruction(fee: u32, token0: Pubkey, token1: Pubkey, tick_lower:u128, tick_upper:u128, bump: u8)]
+#[instruction(fee: u32, token_0: Pubkey, token_1: Pubkey, tick_lower:u128, tick_upper:u128, bump: u8)]
 pub struct CreatePosition<'info> {
     pub owner: Signer<'info>,
-
     #[account(
-        init,
-        seeds = [token0.as_ref(), token1.as_ref(), &fee.to_be_bytes(), &tick_lower.to_be_bytes(), &tick_upper.to_be_bytes()],
+        init, // should be mut ?
+        seeds = [token_0.as_ref(), token_1.as_ref(), &fee.to_be_bytes(), &tick_lower.to_be_bytes(), &tick_upper.to_be_bytes()],
         bump = bump,
         payer = owner,
         space = size_of::<FeeState>() + 10
@@ -115,6 +114,27 @@ pub struct CreatePool<'info> {
     pub system_program: Program<'info, System>,
     pub token_program: Program<'info, Token>,
     pub associated_token_program: Program<'info, AssociatedToken>,
+}
+
+#[derive(Accounts)]
+#[instruction(fee: u32, token_0: Pubkey, token_1: Pubkey, bump: u8 , tick_lower:u128, tick_upper:u128,)]
+pub struct MintAccount<'info> {
+    pub mint_creator: Signer<'info>,
+
+    #[account(
+        mut,
+        seeds = [token_0.as_ref(), token_1.as_ref(), &fee.to_be_bytes(), &tick_lower.to_be_bytes(), &tick_upper.to_be_bytes()],
+        bump = position_state.bump,
+    )]
+    pub position_state: Box<Account<'info, PositionState>>,
+
+    #[account(
+        mut,
+        seeds = [token_0.key().as_ref(), token_1.key().as_ref(), &fee.to_be_bytes()],
+        bump = pool_state.bump,
+    )]
+    pub pool_state: Box<Account<'info, PoolState>>,
+    
 }
 
 #[derive(Accounts)]
