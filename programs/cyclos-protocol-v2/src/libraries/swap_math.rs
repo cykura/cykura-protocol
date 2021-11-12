@@ -32,21 +32,22 @@ pub fn compute_swap_step(
     let zero_for_one = sqrt_price_current >= sqrt_price_target;
     let exact_in = amount_remaining >= 0;
 
-    let (mut sqrt_price_next, mut amount_in, mut amount_out, mut fee_amount) =
-        (0.0, 0 as u64, 0 as u64, 0 as u64);
+    let sqrt_price_next: f64;
+    let fee_amount: u64;
+    let (mut amount_in, mut amount_out) = (0 as u64, 0 as u64);
 
     if exact_in {
         // amount_remaining is positive
         let amount_remaining_less_fee =
             (amount_remaining as f64 * (1E6 - (fee_pips as f64)) / 1E6) as u64;
 
-        let amount_in = if zero_for_one {
+        amount_in = if zero_for_one {
             get_amount_0_delta_unsigned(sqrt_price_target, sqrt_price_current, liquidity, true)
         } else {
             get_amount_1_delta_unsigned(sqrt_price_target, sqrt_price_current, liquidity, true)
         };
 
-        let sqrt_price_next = if amount_remaining_less_fee >= amount_in {
+        sqrt_price_next = if amount_remaining_less_fee >= amount_in {
             // max price is hit
             sqrt_price_target
         } else {
@@ -60,7 +61,7 @@ pub fn compute_swap_step(
         };
     } else {
         // exact out case, amount_remaining is negative
-        let amount_out = if zero_for_one {
+        amount_out = if zero_for_one {
             get_amount_1_delta_unsigned(sqrt_price_target, sqrt_price_current, liquidity, false)
         } else {
             get_amount_0_delta_unsigned(sqrt_price_current, sqrt_price_target, liquidity, false)
@@ -82,23 +83,23 @@ pub fn compute_swap_step(
     let max: bool =  sqrt_price_target == sqrt_price_next;
 
     if zero_for_one {
-        let amount_in = if max && exact_in {
+        amount_in = if max && exact_in {
             amount_in
         } else {
             get_amount_0_delta_unsigned(sqrt_price_next, sqrt_price_current, liquidity, true)
         };
-        let amount_out = if max && !exact_in {
+        amount_out = if max && !exact_in {
             amount_out
         } else {
             get_amount_1_delta_unsigned(sqrt_price_next, sqrt_price_current, liquidity, false)
         };
     } else {
-        let amount_in = if max && exact_in {
+        amount_in = if max && exact_in {
             amount_in
         } else {
             get_amount_1_delta_unsigned(sqrt_price_current, sqrt_price_next, liquidity, true)
         };
-        let amount_out = if max && !exact_in {
+        amount_out = if max && !exact_in {
             amount_out
         } else {
             get_amount_0_delta_unsigned(sqrt_price_current, sqrt_price_next, liquidity, false)
