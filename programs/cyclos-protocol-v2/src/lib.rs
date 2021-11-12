@@ -4,18 +4,21 @@ pub mod libraries;
 pub mod states;
 use crate::context::*;
 use crate::error::ErrorCode;
+use crate::libraries::tick_math::get_tick_at_sqrt_price;
 use crate::states::factory::OwnerChangedEvent;
 use crate::states::fee::FeeAmountEnabledEvent;
 use crate::states::pool::*;
 use crate::states::position::*;
 use crate::states::tick::*;
-use crate::states::tick_bitmap::TickBitmapState;
 use crate::states::tick_bitmap::get_word_and_bit_pos;
-use anchor_lang::AccountsClose;
+use crate::states::tick_bitmap::TickBitmapState;
 use anchor_lang::prelude::*;
-use crate::libraries::tick_math::get_tick_at_sqrt_price;
 use anchor_lang::solana_program::system_program;
+use anchor_lang::AccountsClose;
 use anchor_spl::{associated_token, token};
+use libraries::sqrt_price_math::get_amount_0_delta_signed;
+use libraries::sqrt_price_math::get_amount_1_delta_signed;
+use libraries::tick_math::get_sqrt_price_at_tick;
 
 declare_id!("37kn8WUzihQoAnhYxueA2BnqCA7VRnrVvYoHy1hQ6Veu");
 
@@ -414,15 +417,13 @@ pub fn update_position<'info>(
     tick_upper_bitmap: &mut Account<'info, TickBitmapState>,
     liquidity_delta: i32,
 ) -> ProgramResult {
-
     let mut flipped_lower = false;
     let mut flipped_upper = false;
 
     // update the ticks if liquidity present
     if liquidity_delta != 0 {
-        let max_liquidity_per_tick = tick_spacing_to_max_liquidity_per_tick(
-            pool_state.tick_spacing as i32
-        );
+        let max_liquidity_per_tick =
+            tick_spacing_to_max_liquidity_per_tick(pool_state.tick_spacing as i32);
         // Skip TWAP things for now.
 
         // Update tick state and find if tick is flipped
@@ -432,7 +433,7 @@ pub fn update_position<'info>(
             pool_state.fee_growth_global_0,
             pool_state.fee_growth_global_1,
             false,
-            max_liquidity_per_tick
+            max_liquidity_per_tick,
         );
 
         flipped_upper = tick_upper_state.update(
@@ -441,20 +442,17 @@ pub fn update_position<'info>(
             pool_state.fee_growth_global_0,
             pool_state.fee_growth_global_1,
             true,
-            max_liquidity_per_tick
+            max_liquidity_per_tick,
         );
 
-
         if flipped_lower {
-            let (_, bit_pos) = get_word_and_bit_pos(
-                tick_lower_state.tick / (pool_state.tick_spacing as i32)
-            );
+            let (_, bit_pos) =
+                get_word_and_bit_pos(tick_lower_state.tick / (pool_state.tick_spacing as i32));
             tick_lower_bitmap.flip_tick(bit_pos);
         }
         if flipped_upper {
-            let (_, bit_pos) = get_word_and_bit_pos(
-                tick_upper_state.tick / (pool_state.tick_spacing as i32)
-            );
+            let (_, bit_pos) =
+                get_word_and_bit_pos(tick_upper_state.tick / (pool_state.tick_spacing as i32));
             tick_upper_bitmap.flip_tick(bit_pos);
         }
     }
@@ -490,10 +488,79 @@ pub fn update_position<'info>(
 /// mint() -> modify_position() -> update_position() -> update()
 ///
 /// TODO check what noDelegateCall does
-pub fn modify_position(
-    position: PositionState,
-    pool: PoolState,
-    liquidity_delta: u32,
+pub fn modify_position<'info>(
+    position_state: &mut Account<'info, PositionState>,
+    pool_state: &mut Account<'info, PoolState>,
+    tick_lower_state: &mut Account<'info, TickState>,
+    tick_upper_state: &mut Account<'info, TickState>,
+    tick_current: i32, // TODO can be read from pool_state directly?
+    // These are only used in update position.
+    // TODO: Need to check the states being passed for redundancy
+    tick_lower_bitmap: &mut Account<'info, TickBitmapState>, // must contain tick
+    tick_upper_bitmap: &mut Account<'info, TickBitmapState>, 
+    liquidity_delta: i32,
 ) -> (i64, i64) {
-    todo!()
+    // check ticks are in range
+    PoolState::check_ticks(position_state.tick_lower, position_state.tick_upper);
+
+    let _position = update_position(
+        position_state,
+        pool_state,
+        tick_lower_state,
+        tick_upper_state,
+        tick_current,
+        tick_lower_bitmap,
+        tick_upper_bitmap,
+        liquidity_delta,
+    )
+    .unwrap();
+
+    let mut amount_0 = 0_i64;
+    let mut amount_1 = 0_i64;
+
+    if liquidity_delta != 0 {
+        // current tick is below the range
+        if pool_state.tick < tick_lower_state.tick {
+            amount_0 = get_amount_0_delta_signed(
+                get_sqrt_price_at_tick(tick_lower_state.tick),
+                get_sqrt_price_at_tick(tick_upper_state.tick),
+                liquidity_delta,
+            );
+        } 
+        // current tick is within the range
+        else if pool_state.tick < tick_upper_state.tick {
+            // skipped oracle entry for now
+
+            amount_0 = get_amount_0_delta_signed(
+                pool_state.sqrt_price,
+                get_sqrt_price_at_tick(tick_upper_state.tick),
+                liquidity_delta,
+            );
+            amount_1 = get_amount_1_delta_signed(
+                get_sqrt_price_at_tick(tick_lower_state.tick),
+                pool_state.sqrt_price,
+                liquidity_delta,
+            );
+
+            pool_state.liquidity = if liquidity_delta.is_positive() {
+                pool_state
+                    .liquidity
+                    .checked_add(liquidity_delta.abs() as u32).unwrap()
+            } else {
+                pool_state
+                    .liquidity
+                    .checked_sub(liquidity_delta.abs() as u32).unwrap()
+            };
+        } 
+        // current tick is above the range
+        else {
+            amount_1 = get_amount_1_delta_signed(
+                get_sqrt_price_at_tick(tick_lower_state.tick),
+                get_sqrt_price_at_tick(tick_upper_state.tick),
+                liquidity_delta,
+            );
+        }
+    }
+
+    (amount_0, amount_1)
 }
