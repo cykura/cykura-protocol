@@ -21,6 +21,8 @@ declare_id!("37kn8WUzihQoAnhYxueA2BnqCA7VRnrVvYoHy1hQ6Veu");
 
 #[program]
 pub mod cyclos_protocol_v2 {
+    use anchor_spl::associated_token::get_associated_token_address;
+
     use super::*;
 
     // ---------------------------------------------------------------------
@@ -122,8 +124,9 @@ pub mod cyclos_protocol_v2 {
         ctx.accounts.pool_state.unlocked = true;
         // protocol fee initially set as 0
 
-        // create associated token accounts for pool, which act as pool vaults
-        if !(*ctx.accounts.vault_0).to_account_info().executable {
+        // create pool vaults if not created before
+        // These are ATAs for the pool token pair, with pool_state PDA as authority
+        if !ctx.accounts.vault_0.executable {
             let create_vault_0_ctx = CpiContext::new(
                 ctx.accounts.associated_token_program.to_account_info(),
                 associated_token::Create {
@@ -138,7 +141,7 @@ pub mod cyclos_protocol_v2 {
             );
             associated_token::create(create_vault_0_ctx)?;
         }
-        if !(*ctx.accounts.vault_1).to_account_info().executable {
+        if !ctx.accounts.vault_1.executable {
             let create_vault_1_ctx = CpiContext::new(
                 ctx.accounts.associated_token_program.to_account_info(),
                 associated_token::Create {

@@ -1,5 +1,5 @@
 use anchor_lang::prelude::*;
-use anchor_spl::associated_token::AssociatedToken;
+use anchor_spl::associated_token::{AssociatedToken, get_associated_token_address};
 use anchor_spl::token::{Mint, Token, TokenAccount};
 use std::mem::size_of;
 
@@ -92,21 +92,24 @@ pub struct CreatePool<'info> {
     )]
     pub fee_state: Box<Account<'info, FeeState>>,
 
-    // Create associated token accounts for pool_state
+    // Create associated token accounts for pool_state, if not already created
     #[account(
-        init,
-        payer = pool_creator,
-        associated_token::mint = token_0,
-        associated_token::authority = pool_state,
+        mut,
+        address = get_associated_token_address(
+            &pool_state.key(),
+            &token_0.key()
+        ) @ErrorCode::NotAssociatedTokenAccount
     )]
-    pub vault_0: Box<Account<'info, TokenAccount>>,
+    pub vault_0: AccountInfo<'info>,
+
     #[account(
-        init,
-        payer = pool_creator,
-        associated_token::mint = token_1,
-        associated_token::authority = pool_state,
+        mut,
+        address = get_associated_token_address(
+            &pool_state.key(),
+            &token_1.key()
+        ) @ErrorCode::NotAssociatedTokenAccount
     )]
-    pub vault_1: Box<Account<'info, TokenAccount>>,
+    pub vault_1: AccountInfo<'info>,
 
     pub rent: Sysvar<'info, Rent>,
     pub system_program: Program<'info, System>,
@@ -132,7 +135,7 @@ pub struct SetOwner<'info> {
 #[derive(Accounts)]
 pub struct SetFeeProtocol<'info> {
     pub owner: Signer<'info>,
-    
+
     #[account(
         mut,
         seeds = [

@@ -10,4 +10,6 @@ pub enum ErrorCode {
     NotAnOwner,
     #[msg("Pool is Locked")]
     Locked,
+    #[msg("Invalid associated token account")]
+    NotAssociatedTokenAccount,
 }
