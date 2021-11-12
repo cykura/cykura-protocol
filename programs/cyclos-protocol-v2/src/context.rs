@@ -71,7 +71,7 @@ pub struct CreatePool<'info> {
     pub pool_creator: Signer<'info>,
 
     #[account(
-        constraint = token_0.key() == token_1.key(),
+        constraint = token_0.key() != token_1.key(),
         constraint = token_0.key() < token_1.key()
     )]
     pub token_0: Box<Account<'info, Mint>>,
