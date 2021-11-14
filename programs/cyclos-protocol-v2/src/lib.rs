@@ -16,12 +16,15 @@ use states::pool::*;
 use states::position::*;
 use states::tick::*;
 use states::tick_bitmap::*;
+use std::mem::size_of;
 
 declare_id!("37kn8WUzihQoAnhYxueA2BnqCA7VRnrVvYoHy1hQ6Veu");
 
 #[program]
 pub mod cyclos_protocol_v2 {
-    use crate::states::position;
+    use std::convert::TryInto;
+
+    use anchor_lang::solana_program::{self, instruction::Instruction};
 
     use super::*;
 
@@ -172,67 +175,116 @@ pub mod cyclos_protocol_v2 {
     // ---------------------------------------------------------------------
     // 3. Position instructions
 
-    /// Add liquidity for the given position
-    /// Only callable by a smart contract which implements mintCallback()
-    /// Periphery.LiquidityManagement.addLiquidity() -> Core.mint()
-    ///     -> Periphery.LiquidityManagement.uniswapV3MintCallback()
+    /// Create a new position or add liquidity to an existing one
+    ///
+    /// Caller must be a smart contract implementing mintCallback(), where due
+    /// tokens are paid
+    /// mint() / increaseLiquidity() -> Periphery.LiquidityManagement.addLiquidity()
+    /// -> Core.mint() -> Periphery.LiquidityManagement.uniswapV3MintCallback()
     /// Due tokens must be paid in uniswapV3MintCallback()
-    /// TODO study periphery and see what data field does
+    ///
+    /// Uniswap has a data field which is passed to uniswapV3MintCallback().
+    /// This contains pool key(t0, t1, fee) and msg.sender. It is required by the
+    /// perephery NFT position manager. 3rd parties may need more params for flexibility
+    /// We can implement this through a data: &[u8] field and remaining_accounts in context
     pub fn mint(
         ctx: Context<MintAccount>,
-        tick_lower: i32,
-        tick_upper: i32,
-        amount: u32,
+        amount: u32, // Δliquidity
+        data: [u8; 32]
     ) -> ProgramResult {
         if !ctx.accounts.pool_state.unlocked {
             return Err(ErrorCode::Locked.into());
         }
         ctx.accounts.pool_state.unlocked = false;
+
         // ________________________________________________
-        let position_state = &mut *ctx.accounts.position_state;
-        let pool_state = &mut *ctx.accounts.pool_state;
+        require!(amount > 0, ErrorCode::ZeroMintAmount);
 
-        // u32 makes sure its gt 0
+        // Position, tick and tick_bitmap states may be initialized
 
-        // let (amount_0, amount_1) = modify_position(
-        //     &mut ctx.accounts.position_state,
-        //     &mut ctx.accounts.pool_state,
-        //     // Need to recheck
-        //     &mut ctx.remaining_accounts.tick_lower_state,
-        //     &mut ctx.remaining_accounts.tick_upper_state,
-        //     tick_current,
-        //     &mut ctx.remaining_accounts.tick_lower_bitmap,
-        //     &mut ctx.remaining_accounts.tick_upper_bitmap,
-        //     amount,
-        // );
-        // TODO: Make modify_position work
+        // TODO if position_state was initialized, set values
+        // let pos_is_init = ctx.accounts.position_state.to_account_info().data.into_inner().len() == 8;
 
-        let amount_0 = 0_u64;
-        let amount_1 = 0_u64;
+
+        // Minter must transfer these amounts to smart contract
+        // amount_0 and amount_1 will be positive since Δliquidity is positive
+        let (amount_0, amount_1) = modify_position(
+            &mut ctx.accounts.position_state,
+            &mut ctx.accounts.pool_state,
+            &mut ctx.accounts.tick_lower_state,
+            &mut ctx.accounts.tick_upper_state,
+            &mut ctx.accounts.tick_lower_bitmap,
+            &mut ctx.accounts.tick_upper_bitmap,
+            amount.try_into().unwrap(),
+        );
+
         let mut balance_0_before = 0_u64;
         let mut balance_1_before = 0_u64;
 
-        // TODO: Weird Logic - Need to check
+        // Gas optimization: skip comparison if amount was not added
         if amount_0 > 0 {
-            balance_0_before = 0;
+            balance_0_before = ctx.accounts.vault_0.amount;
         }
         if amount_1 > 0 {
-            balance_1_before = 0;
+            balance_1_before = ctx.accounts.vault_1.amount;
         }
-        //TODO: Mint Callback
-        //TODO: require check ?
 
+        // Callback to make minter pay
+        // TODO study encoding format and security
+        // Uniswap sends amount_0, amount_1, data(address interacting with NFT position manager
+        // and pool key(token_0, token_1, fee))
+        // We pass borsh serialized message (amount_0_owed, amount_1_owed, arbitrary data) and entire context
+        // Arbitrary data not needed for Cyclos, but retained for composability
+
+        let ix = Instruction::new_with_bytes(
+            ctx.accounts.minter.key(),
+            &data,
+            ctx.accounts.to_account_metas(Some(true))
+        );
+
+        let seeds = &[
+            &ctx.accounts.pool_state.token_0.to_bytes() as &[u8],
+            &ctx.accounts.pool_state.token_1.to_bytes() as &[u8],
+            &ctx.accounts.pool_state.fee.to_be_bytes() as &[u8],
+        ];
+        let signer_seeds = &[&seeds[..]];
+
+
+        // let cpi_ctx = CpiContext::from(&*ctx.accounts).with_signer(signer);
+        // non_fungible_position_manager::cpi::mint_callback(cpi_ctx, data)
+
+        // Sign with pool
+        solana_program::program::invoke_signed(
+            &ix,
+            &ctx.accounts.to_account_infos(),
+            signer_seeds
+        )?;
+
+        // Ensure payment is made. Skip checks if amount was not added
+        if amount_0 > 0 {
+            require!(
+                balance_0_before + (amount_0 as u64) <= ctx.accounts.vault_0.amount,
+                ErrorCode::M0
+            );
+        }
+        if amount_1 > 0 {
+            require!(
+                balance_1_before + (amount_1 as u64) <= ctx.accounts.vault_1.amount,
+                ErrorCode::M1
+            );
+        }
 
         emit!(MintEvent {
-            pool_state: pool_state.key(),
-            mint_creator: ctx.accounts.mint_creator.key(),
-            position_state: position_state.key(),
-            tick_lower,
-            tick_upper,
+            pool_state: ctx.accounts.pool_state.key(),
+            mint_creator: ctx.accounts.minter.key(),
+            position_state: ctx.accounts.position_state.key(),
+            tick_lower: ctx.accounts.tick_lower_state.tick,
+            tick_upper: ctx.accounts.tick_upper_state.tick,
             amount,
             amount_0,
             amount_1,
         });
+
         // ______________________________________________
         ctx.accounts.pool_state.unlocked = true;
         Ok(())
@@ -553,7 +605,6 @@ pub fn update_position<'info>(
     pool_state: &Account<'info, PoolState>,
     tick_lower_state: &mut Account<'info, TickState>,
     tick_upper_state: &mut Account<'info, TickState>,
-    tick_current: i32, // TODO can be read from pool_state directly?
     tick_lower_bitmap: &mut Account<'info, TickBitmapState>, // must contain tick
     tick_upper_bitmap: &mut Account<'info, TickBitmapState>,
     liquidity_delta: i32,
@@ -569,7 +620,7 @@ pub fn update_position<'info>(
 
         // Update tick state and find if tick is flipped
         flipped_lower = tick_lower_state.update(
-            tick_current,
+            pool_state.tick,
             liquidity_delta,
             pool_state.fee_growth_global_0,
             pool_state.fee_growth_global_1,
@@ -578,7 +629,7 @@ pub fn update_position<'info>(
         );
 
         flipped_upper = tick_upper_state.update(
-            tick_current,
+            pool_state.tick,
             liquidity_delta,
             pool_state.fee_growth_global_0,
             pool_state.fee_growth_global_1,
@@ -603,7 +654,7 @@ pub fn update_position<'info>(
     let (fee_growth_inside_0, fee_growth_inside_1) = TickState::get_fee_growth_inside(
         tick_upper_state,
         tick_lower_state,
-        tick_current,
+        pool_state.tick,
         pool_state.fee_growth_global_0,
         pool_state.fee_growth_global_1,
     );
@@ -627,14 +678,15 @@ pub fn update_position<'info>(
 /// Update position with new liquidity, and find Δtoken0 and Δtoken1 required
 /// to produce this liquidity_delta
 /// mint() -> modify_position() -> update_position() -> update()
+/// Poking: Δliquidity = 0 to update fee status of a position
 ///
+/// Return Δtoken0 and Δtoken1 required to produce the given change in liquidity
 /// TODO check what noDelegateCall does
 pub fn modify_position<'info>(
     position_state: &mut Account<'info, PositionState>,
     pool_state: &mut Account<'info, PoolState>,
     tick_lower_state: &mut Account<'info, TickState>,
     tick_upper_state: &mut Account<'info, TickState>,
-    tick_current: i32, // TODO can be read from pool_state directly?
     // These are only used in update position.
     // TODO: Need to check the states being passed for redundancy
     tick_lower_bitmap: &mut Account<'info, TickBitmapState>, // must contain tick
@@ -649,12 +701,10 @@ pub fn modify_position<'info>(
         pool_state,
         tick_lower_state,
         tick_upper_state,
-        tick_current,
         tick_lower_bitmap,
         tick_upper_bitmap,
         liquidity_delta,
-    )
-    .unwrap();
+    ).unwrap();
 
     let mut amount_0 = 0_i64;
     let mut amount_1 = 0_i64;
@@ -667,11 +717,13 @@ pub fn modify_position<'info>(
                 get_sqrt_price_at_tick(tick_upper_state.tick),
                 liquidity_delta,
             );
+            // Δtoken_1 will be 0 if current tick is below range
         }
         // current tick is within the range
         else if pool_state.tick < tick_upper_state.tick {
             // skipped oracle entry for now
 
+            // Both Δtoken_0 and Δtoken_1 will be needed in current price
             amount_0 = get_amount_0_delta_signed(
                 pool_state.sqrt_price,
                 get_sqrt_price_at_tick(tick_upper_state.tick),
@@ -683,6 +735,7 @@ pub fn modify_position<'info>(
                 liquidity_delta,
             );
 
+            // Add or subtract Δliquidity to pool state
             pool_state.liquidity = if liquidity_delta.is_positive() {
                 pool_state
                     .liquidity
@@ -702,6 +755,7 @@ pub fn modify_position<'info>(
                 get_sqrt_price_at_tick(tick_upper_state.tick),
                 liquidity_delta,
             );
+            // Δtoken_0 will be 0 if current tick is below range
         }
     }
 

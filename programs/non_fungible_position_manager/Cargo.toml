@@ -1,0 +1,20 @@
+[package]
+name = "non_fungible_position_manager"
+version = "0.1.0"
+description = "Created with Anchor"
+edition = "2018"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "non_fungible_position_manager"
+
+[features]
+no-entrypoint = []
+no-idl = []
+cpi = ["no-entrypoint"]
+default = []
+
+[dependencies]
+anchor-lang = "0.18.2"
+anchor-spl = "0.18.2"
+# cyclos-protocol-v2 = { path = "../cyclos-protocol-v2", features = ["cpi"] }

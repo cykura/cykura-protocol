@@ -6,6 +6,7 @@ use anchor_lang::prelude::*;
 
 // addr: [token_0, token_1, fee, tick]
 #[account]
+#[derive(Default)]
 pub struct TickState {
     pub bump: u8,
     pub token_0: Pubkey,

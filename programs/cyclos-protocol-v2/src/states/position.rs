@@ -2,10 +2,10 @@ use std::ops::Sub;
 
 /// Store owed liquidity, fee growth per unit liquidity fees per position
 use anchor_lang::prelude::*;
-use super::tick::TickState;
 
 /// addr: [token_0, token_1, fee, owner, tick_lower, tick_upper]
 #[account]
+#[derive(Default)]
 pub struct PositionState {
     pub bump: u8,
     pub token_0: Pubkey,

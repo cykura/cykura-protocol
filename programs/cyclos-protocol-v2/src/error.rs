@@ -12,4 +12,12 @@ pub enum ErrorCode {
     Locked,
     #[msg("Invalid associated token account")]
     NotAssociatedTokenAccount,
+    #[msg("Minting amount should be greater than 0")]
+    ZeroMintAmount,
+
+    // Balance in pool before minting should be less than or equal to balance before minting
+    #[msg("M0")]
+    M0,
+    #[msg("M1")]
+    M1
 }
