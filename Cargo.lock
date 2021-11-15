@@ -431,7 +431,6 @@ dependencies = [
  "anchor-lang",
  "anchor-spl",
  "bitmaps",
- "non_fungible_position_manager",
  "ux",
 ]
 
@@ -691,6 +690,7 @@ version = "0.1.0"
 dependencies = [
  "anchor-lang",
  "anchor-spl",
+ "cyclos-protocol-v2",
 ]
 
 [[package]]

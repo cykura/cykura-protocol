@@ -17,4 +17,4 @@ default = []
 [dependencies]
 anchor-lang = "0.18.2"
 anchor-spl = "0.18.2"
-# cyclos-protocol-v2 = { path = "../cyclos-protocol-v2", features = ["cpi"] }
+cyclos-protocol-v2 = { path = "../cyclos-protocol-v2", features = ["cpi"] }

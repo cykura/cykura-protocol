@@ -11,7 +11,7 @@ use crate::states::position::PositionState;
 use crate::states::tick::TickState;
 use crate::states::tick_bitmap::TickBitmapState;
 
-use non_fungible_position_manager::program::NonFungiblePositionManager;
+// use non_fungible_position_manager::program::NonFungiblePositionManager;
 
 #[derive(Accounts)]
 #[instruction(bump: u8)]
@@ -201,7 +201,7 @@ pub struct MintAccount<'info> {
 
     pub token_program: Program<'info, Token>,
 
-    pub callback_handler: Program<'info, NonFungiblePositionManager>,
+    // pub callback_handler: Program<'info, NonFungiblePositionManager>,
     pub system_program: Program<'info, System>,
 }
 
