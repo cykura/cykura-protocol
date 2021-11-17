@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 use anchor_spl::{associated_token::AssociatedToken, token::{self, Mint, Token, TokenAccount}};
-use cyclos_protocol_v2::states::pool::PoolState;
+use cyclos_core::states::pool::PoolState;
 use crate::states::*;
 
 #[derive(Accounts)]

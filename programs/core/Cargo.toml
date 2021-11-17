@@ -1,12 +1,12 @@
 [package]
-name = "cyclos-protocol-v2"
+name = "cyclos-core"
 version = "0.1.0"
-description = "Created with Anchor"
+description = "Core program for pool management"
 edition = "2018"
 
 [lib]
 crate-type = ["cdylib", "lib"]
-name = "cyclos_protocol_v2"
+name = "cyclos_core"
 doctest = false
 
 [features]

@@ -3,14 +3,12 @@ pub mod context;
 pub mod error;
 pub mod states;
 use crate::context::*;
-// use cyclos_protocol_v2;
-use cyclos_protocol_v2::libraries::tick_math;
-use cyclos_protocol_v2::states::pool::PoolState;
-
+use cyclos_core::libraries::tick_math;
+use cyclos_core::states::pool::PoolState;
 
 use anchor_lang::prelude::*;
 use error::ErrorCode;
-use anchor_spl::token::{self, SetAuthority, Token, TokenAccount, Transfer};
+use anchor_spl::token;
 use libraries::liquidity_amounts::get_liquidity_for_amounts;
 
 declare_id!("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS");
@@ -176,10 +174,7 @@ pub mod non_fungible_position_manager {
 
         todo!()
     }
-
-
 }
-
 
 /// Internal function to add tokens to an initialized pool. Makes a CPI to
 /// core.mint(). Returns a 3-tuple of liquidity, token_0 and token_1 consumed

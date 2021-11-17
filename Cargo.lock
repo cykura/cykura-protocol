@@ -425,7 +425,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "cyclos-protocol-v2"
+name = "cyclos-core"
 version = "0.1.0"
 dependencies = [
  "anchor-lang",
@@ -685,12 +685,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "non_fungible_position_manager"
+name = "non-fungible-position-manager"
 version = "0.1.0"
 dependencies = [
  "anchor-lang",
  "anchor-spl",
- "cyclos-protocol-v2",
+ "cyclos-core",
 ]
 
 [[package]]
@@ -1078,6 +1078,13 @@ name = "subtle"
 version = "2.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6bdef32e8150c2a081110b42772ffe7d7c9032b606bc226c8260fd97e0976601"
+
+[[package]]
+name = "swap-router"
+version = "0.1.0"
+dependencies = [
+ "anchor-lang",
+]
 
 [[package]]
 name = "syn"

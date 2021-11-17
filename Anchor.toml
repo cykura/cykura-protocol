@@ -1,5 +1,5 @@
 [programs.localnet]
-cyclos_protocol_v2 = "37kn8WUzihQoAnhYxueA2BnqCA7VRnrVvYoHy1hQ6Veu"
+cyclos_core = "37kn8WUzihQoAnhYxueA2BnqCA7VRnrVvYoHy1hQ6Veu"
 
 [registry]
 url = "https://anchor.projectserum.com"

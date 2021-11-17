@@ -21,7 +21,7 @@ use std::mem::size_of;
 declare_id!("37kn8WUzihQoAnhYxueA2BnqCA7VRnrVvYoHy1hQ6Veu");
 
 #[program]
-pub mod cyclos_protocol_v2 {
+pub mod cyclos_core {
     use std::convert::TryInto;
 
     use anchor_lang::solana_program::{self, instruction::Instruction};

@@ -1,14 +1,14 @@
 import * as anchor from '@project-serum/anchor';
 import { Program, web3, BN } from '@project-serum/anchor';
-import { CyclosProtocolV2 } from '../target/types/cyclos_protocol_v2';
-const { PublicKey,  } = anchor.web3;
+import { CyclosCore } from '../target/types/cyclos_core';
+const { PublicKey } = anchor.web3;
 
-describe('cyclos-protocol-v2', () => {
+describe('cyclos-core', () => {
 
   // Configure the client to use the local cluster.
   anchor.setProvider(anchor.Provider.env());
 
-  const program = anchor.workspace.CyclosProtocolV2 as Program<CyclosProtocolV2>;
+  const program = anchor.workspace.CyclosCore as Program<CyclosCore>;
 
   let factoryState: web3.PublicKey
   let factoryStateBump: number
