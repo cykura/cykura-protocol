@@ -292,11 +292,16 @@ pub mod cyclos_protocol_v2 {
 
     /// Collect tokens owed to a position
     /// Owed = fees + burned tokens
-    /// 'Burned' tokens are tokens made inactive in a position, but are yet to be withdrawn
-    /// Look at burn()
-    /// Read position details (tick_upper, tick_lower) from the Position PDA
+    ///
+    /// Does not recompute fees earned, which must be done either via mint or
+    /// burn of any amount of liquidity.
+    /// To withdraw a single asset, the amount for the other asset can be set as 0.
+    /// To withdraw all tokens owed, a value larger than owed amount can be passed,
+    /// e.g. u64::MAX
+    ///
     pub fn collect(
         ctx: Context<MintAccount>,
+        // TODO Read position details (tick_upper, tick_lower) from the Position PDA
         tick_lower: i32,
         tick_upper: i32,
         amount_0_requested: u64,
@@ -347,14 +352,20 @@ pub mod cyclos_protocol_v2 {
         Ok(())
     }
 
-    /// Reduce liquidity in a position by given amount
-    /// 'Burned' tokens are tokens made inactive in a position,
-    /// but are not yet withdrawn
+    /// Burn liquidity for the sender and credit to tokens owed for the liquidity to the position
+    /// Poke- Trigger recalculation of fees by calling with amount = 0
+    /// Fees must be collected separately via a call to collect()
+    ///
+    /// # Arguments
+    ///
+    /// * `amount` - Amount of liquidity to be burned
+    ///
     pub fn burn(
         ctx: Context<MintAccount>,
+        // TODO read tick range from position account
         tick_lower: i32,
         tick_upper: i32,
-        amount: i64,
+        amount: u32,
     ) -> ProgramResult {
         if !ctx.accounts.pool_state.unlocked {
             return Err(ErrorCode::Locked.into());

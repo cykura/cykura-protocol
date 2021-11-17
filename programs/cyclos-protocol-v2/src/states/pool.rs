@@ -110,7 +110,7 @@ pub struct BurnEvent {
     pub pool_state: Pubkey,
     pub tick_lower: i32,
     pub tick_upper: i32,
-    pub amount: i64,
+    pub amount: u32,
     pub amount_0: i64,
     pub amount_1: i64,
 }
