@@ -191,7 +191,7 @@ pub mod cyclos_protocol_v2 {
         ctx: Context<MintAccount>,
         amount: u32, // Δliquidity
         data: [u8; 32]
-    ) -> ProgramResult {
+    ) -> Result<[u64; 2], ProgramError> {
         if !ctx.accounts.pool_state.unlocked {
             return Err(ErrorCode::Locked.into());
         }
@@ -287,7 +287,7 @@ pub mod cyclos_protocol_v2 {
 
         // ______________________________________________
         ctx.accounts.pool_state.unlocked = true;
-        Ok(())
+        Ok([amount_0.abs() as u64, amount_1.abs() as u64])
     }
 
     /// Collect tokens owed to a position

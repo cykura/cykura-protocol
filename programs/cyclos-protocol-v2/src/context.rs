@@ -2,6 +2,7 @@ use anchor_lang::prelude::*;
 use anchor_spl::associated_token::{get_associated_token_address, AssociatedToken};
 use anchor_spl::token::{Mint, Token, TokenAccount};
 use std::mem::size_of;
+// TODO remove size_of for initializing PDAs. Use Default attribute instead
 
 use crate::error::ErrorCode;
 use crate::states::factory::FactoryState;
@@ -121,23 +122,15 @@ pub struct CreatePool<'info> {
 }
 
 #[derive(Accounts)]
-#[instruction(position_bump: u8, tick_lower:u32, tick_upper:u32)]
+#[instruction(
+    position_bump: u8,
+    tick_lower_bump: u8,
+    tick_upper_bump: u8,
+    tick_lower: u32,
+    tick_upper: u32
+)]
 pub struct MintAccount<'info> {
     pub minter: Signer<'info>,
-
-    #[account(
-        init_if_needed,
-        seeds = [
-            pool_state.token_0.key().as_ref(),
-            pool_state.token_1.key().as_ref(),
-            &pool_state.fee.to_be_bytes(),
-            &tick_lower.to_be_bytes(),
-            &tick_upper.to_be_bytes()
-        ],
-        bump = position_bump,
-        payer = minter
-    )]
-    pub position_state: Box<Account<'info, PositionState>>,
 
     #[account(
         mut,
@@ -156,9 +149,23 @@ pub struct MintAccount<'info> {
             pool_state.token_0.key().as_ref(),
             pool_state.token_1.key().as_ref(),
             &pool_state.fee.to_be_bytes(),
-            &tick_lower.to_be_bytes()
+            &tick_lower.to_be_bytes(),
+            &tick_upper.to_be_bytes()
         ],
         bump = position_bump,
+        payer = minter
+    )]
+    pub position_state: Box<Account<'info, PositionState>>,
+
+    #[account(
+        init_if_needed,
+        seeds = [
+            pool_state.token_0.key().as_ref(),
+            pool_state.token_1.key().as_ref(),
+            &pool_state.fee.to_be_bytes(),
+            &tick_lower.to_be_bytes()
+        ],
+        bump = tick_lower_bump,
         payer = minter
     )]
     pub tick_lower_state: Box<Account<'info, TickState>>,
@@ -172,7 +179,7 @@ pub struct MintAccount<'info> {
             &pool_state.fee.to_be_bytes(),
             &tick_upper.to_be_bytes()
         ],
-        bump = position_bump,
+        bump = tick_upper_bump,
         payer = minter
     )]
     pub tick_upper_state: Box<Account<'info, TickState>>,
