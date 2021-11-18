@@ -177,11 +177,10 @@ pub mod cyclos_core {
 
     /// Create a new position or add liquidity to an existing one
     ///
-    /// Caller must be a smart contract implementing mintCallback(), where due
+    /// Caller must be a smart contract implementing mint_callback(), where due
     /// tokens are paid
     /// mint() / increaseLiquidity() -> Periphery.LiquidityManagement.addLiquidity()
     /// -> Core.mint() -> Periphery.LiquidityManagement.uniswapV3MintCallback()
-    /// Due tokens must be paid in uniswapV3MintCallback()
     ///
     /// Uniswap has a data field which is passed to uniswapV3MintCallback().
     /// This contains pool key(t0, t1, fee) and msg.sender. It is required by the
@@ -191,7 +190,7 @@ pub mod cyclos_core {
         ctx: Context<MintAccount>,
         amount: u32, // Δliquidity
         data: [u8; 32]
-    ) -> Result<[u64; 2], ProgramError> {
+    ) -> ProgramResult {
         if !ctx.accounts.pool_state.unlocked {
             return Err(ErrorCode::Locked.into());
         }
@@ -287,7 +286,7 @@ pub mod cyclos_core {
 
         // ______________________________________________
         ctx.accounts.pool_state.unlocked = true;
-        Ok([amount_0.abs() as u64, amount_1.abs() as u64])
+        Ok(())
     }
 
     /// Collect tokens owed to a position

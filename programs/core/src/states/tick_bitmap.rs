@@ -1,14 +1,22 @@
+use std::ops::BitOr;
+use std::ops::BitXor;
+use std::ops::BitXorAssign;
+
 /// Track whether valid ticks are initialized or not
 /// A tick is valid if it is a multiple of tick_spacing
 /// Each bitmap account stores data for 2^8 (256) ticks
 /// Ticks are in i24 format. The first 16 bits go in the PDA, while remaining
-/// 8 bits are tracked by the bitmap
+/// 8 bits are tracked by the bitmap. We use i32 for ticks, where 8 bits
+/// must remain vacant due to Rust limitations.
+///
 use anchor_lang::prelude::*;
-// use ux::i24;
 use bitmaps::Bitmap;
+use bitmaps::Bits;
+use bitmaps::BitsImpl;
 
 // addr: [token0, token1, fee, 16_bits_from_left(tick)]
 #[account]
+#[derive(Default)]
 pub struct TickBitmapState {
     pub bump: u8,
     pub token_0: Pubkey,
@@ -25,7 +33,7 @@ pub fn get_tick_div_spacing(tick: i32, spacing: i32) -> i32 {
     tick / spacing
 }
 
-/// Get tick key and bit position for a tick/spacing
+/// Get tick key and bit position for a tick/spacing value
 /// 24 bits = 16 (key) + 8 (=256)
 /// 32 bits = 8 bits (discard) + 16 (key) + 8 (=256)
 ///
@@ -35,8 +43,9 @@ pub fn get_word_and_bit_pos(tick_div_spacing: i32) -> (i16, u8) {
 
     // right shift: remove rightmost 8 bits
     // modulo 2^15: remove leftmost 9 bits to get 15 bit unsigned word
-    // add signed bit if negative. Negative integers have MSB = 1, positive have 0
     let mut word_pos = ((tick_div_spacing >> 8) % 2 ^ 15) as i16;
+
+    // add signed bit if negative. Negative integers have MSB = 1, positive have 0
     if tick_div_spacing.is_negative() {
         word_pos = -word_pos;
     }
@@ -48,18 +57,19 @@ pub fn get_word_and_bit_pos(tick_div_spacing: i32) -> (i16, u8) {
 }
 
 impl TickBitmapState {
-    pub fn decode_bitmap(&self) -> bitmaps::Bitmap<256> {
-        Bitmap::<256>::from(self.bitmap)
+    pub fn decode_bitmap(&self) -> Bitmap<256> {
+        Bitmap::<256>::from_value(self.bitmap)
     }
 
-    // Flip tick if it's a multiple of spacing, else panic
-    // Find the tick to be flipped from client side
-    // Check where the tick lives in the word array and flip
-    // TODO externally find bit_pos using tick: i32, and impose tick % tick_spacing condition
+    /// Flip tick at a given index in [0, 255]
     pub fn flip_tick(&mut self, bit_pos: u8) {
-        let mut bitmap = self.decode_bitmap();
-        bitmap.set(bit_pos as usize, !bitmap.get(bit_pos as usize));
-        self.bitmap = *bitmap.as_value();
+        let bitmap = self.decode_bitmap();
+        let mask = Bitmap::<256>::from(if bit_pos < 128 {
+            [1 << bit_pos, 0]
+        } else {
+            [0, 1 << (bit_pos - 128)]
+        });
+        self.bitmap = *bitmap.bitxor(mask).as_value();
     }
 
     // Get next initialized tick in given word
@@ -101,10 +111,11 @@ impl TickBitmapState {
 #[cfg(test)]
 mod tests {
     use super::*;
+
     #[test]
     fn bitmap_test() {
         let mut bitmap = Bitmap::<256>::new();
-        println!("BItmap length {}", bitmap.len());
+        println!("Bitmap length {}", bitmap.len());
 
         bitmap.set(0, true);
         let converted_bitmap = bitmap.as_value() as &[u128; 2];
@@ -113,5 +124,43 @@ mod tests {
         let arr = [10_u128, 50];
         let decoded_bitmap = Bitmap::<256>::from(arr);
         msg!("Decoded bitmap {:?}", decoded_bitmap.into_value());
+    }
+
+    #[test]
+    fn flip_start_of_first_item() {
+        let mut tb_state = TickBitmapState::default();
+
+        tb_state.flip_tick(0);
+        assert_eq!(tb_state.bitmap, [1, 0]);
+
+        tb_state.flip_tick(0);
+        assert_eq!(tb_state.bitmap, [0, 0]);
+    }
+
+    #[test]
+    fn flip_end_of_first_item() {
+        let mut tb_state = TickBitmapState::default();
+        tb_state.flip_tick(127);
+        assert_eq!(tb_state.bitmap, [u128::pow(2, 127), 0]);
+        tb_state.flip_tick(127);
+        assert_eq!(tb_state.bitmap, [0, 0]);
+    }
+
+    #[test]
+    fn flip_start_of_second_item() {
+        let mut tb_state = TickBitmapState::default();
+        tb_state.flip_tick(128);
+        assert_eq!(tb_state.bitmap, [0, 1]);
+        tb_state.flip_tick(128);
+        assert_eq!(tb_state.bitmap, [0, 0]);
+    }
+
+    #[test]
+    fn flip_end_of_second_item() {
+        let mut tb_state = TickBitmapState::default();
+        tb_state.flip_tick(255);
+        assert_eq!(tb_state.bitmap, [0, u128::pow(2, 127)]);
+        tb_state.flip_tick(255);
+        assert_eq!(tb_state.bitmap, [0, 0]);
     }
 }
