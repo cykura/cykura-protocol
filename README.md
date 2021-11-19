@@ -39,6 +39,47 @@ Faithful port of Uniswap v3
         2. Will need custom formula for log
             - Change of base rule: from log2 to log1.0001
             - https://stackoverflow.com/questions/3272424/compute-fast-log-base-2-ceiling
-            
 
-<!-- ln(a/b) = ln(a) - ln(b)  a = number, b = decimal ->
+
+# U128.128 precision loss issue
+
+To preserve bits
+
+1. Get `1/0.757 * 2^128` in decimal format. Get all integer bits and discard decimal part. This is the value stored in the U128.128 variable.
+
+    ```
+    1/0.757 * 2^128 = 49514355245625447111459190794938192147.95
+    ```
+
+3. Round up (empirically confirmed): `49514355245625447111459190794938192148`
+
+
+2. Now convert into hex. `449514355245625447111459190794938192148 as hex`. This will preserve bits.
+
+    ```
+    449514355245625447111459190794938192148 = 1522d50d305bfbf11ec62bf687f279114_16
+    ```
+## Values
+
+```
+2^128 / 1.0001^(2^(i - 1)) for i in [0, 20)
+```
+
+Rounding principles:
+1. Round down if less than 0.5
+2. Round up if greater than or equal to 0.5
+
+```
+k0 = 2^128 / 1.0001^(2^(0 - 1)) = 340265354078544963557816517032075149313.449 = 340265354078544963557816517032075149313 (round down) = 0xfffcb933bd6fad37aa2d162d1a594001_16 (perfect match)
+
+k1 = 2^128 / 1.0001^(2^(1 - 1)) = 340248342086729790484326174814286782777.722 = 340248342086729790484326174814286782778 (round up) = 0xfff97272373d413259a46990580e213a_16 (perfect match)
+
+k2 = 2^128 / 1.0001^(2^(2 - 1)) = 340214320654664324051920982716015181259.59 = 340214320654664324051920982716015181260 (round up) = fff2e50f5f656932ef12357cf3c7fdcc_16 (perfect match)
+```
+
+## For Solana
+
+- Calculate as a
+```
+2^128 / 1.0001^(2^(i - 1)) for i in [0, 20)
+```
