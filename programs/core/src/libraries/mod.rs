@@ -1,4 +1,4 @@
 pub mod sqrt_price_math;
 pub mod swap_math;
 pub mod tick_math;
-pub mod tick_math_x16;
+pub mod tick_math_x32;
