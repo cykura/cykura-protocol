@@ -1,3 +1,7 @@
+use anchor_lang::require;
+
+use crate::error::ErrorCode;
+
 /// Helper functions to calculate tick from √P and vice versa
 /// Performs power and log calculations in a gas efficient manner
 ///
@@ -26,9 +30,9 @@ pub const MAX_SQRT_RATIO: u64 = 281474976710656; // 2^48
 /// # Arguments
 /// * `tick` - Price tick
 ///
-pub fn get_sqrt_ratio_at_tick(tick: i32) -> u64 {
+pub fn get_sqrt_ratio_at_tick(tick: i32) -> Result<u64, ErrorCode> {
     let abs_tick = tick.abs() as u128;
-    assert!(abs_tick <= MAX_TICK as u128);
+    require!(abs_tick <= MAX_TICK as u128, ErrorCode::T);
 
     // i = 0
     let mut ratio: u128 = if abs_tick & 0x1 != 0 {
@@ -80,7 +84,7 @@ pub fn get_sqrt_ratio_at_tick(tick: i32) -> u64 {
     // Rounding up and convert to U32.32
     let sqrt_price_x32 = ((ratio >> 32) as u64) + (((ratio % (1 << 32) != 0) as u64));
 
-    sqrt_price_x32
+    Ok(sqrt_price_x32)
 }
 
 /// Calculates the greatest tick value such that get_sqrt_ratio_at_tick(tick) <= ratio
@@ -92,9 +96,9 @@ pub fn get_sqrt_ratio_at_tick(tick: i32) -> u64 {
 ///
 /// * `sqrt_price_x32`- The sqrt ratio for which to compute the tick as a U32.32
 ///
-pub fn get_tick_at_sqrt_ratio(sqrt_price_x32: u64) -> i32 {
+pub fn get_tick_at_sqrt_ratio(sqrt_price_x32: u64) -> Result<i32, ErrorCode> {
     // second inequality must be < because the price can never reach the price at the max tick
-    assert!(sqrt_price_x32 >= MIN_SQRT_RATIO && sqrt_price_x32 < MAX_SQRT_RATIO, "T");
+    require!(sqrt_price_x32 >= MIN_SQRT_RATIO && sqrt_price_x32 < MAX_SQRT_RATIO, ErrorCode::T);
 
     let mut r = sqrt_price_x32;
     let mut msb = 0; // in [1, 64)
@@ -222,13 +226,13 @@ pub fn get_tick_at_sqrt_ratio(sqrt_price_x32: u64) -> i32 {
     // tick + (2^-14 / log2(√1.001)) + 0.01
     let tick_high = ((log_sqrt_10001_x32 + 3677218864) >> 32) as i32;
 
-    if tick_low == tick_high {
+    Ok(if tick_low == tick_high {
         tick_low
-    } else if get_sqrt_ratio_at_tick(tick_high) <= sqrt_price_x32 {
+    } else if get_sqrt_ratio_at_tick(tick_high).unwrap() <= sqrt_price_x32 {
         tick_high
     } else {
         tick_low
-    }
+    })
 }
 
 #[cfg(test)]
@@ -238,7 +242,7 @@ mod tests {
     #[test]
     fn sqrt_price_error_under_1_bps() {
         for tick in MIN_TICK..=MAX_TICK {
-            let sqrt_price_x32 = get_sqrt_ratio_at_tick(tick);
+            let sqrt_price_x32 = get_sqrt_ratio_at_tick(tick).unwrap();
             let sqrt_price = (sqrt_price_x32 as f64) / (4294967296.0);
             let float_price = f64::powf(1.0001, (tick as f64) / 2.0);
 
@@ -252,7 +256,7 @@ mod tests {
     fn sqrt_price_increases_with_tick() {
         let mut prev_price_x32: u64 = 0;
         for tick in MIN_TICK..=MAX_TICK {
-            let sqrt_price_x32 = get_sqrt_ratio_at_tick(tick);
+            let sqrt_price_x32 = get_sqrt_ratio_at_tick(tick).unwrap();
             // P should increase with tick
             if prev_price_x32 != 0 {
                 assert!(sqrt_price_x32 > prev_price_x32);
@@ -264,10 +268,10 @@ mod tests {
     #[test]
     fn retrieve_original_tick() {
         for tick in MIN_TICK..=MAX_TICK {
-            let sqrt_price_x32 = get_sqrt_ratio_at_tick(tick);
+            let sqrt_price_x32 = get_sqrt_ratio_at_tick(tick).unwrap();
 
             // Original tick should be obtained by operating on √P
-            let obtained_tick = get_tick_at_sqrt_ratio(sqrt_price_x32);
+            let obtained_tick = get_tick_at_sqrt_ratio(sqrt_price_x32).unwrap();
             assert_eq!(tick, obtained_tick, "Tick {}, obtained tick {}", tick, obtained_tick);
         }
     }
@@ -275,25 +279,25 @@ mod tests {
     #[test]
     #[should_panic]
     fn less_than_min_tick() {
-        get_sqrt_ratio_at_tick(MIN_TICK - 1);
+        get_sqrt_ratio_at_tick(MIN_TICK - 1).unwrap();
     }
 
     #[test]
     #[should_panic]
     fn greater_than_min_tick() {
-        get_sqrt_ratio_at_tick(MAX_TICK + 1);
+        get_sqrt_ratio_at_tick(MAX_TICK + 1).unwrap();
     }
 
     #[test]
     #[should_panic]
     fn less_than_min_sqrt_ratio() {
-        get_tick_at_sqrt_ratio(MIN_SQRT_RATIO - 1);
+        get_tick_at_sqrt_ratio(MIN_SQRT_RATIO - 1).unwrap();
     }
 
     #[test]
     #[should_panic]
     fn greater_than_or_equal_to_max_sqrt_ratio() {
-        get_tick_at_sqrt_ratio(MAX_SQRT_RATIO);
+        get_tick_at_sqrt_ratio(MAX_SQRT_RATIO).unwrap();
     }
 }
 

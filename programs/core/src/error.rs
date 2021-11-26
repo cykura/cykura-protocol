@@ -19,5 +19,14 @@ pub enum ErrorCode {
     #[msg("M0")]
     M0,
     #[msg("M1")]
-    M1
+    M1,
+
+    // tick_math.rs
+
+    // second inequality must be < because the price can never reach the price at the max tick
+    #[msg("R")]
+    R,
+    // The given tick must be less than, or equal to, the maximum tick
+    #[msg("T")]
+    T,
 }
