@@ -21,7 +21,7 @@ pub enum ErrorCode {
     #[msg("M1")]
     M1,
 
-    // tick_math.rs
+    // libraries/tick_math.rs
 
     // second inequality must be < because the price can never reach the price at the max tick
     #[msg("R")]
@@ -29,4 +29,12 @@ pub enum ErrorCode {
     // The given tick must be less than, or equal to, the maximum tick
     #[msg("T")]
     T,
+
+    // libraries/liquidity_math.rs
+
+    #[msg("LS")] // Liquidity Sub
+    LS,
+
+    #[msg("LA")] // Liquidity Add
+    LA,
 }
