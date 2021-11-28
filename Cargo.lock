@@ -431,6 +431,7 @@ dependencies = [
  "anchor-lang",
  "anchor-spl",
  "bitmaps",
+ "muldiv",
  "ux",
 ]
 
@@ -683,6 +684,12 @@ checksum = "d9b70ca2a6103ac8b665dc150b142ef0e4e89df640c9e6cf295d189c3caebe5a"
 dependencies = [
  "libc",
 ]
+
+[[package]]
+name = "muldiv"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b5136edda114182728ccdedb9f5eda882781f35fa6e80cc360af12a8932507f3"
 
 [[package]]
 name = "non-fungible-position-manager"
