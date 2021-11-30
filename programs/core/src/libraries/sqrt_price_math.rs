@@ -11,7 +11,7 @@ use muldiv::MulDiv;
 /// # Formula
 /// `P = reserve_1 / reserve_0`
 ///
-fn encode_price_sqrt_x32(reserve_1: u64, reserve_0: u64) -> u64 {
+pub fn encode_price_sqrt_x32(reserve_1: u64, reserve_0: u64) -> u64 {
     ((reserve_1 as f64 / reserve_0 as f64).sqrt() * u64::pow(2, 32) as f64).round() as u64
 }
 
@@ -334,355 +334,359 @@ pub fn get_amount_1_delta_signed(
 #[cfg(test)]
 mod sqrt_math {
     use super::*;
-
     // #getNextSqrtPriceFromInput
+    mod sqrt_price_from_input {
+        use super::*;
 
-    #[test]
-    #[should_panic]
-    fn input_fails_if_price_is_zero() {
-        get_next_sqrt_price_from_input(0, 0, u64::pow(10, 17), false);
-    }
+        #[test]
+        #[should_panic]
+        fn fails_if_price_is_zero() {
+            get_next_sqrt_price_from_input(0, 0, u64::pow(10, 17), false);
+        }
 
-    #[test]
-    #[should_panic]
-    fn input_fails_if_liquidity_is_zero() {
-        get_next_sqrt_price_from_input(1, 0, u64::pow(10, 17), true);
-    }
+        #[test]
+        #[should_panic]
+        fn fails_if_liquidity_is_zero() {
+            get_next_sqrt_price_from_input(1, 0, u64::pow(10, 17), true);
+        }
 
-    #[test]
-    #[should_panic]
-    fn fails_if_input_amount_overflows_the_price() {
-        let sqrt_p_x32 = u64::MAX;
-        let liquidity: u32 = 1024;
-        let amount_in: u64 = 1024;
+        #[test]
+        #[should_panic]
+        fn fails_if_input_amount_overflows_the_price() {
+            let sqrt_p_x32 = u64::MAX;
+            let liquidity: u32 = 1024;
+            let amount_in: u64 = 1024;
 
-        // sqrt_p_x32.checked_add() should fail
-        get_next_sqrt_price_from_input(sqrt_p_x32, liquidity, amount_in, false);
-    }
+            // sqrt_p_x32.checked_add() should fail
+            get_next_sqrt_price_from_input(sqrt_p_x32, liquidity, amount_in, false);
+        }
 
-    #[test]
-    fn any_input_amount_cannot_underflow_the_price() {
-        let sqrt_p_x32 = 1;
-        let liquidity = 1;
-        let amount_in = u64::pow(2, 63);
+        #[test]
+        fn any_input_amount_cannot_underflow_the_price() {
+            let sqrt_p_x32 = 1;
+            let liquidity = 1;
+            let amount_in = u64::pow(2, 63);
 
-        assert_eq!(
-            get_next_sqrt_price_from_input(sqrt_p_x32, liquidity, amount_in, true),
-            1
-        );
-    }
+            assert_eq!(
+                get_next_sqrt_price_from_input(sqrt_p_x32, liquidity, amount_in, true),
+                1
+            );
+        }
 
-    #[test]
-    fn returns_input_price_if_amount_in_is_zero_and_zero_for_one_is_true() {
-        let sqrt_p_x32 = encode_price_sqrt_x32(1, 1);
-        assert_eq!(
-            get_next_sqrt_price_from_input(sqrt_p_x32, u32::pow(10, 7), 0, true),
-            sqrt_p_x32
-        );
-    }
+        #[test]
+        fn returns_input_price_if_amount_in_is_zero_and_zero_for_one_is_true() {
+            let sqrt_p_x32 = encode_price_sqrt_x32(1, 1);
+            assert_eq!(
+                get_next_sqrt_price_from_input(sqrt_p_x32, u32::pow(10, 7), 0, true),
+                sqrt_p_x32
+            );
+        }
 
-    #[test]
-    fn returns_input_price_if_amount_in_is_zero_and_zero_for_one_is_false() {
-        let sqrt_p_x32 = encode_price_sqrt_x32(1, 1);
-        assert_eq!(
-            get_next_sqrt_price_from_input(sqrt_p_x32, u32::pow(10, 7), 0, false),
-            sqrt_p_x32
-        );
-    }
+        #[test]
+        fn returns_input_price_if_amount_in_is_zero_and_zero_for_one_is_false() {
+            let sqrt_p_x32 = encode_price_sqrt_x32(1, 1);
+            assert_eq!(
+                get_next_sqrt_price_from_input(sqrt_p_x32, u32::pow(10, 7), 0, false),
+                sqrt_p_x32
+            );
+        }
 
-    #[test]
-    fn returns_the_minimum_price_for_max_inputs() {
-        let sqrt_p_x32 = u64::MAX - 1;
-        let liquidity = u32::MAX;
-        let max_amount_no_overflow =
-            u64::MAX - (((liquidity as u64) << fixed_point_x32::RESOLUTION) / sqrt_p_x32);
+        #[test]
+        fn returns_the_minimum_price_for_max_inputs() {
+            let sqrt_p_x32 = u64::MAX - 1;
+            let liquidity = u32::MAX;
+            let max_amount_no_overflow =
+                u64::MAX - (((liquidity as u64) << fixed_point_x32::RESOLUTION) / sqrt_p_x32);
 
-        assert_eq!(
-            get_next_sqrt_price_from_input(sqrt_p_x32, liquidity, max_amount_no_overflow, true),
-            1
-        );
-    }
+            assert_eq!(
+                get_next_sqrt_price_from_input(sqrt_p_x32, liquidity, max_amount_no_overflow, true),
+                1
+            );
+        }
 
-    #[test]
-    fn input_amount_of_01_token_1() {
-        // price of token 0 wrt token 1 increases as token_1 supply increases
-        let sqrt_p_x32 = encode_price_sqrt_x32(1, 1);
-        let liquidity = u32::pow(10, 8);
-        let amount_0_in = u64::pow(10, 7); // 10^7 / 10^8 = 0.1
-        assert_eq!(
-            get_next_sqrt_price_from_input(sqrt_p_x32, liquidity, amount_0_in, false),
-            4724464025 // `√P' = √P + Δy / L`, rounded down
-                       // https://www.wolframalpha.com/input/?i=floor%282%5E32+*+%281+%2B+0.1%29%29
-        );
-    }
+        #[test]
+        fn input_amount_of_01_token_1() {
+            // price of token 0 wrt token 1 increases as token_1 supply increases
+            let sqrt_p_x32 = encode_price_sqrt_x32(1, 1);
+            let liquidity = u32::pow(10, 8);
+            let amount_0_in = u64::pow(10, 7); // 10^7 / 10^8 = 0.1
+            assert_eq!(
+                get_next_sqrt_price_from_input(sqrt_p_x32, liquidity, amount_0_in, false),
+                4724464025 // `√P' = √P + Δy / L`, rounded down
+                           // https://www.wolframalpha.com/input/?i=floor%282%5E32+*+%281+%2B+0.1%29%29
+            );
+        }
 
-    #[test]
-    fn input_amount_of_01_token_0() {
-        // price of token_0 wrt token_1 decreases as token_0 supply increases
-        let sqrt_p_x32 = encode_price_sqrt_x32(1, 1);
-        let liquidity = u32::pow(10, 8);
-        let amount_0_in = u64::pow(10, 7); // 10^7 / 10^8 = 0.1
-        assert_eq!(
-            get_next_sqrt_price_from_input(sqrt_p_x32, liquidity, amount_0_in, true),
-            3904515724 // `√P' = √P * L / (L + Δx * √P)`, rounded up
-                       // https://www.wolframalpha.com/input/?i=ceil%282%5E32+*+%281+%2F+%281+%2B+0.1%29%29%29
-        );
-    }
+        #[test]
+        fn input_amount_of_01_token_0() {
+            // price of token_0 wrt token_1 decreases as token_0 supply increases
+            let sqrt_p_x32 = encode_price_sqrt_x32(1, 1);
+            let liquidity = u32::pow(10, 8);
+            let amount_0_in = u64::pow(10, 7); // 10^7 / 10^8 = 0.1
+            assert_eq!(
+                get_next_sqrt_price_from_input(sqrt_p_x32, liquidity, amount_0_in, true),
+                3904515724 // `√P' = √P * L / (L + Δx * √P)`, rounded up
+                           // https://www.wolframalpha.com/input/?i=ceil%282%5E32+*+%281+%2F+%281+%2B+0.1%29%29%29
+            );
+        }
 
-    #[test]
-    fn amount_in_gt_u32_max_and_for_token_1() {
-        let sqrt_p_x32 = encode_price_sqrt_x32(1, 1);
-        let liquidity = u32::pow(10, 8);
-        let amount_0_in = u64::pow(10, 12); // 10^12 / 10^8 = 10^4
-        assert_eq!(
-            get_next_sqrt_price_from_input(sqrt_p_x32, liquidity, amount_0_in, true),
-            429454 // `√P' = √P * L / (L + Δx * √P)`, rounded up
-                   // https://www.wolframalpha.com/input/?i=ceil%282%5E32+*+%281+%2F+%281+%2B+10%5E4%29%29%29
-        );
+        #[test]
+        fn amount_in_gt_u32_max_and_for_token_1() {
+            let sqrt_p_x32 = encode_price_sqrt_x32(1, 1);
+            let liquidity = u32::pow(10, 8);
+            let amount_0_in = u64::pow(10, 12); // 10^12 / 10^8 = 10^4
+            assert_eq!(
+                get_next_sqrt_price_from_input(sqrt_p_x32, liquidity, amount_0_in, true),
+                429454 // `√P' = √P * L / (L + Δx * √P)`, rounded up
+                       // https://www.wolframalpha.com/input/?i=ceil%282%5E32+*+%281+%2F+%281+%2B+10%5E4%29%29%29
+            );
+        }
     }
 
     // #getNextSqrtPriceFromOutput
+    mod sqrt_price_from_output {
+        use super::*;
 
-    #[test]
-    #[should_panic]
-    fn output_fails_if_price_is_zero() {
-        get_next_sqrt_price_from_output(0, 0, u64::pow(10, 17), false);
-    }
-    #[test]
-    #[should_panic]
-    fn output_fails_if_liquidity_is_zero() {
-        get_next_sqrt_price_from_output(1, 0, u64::pow(10, 17), true);
-    }
+        #[test]
+        #[should_panic]
+        fn fails_if_price_is_zero() {
+            get_next_sqrt_price_from_output(0, 0, u64::pow(10, 17), false);
+        }
+        #[test]
+        #[should_panic]
+        fn fails_if_liquidity_is_zero() {
+            get_next_sqrt_price_from_output(1, 0, u64::pow(10, 17), true);
+        }
 
-    #[test]
-    #[should_panic]
-    fn fails_if_output_amount_exactly_virtual_reserves_of_token_0() {
-        // CHECK THIS / TODO
-        let sqrt_p_x32 = u64::MAX;
-        let liquidity: u32 = 1024;
-        let amount_out: u64 = 4;
+        #[test]
+        #[should_panic]
+        fn fails_if_output_amount_exactly_virtual_reserves_of_token_0() {
+            let sqrt_p_x32 = 1099511627776;
+            let liquidity: u32 = 1024;
+            let amount_out: u64 = 4;
 
-        get_next_sqrt_price_from_output(sqrt_p_x32, liquidity, amount_out, false);
-    }
-    #[test]
-    #[should_panic]
-    fn fails_if_output_amount_gt_virtual_reserves_of_token_0() {
-        // CHECK THIS / TODO
-        let sqrt_p_x32 = u64::MAX;
-        let liquidity: u32 = 1024;
-        let amount_out: u64 = 5;
+            get_next_sqrt_price_from_output(sqrt_p_x32, liquidity, amount_out, false);
+        }
+        #[test]
+        #[should_panic]
+        fn fails_if_output_amount_gt_virtual_reserves_of_token_0() {
+            let sqrt_p_x32 = 1099511627776;
+            let liquidity: u32 = 1024;
+            let amount_out: u64 = 5;
 
-        get_next_sqrt_price_from_output(sqrt_p_x32, liquidity, amount_out, false);
-    }
-    #[test]
-    #[should_panic]
-    fn fails_if_output_amount_gt_virtual_reserves_of_token_1() {
-        // CHECK THIS / TODO
-        let sqrt_p_x32 = u64::MAX;
-        let liquidity: u32 = 1024;
-        let amount_out: u64 = 262145;
+            get_next_sqrt_price_from_output(sqrt_p_x32, liquidity, amount_out, false);
+        }
+        #[test]
+        #[should_panic]
+        fn fails_if_output_amount_gt_virtual_reserves_of_token_1() {
+            let sqrt_p_x32 = 1099511627776;
+            let liquidity: u32 = 1024;
+            let amount_out: u64 = 262145;
 
-        get_next_sqrt_price_from_output(sqrt_p_x32, liquidity, amount_out, true);
-    }
-    #[test]
-    #[should_panic]
-    fn fails_if_output_amount_exactly_virtual_reserves_of_token_1() {
-        // CHECK THIS / TODO
-        let sqrt_p_x32 = u64::MAX;
-        let liquidity: u32 = 1024;
-        let amount_out: u64 = 262144;
+            get_next_sqrt_price_from_output(sqrt_p_x32, liquidity, amount_out, true);
+        }
+        #[test]
+        #[should_panic]
+        fn fails_if_output_amount_exactly_virtual_reserves_of_token_1() {
+            let sqrt_p_x32 = 1099511627776;
+            let liquidity: u32 = 1024;
+            let amount_out: u64 = 262144;
 
-        get_next_sqrt_price_from_output(sqrt_p_x32, liquidity, amount_out, true);
-    }
-    #[test]
-    fn succeeds_if_output_amount_is_lt_the_virtual_reserves_of_token1() {
-        // CHECK THIS / TODO
-        let sqrt_p_x32 = u64::MAX;
-        let liquidity: u32 = 1024;
-        let amount_out: u64 = 262143;
-        assert_eq!(
-            get_next_sqrt_price_from_output(sqrt_p_x32, liquidity, amount_out, true),
-            u64::MAX
-        );
-    }
-    #[test]
-    #[should_panic]
-    fn puzzling_echidna_test() {
-        let sqrt_p_x32 = u64::MAX;
-        let liquidity: u32 = 1024;
-        let amount_out: u64 = 4;
-        //TODO
-        get_next_sqrt_price_from_output(sqrt_p_x32, liquidity, amount_out, true);
-    }
-    #[test]
-    fn returns_output_price_if_amount_out_is_zero_and_zero_for_one_is_true() {
-        let sqrt_p_x32 = encode_price_sqrt_x32(1, 1);
-        assert_eq!(
-            get_next_sqrt_price_from_output(sqrt_p_x32, u32::pow(10, 7), 0, true),
-            sqrt_p_x32
-        );
-    }
-    #[test]
-    fn returns_output_price_if_amount_out_is_zero_and_zero_for_one_is_false() {
-        let sqrt_p_x32 = encode_price_sqrt_x32(1, 1);
-        assert_eq!(
-            get_next_sqrt_price_from_output(sqrt_p_x32, u32::pow(10, 7), 0, false),
-            sqrt_p_x32
-        );
-    }
-    #[test]
-    fn output_amount_of_01_token_1() {
-        // price of token 0 wrt token 1 increases as token_1 supply increases
-        let sqrt_p_x32 = encode_price_sqrt_x32(1, 1);
-        let liquidity = u32::pow(10, 8);
-        let amount_0_out = u64::pow(10, 7); // 10^7 / 10^8 = 0.1
-        assert_eq!(
-            get_next_sqrt_price_from_output(sqrt_p_x32, liquidity, amount_0_out, false),
-            4724464025 // CHECK THIS // `√P' = √P + Δy / L`, rounded down
-                       // https://www.wolframalpha.com/input/?i=floor%282%5E32+*+%281+%2B+0.1%29%29
-        );
-    }
-    #[test]
-    fn output_amount_of_01_token_0() {
-        // price of token_0 wrt token_1 decreases as token_0 supply increases
-        let sqrt_p_x32 = encode_price_sqrt_x32(1, 1);
-        let liquidity = u32::pow(10, 8);
-        let amount_0_out = u64::pow(10, 7); // 10^7 / 10^8 = 0.1
-        assert_eq!(
-            get_next_sqrt_price_from_output(sqrt_p_x32, liquidity, amount_0_out, true),
-            3904515724 // CHECK THIS // `√P' = √P * L / (L + Δx * √P)`, rounded up
-                       // https://www.wolframalpha.com/input/?i=ceil%282%5E32+*+%281+%2F+%281+%2B+0.1%29%29%29
-        );
-    }
-    #[test]
-    #[should_panic]
-    fn reverts_if_amount_out_is_impossible_in_zero_for_one_direction() {
-        // price of token 0 wrt token 1 increases as token_1 supply increases
-        let sqrt_p_x32 = encode_price_sqrt_x32(1, 1);
+            get_next_sqrt_price_from_output(sqrt_p_x32, liquidity, amount_out, true);
+        }
 
-        get_next_sqrt_price_from_output(sqrt_p_x32, 1, u64::MAX, true);
-    }
-    #[test]
-    #[should_panic]
-    fn reverts_if_amount_out_is_impossible_in_one_for_zero_direction() {
-        // price of token 0 wrt token 1 increases as token_1 supply increases
-        let sqrt_p_x32 = encode_price_sqrt_x32(1, 1);
+        #[test]
+        fn succeeds_if_output_amount_is_lt_the_virtual_reserves_of_token1() {
+            let sqrt_p_x32 = 1099511627776;
+            let liquidity: u32 = 1024;
+            let amount_out: u64 = 262143;
 
-        get_next_sqrt_price_from_output(sqrt_p_x32, 1, u64::MAX, false);
+            assert_eq!(
+                get_next_sqrt_price_from_output(sqrt_p_x32, liquidity, amount_out, true),
+                4194304
+            );
+        }
+        #[test]
+        #[should_panic]
+        fn puzzling_echidna_test() {
+            unimplemented!();
+        }
+        #[test]
+        fn returns_output_price_if_amount_out_is_zero_and_zero_for_one_is_true() {
+            let sqrt_p_x32 = encode_price_sqrt_x32(1, 1);
+            assert_eq!(
+                get_next_sqrt_price_from_output(sqrt_p_x32, u32::pow(10, 7), 0, true),
+                sqrt_p_x32
+            );
+        }
+        #[test]
+        fn returns_output_price_if_amount_out_is_zero_and_zero_for_one_is_false() {
+            let sqrt_p_x32 = encode_price_sqrt_x32(1, 1);
+            assert_eq!(
+                get_next_sqrt_price_from_output(sqrt_p_x32, u32::pow(10, 7), 0, false),
+                sqrt_p_x32
+            );
+        }
+        #[test]
+        fn output_amount_of_01_token_1() {
+            // price of token 0 wrt token 1 increases as token_1 supply increases
+            let sqrt_p_x32 = encode_price_sqrt_x32(1, 1);
+            let liquidity = u32::pow(10, 8);
+            let amount_0_out = u64::pow(10, 7); // 10^7 / 10^8 = 0.1
+            assert_eq!(
+                get_next_sqrt_price_from_output(sqrt_p_x32, liquidity, amount_0_out, false),
+                4772185885 // `√P' = √P * L / (L + Δx * √P)`, rounded up
+                          // https://www.wolframalpha.com/input/?i=ceil%282%5E32+*+%281+%2F+%281+%2B+0.1%29%29%29
+            );
+        }
+        #[test]
+        fn output_amount_of_01_token_0() {
+            // price of token_0 wrt token_1 decreases as token_0 supply increases
+            let sqrt_p_x32 = encode_price_sqrt_x32(1, 1); //4294967296
+            let liquidity = u32::pow(10, 8);
+            let amount_0_out = u64::pow(10, 7); // 10^7 / 10^8 = 0.1
+
+            assert_eq!(
+                get_next_sqrt_price_from_output(sqrt_p_x32, liquidity, amount_0_out, true),
+                3865470566 // `√P' = √P + Δy / L`, rounded down
+                           // https://www.wolframalpha.com/input/?i=floor%284294967296+%2B+%2810%5E7%2F10%5E8%29%29
+            );
+        }
+        #[test]
+        #[should_panic]
+        fn reverts_if_amount_out_is_impossible_in_zero_for_one_direction() {
+            // price of token 0 wrt token 1 increases as token_1 supply increases
+            let sqrt_p_x32 = encode_price_sqrt_x32(1, 1);
+            get_next_sqrt_price_from_output(sqrt_p_x32, 1, u64::MAX, true);
+        }
+        #[test]
+        #[should_panic]
+        fn reverts_if_amount_out_is_impossible_in_one_for_zero_direction() {
+            // price of token 0 wrt token 1 increases as token_1 supply increases
+            let sqrt_p_x32 = encode_price_sqrt_x32(1, 1);
+            get_next_sqrt_price_from_output(sqrt_p_x32, 1, u64::MAX, false);
+        }
     }
 
     // #getAmount0Delta
-    #[test]
-    fn amount_delta_0_returns_0_if_liquidity_is_0() {
-        assert_eq!(
-            get_amount_0_delta_unsigned(
+    mod amount_0_delta {
+        use super::*;
+        #[test]
+        fn returns_0_if_liquidity_is_0() {
+            assert_eq!(
+                get_amount_0_delta_unsigned(
+                    encode_price_sqrt_x32(1, 1),
+                    encode_price_sqrt_x32(2, 1),
+                    0,
+                    true
+                ),
+                0
+            )
+        }
+        #[test]
+        fn returns_0_if_prices_are_equal() {
+            assert_eq!(
+                get_amount_0_delta_unsigned(
+                    encode_price_sqrt_x32(1, 1),
+                    encode_price_sqrt_x32(1, 1),
+                    0,
+                    true
+                ),
+                0
+            )
+        }
+        #[test]
+        fn returns_01_amount0_for_price_of_1_to_121() {
+            // 0.1 .................  1 .... 1.21
+            let amount_0 = get_amount_0_delta_unsigned(
                 encode_price_sqrt_x32(1, 1),
-                encode_price_sqrt_x32(2, 1),
-                0,
-                true
-            ),
-            0
-        )
-    }
-    #[test]
-    fn amount_delta_0_returns_0_if_prices_are_equal() {
-        assert_eq!(
-            get_amount_0_delta_unsigned(
+                encode_price_sqrt_x32(121, 100),
+                u32::pow(10, 8),
+                true,
+            );
+
+            assert_eq!(amount_0, 9090910);
+
+            let amount_0_rounded_down = get_amount_0_delta_unsigned(
                 encode_price_sqrt_x32(1, 1),
-                encode_price_sqrt_x32(1, 1),
-                0,
-                true
-            ),
-            0
-        )
-    }
-    #[test]
-    fn returns_01_amount0_for_price_of_1_to_121() {
-        // 0.1 .................  1 .... 1.21
-        let amount_0 = get_amount_0_delta_unsigned(
-            encode_price_sqrt_x32(1, 1),
-            encode_price_sqrt_x32(121, 100),
-            u32::pow(10, 8), //expandTo18Decimals(1)
-            true,
-        );
+                encode_price_sqrt_x32(121, 100),
+                u32::pow(10, 8),
+                false,
+            );
+            assert_eq!(amount_0_rounded_down, amount_0.checked_sub(1).unwrap())
+        }
+        #[test]
+        fn works_for_prices_that_overflow() {
+            let amount_0_up = get_amount_0_delta_unsigned(
+                encode_price_sqrt_x32(u64::pow(2, 17), 1), //encodePriceSqrt(BigNumber.from(2).pow(90), 1)
+                encode_price_sqrt_x32(u64::pow(2, 18), 1), //encodePriceSqrt(BigNumber.from(2).pow(96), 1)
+                u32::pow(10, 8),
+                true,
+            );
+            let amount_0_down = get_amount_0_delta_unsigned(
+                encode_price_sqrt_x32(u64::pow(2, 17), 1), //encodePriceSqrt(BigNumber.from(2).pow(90), 1)
+                encode_price_sqrt_x32(u64::pow(2, 18), 1), //encodePriceSqrt(BigNumber.from(2).pow(96), 1)
+                u32::pow(10, 8),
+                false,
+            );
 
-        assert_eq!(amount_0, 0); // CHECK THIS
-
-        let amount_0_rounded_down = get_amount_0_delta_unsigned(
-            encode_price_sqrt_x32(1, 1),
-            encode_price_sqrt_x32(121, 100),
-            u32::pow(10, 8), //expandTo18Decimals(1)
-            false,
-        );
-        assert_eq!(amount_0_rounded_down, amount_0.checked_sub(1).unwrap())
-    }
-    #[test]
-    fn works_for_prices_that_overflow() {
-        let amount_0_up = get_amount_0_delta_unsigned(
-            encode_price_sqrt_x32(1, 1), //encodePriceSqrt(BigNumber.from(2).pow(90), 1)
-            encode_price_sqrt_x32(1, 1), //encodePriceSqrt(BigNumber.from(2).pow(96), 1)
-            u32::pow(10, 8),             //expandTo18Decimals(1),
-            true,
-        );
-        let amount_0_down = get_amount_0_delta_unsigned(
-            encode_price_sqrt_x32(1, 1), //encodePriceSqrt(BigNumber.from(2).pow(90), 1)
-            encode_price_sqrt_x32(1, 1), //encodePriceSqrt(BigNumber.from(2).pow(96), 1)
-            u32::pow(10, 8),
-            false,
-        );
-
-        assert_eq!(amount_0_up, amount_0_down.checked_add(1).unwrap())
+            assert_eq!(amount_0_up, amount_0_down.checked_add(1).unwrap())
+        }
     }
 
     // #getAmount1Delta
-    #[test]
-    fn amount_delta_1_returns_0_if_liquidity_is_0() {
-        assert_eq!(
-            get_amount_1_delta_unsigned(
+    mod amount_1_delta {
+        use super::*;
+        #[test]
+        fn returns_0_if_liquidity_is_0() {
+            assert_eq!(
+                get_amount_1_delta_unsigned(
+                    encode_price_sqrt_x32(1, 1),
+                    encode_price_sqrt_x32(2, 1),
+                    0,
+                    true
+                ),
+                0
+            )
+        }
+        #[test]
+        fn returns_0_if_prices_are_equal() {
+            assert_eq!(
+                get_amount_1_delta_unsigned(
+                    encode_price_sqrt_x32(1, 1),
+                    encode_price_sqrt_x32(1, 1),
+                    0,
+                    true
+                ),
+                0
+            )
+        }
+        #[test]
+        fn returns_01_amount1_for_price_of_1_to_121() {
+            // 0.1 .................  1 .... 1.21
+            let amount_1 = get_amount_1_delta_unsigned(
                 encode_price_sqrt_x32(1, 1),
-                encode_price_sqrt_x32(2, 1),
-                0,
-                true
-            ),
-            0
-        )
-    }
-    #[test]
-    fn amount_delta_1_returns_0_if_prices_are_equal() {
-        assert_eq!(
-            get_amount_1_delta_unsigned(
-                encode_price_sqrt_x32(1, 1),
-                encode_price_sqrt_x32(1, 1),
-                0,
-                true
-            ),
-            0
-        )
-    }
-    #[test]
-    fn returns_01_amount1_for_price_of_1_to_121() {
-        // 0.1 .................  1 .... 1.21
-        let amount_1 = get_amount_1_delta_unsigned(
-            encode_price_sqrt_x32(1, 1),
-            encode_price_sqrt_x32(121, 100),
-            u32::pow(10, 8), //expandTo18Decimals(1)
-            true,
-        );
+                encode_price_sqrt_x32(121, 100),
+                u32::pow(10, 8),
+                true,
+            );
 
-        assert_eq!(amount_1, 0); // CHECK THIS
+            assert_eq!(amount_1, 10000001);
 
-        let amount_1_rounded_down = get_amount_1_delta_unsigned(
-            encode_price_sqrt_x32(1, 1),
-            encode_price_sqrt_x32(121, 100),
-            u32::pow(10, 8), //expandTo18Decimals(1)
-            false,
-        );
-        assert_eq!(amount_1_rounded_down, amount_1.checked_sub(1).unwrap());
+            let amount_1_rounded_down = get_amount_1_delta_unsigned(
+                encode_price_sqrt_x32(1, 1),
+                encode_price_sqrt_x32(121, 100),
+                u32::pow(10, 8),
+                false,
+            );
+            assert_eq!(amount_1_rounded_down, amount_1.checked_sub(1).unwrap());
+        }
     }
 
     // swap computation
     #[test]
+    #[should_panic]
     fn swap_computation() {
-        //TODO
+        todo!();
     }
 }
