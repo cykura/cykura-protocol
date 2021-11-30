@@ -1,9 +1,8 @@
 /// Helper functions to find price changes for change in token
 /// supply and vice versa
 extern crate muldiv;
-use muldiv::MulDiv;
-
 use super::{fixed_point_x32, unsafe_math};
+use muldiv::MulDiv;
 
 /// Get sqrt current price from reserves of token_1 and token_0
 ///
@@ -84,8 +83,8 @@ pub fn get_next_sqrt_price_from_amount_0_rounding_up(
         let product = amount.checked_mul(sqrt_p_x32).unwrap();
         assert!(numerator_1 > product);
 
-        let denominator = numerator_1 + product;
-        return numerator_1.mul_div_ceil(sqrt_p_x32, denominator).unwrap();
+        let denominator = numerator_1 - product;
+        numerator_1.mul_div_ceil(sqrt_p_x32, denominator).unwrap()
     }
 }
 
@@ -291,8 +290,12 @@ pub fn get_amount_0_delta_signed(
     liquidity: i32,
 ) -> i64 {
     if liquidity < 0 {
-        -(get_amount_0_delta_unsigned(sqrt_ratio_a_x32, sqrt_ratio_b_x32, -liquidity as u32, false)
-            as i64)
+        -(get_amount_0_delta_unsigned(
+            sqrt_ratio_a_x32,
+            sqrt_ratio_b_x32,
+            liquidity.abs() as u32,
+            false,
+        ) as i64)
     } else {
         // TODO check overflow, since i64::MAX < u64::MAX
         get_amount_0_delta_unsigned(sqrt_ratio_a_x32, sqrt_ratio_b_x32, liquidity as u32, true)
@@ -315,8 +318,12 @@ pub fn get_amount_1_delta_signed(
     liquidity: i32,
 ) -> i64 {
     if liquidity < 0 {
-        -(get_amount_1_delta_unsigned(sqrt_ratio_a_x32, sqrt_ratio_b_x32, -liquidity as u32, false)
-            as i64)
+        -(get_amount_1_delta_unsigned(
+            sqrt_ratio_a_x32,
+            sqrt_ratio_b_x32,
+            liquidity.abs() as u32,
+            false,
+        ) as i64)
     } else {
         // TODO check overflow, since i64::MAX < u64::MAX
         get_amount_1_delta_unsigned(sqrt_ratio_a_x32, sqrt_ratio_b_x32, liquidity as u32, true)
