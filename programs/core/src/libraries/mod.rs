@@ -6,3 +6,6 @@ pub mod bit_math;
 pub mod fixed_point_x32;
 pub mod liquidity_math;
 pub mod unsafe_math;
+
+#[cfg(test)]
+pub mod test_utils;

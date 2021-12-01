@@ -4,5 +4,4 @@ members = [
 ]
 
 [profile.test]
-overflow-checks = false
 opt-level = 0
