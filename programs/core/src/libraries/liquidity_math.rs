@@ -14,7 +14,7 @@ use crate::error::ErrorCode;
 pub fn add_delta(x: u32, y: i32) -> Result<u32, ErrorCode> {
     let z: u32;
     if y < 0 {
-        z = x + (-y as u32);
+        z = x - (y.abs() as u32);
         require!(z < x, ErrorCode::LS);
     } else {
         z = x + (y as u32);
