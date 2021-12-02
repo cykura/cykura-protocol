@@ -1,1 +1,3 @@
-Stateless helper libraries
+# Libraries
+
+Stateless helper libraries for math.

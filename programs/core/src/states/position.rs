@@ -17,8 +17,8 @@ pub struct PositionState {
 
     // Virtual liquidity in the position the last time it was touched
     pub liquidity: u32,
-    pub fee_growth_inside_0_last: f64,
-    pub fee_growth_inside_1_last: f64,
+    pub fee_growth_inside_0_last_x32: u64,
+    pub fee_growth_inside_1_last_x32: u64,
     pub tokens_owed_0: u64,
     pub tokens_owed_1: u64,
 }
@@ -30,8 +30,8 @@ impl PositionState {
     pub fn update(
         self: &mut Self,
         liquidity_delta: i32,
-        fee_growth_inside_0: f64,
-        fee_growth_inside_1: f64,
+        fee_growth_inside_0_x32: u64,
+        fee_growth_inside_1_x32: u64,
     ) {
         let liqudity_next = if liquidity_delta == 0 {
             // Poke- credit fees to a position without adding more liquidity
@@ -47,19 +47,19 @@ impl PositionState {
 
         // Calculate accumulated Fees
         let tokens_owed_0 = (self.liquidity as u64)
-            .checked_mul(fee_growth_inside_0.sub(self.fee_growth_inside_0_last) as u64)
+            .checked_mul(fee_growth_inside_0_x32.sub(self.fee_growth_inside_0_last_x32) as u64)
             .unwrap();
 
         let tokens_owed_1 = (self.liquidity as u64)
-            .checked_mul(fee_growth_inside_1.sub(self.fee_growth_inside_1_last) as u64)
+            .checked_mul(fee_growth_inside_1_x32.sub(self.fee_growth_inside_1_last_x32) as u64)
             .unwrap();
 
         // Update the position
         if liquidity_delta != 0 {
             self.liquidity = liqudity_next;
         }
-        self.fee_growth_inside_0_last = fee_growth_inside_0;
-        self.fee_growth_inside_1_last = fee_growth_inside_1;
+        self.fee_growth_inside_0_last_x32 = fee_growth_inside_0_x32;
+        self.fee_growth_inside_1_last_x32 = fee_growth_inside_1_x32;
 
         if tokens_owed_0 > 0 || tokens_owed_1 > 0 {
             // overflow is acceptable, have to withdraw before you hit type(u64).max fees

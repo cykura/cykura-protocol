@@ -1,21 +1,34 @@
 use anchor_lang::prelude::*;
 
-// copied from Uniswap. Smaller value needed since we use smaller data types?
-pub const TICK_SPACING_MAX: u16 = 16_384; // exclusive
-pub const FEE_TIER_MAX: u32 = 1_000_000; // exclusive. Stands for 100%
-
-// addr: [fee]
+/// Stores a fee amount and tick spacing pair enabled by the protocol owner
+///
+/// A fee amount can never be removed, so this value should be hard coded
+/// or cached in the calling context
+///
+/// PDA of `[fee]`
+///
 #[account]
 pub struct FeeState {
+    /// Bump to identify PDA
     pub bump: u8,
+
+    /// The enabled fee, denominated in hundredths of a bip (10^-6)
     pub fee: u32,
+
+    /// The minimum number of ticks between initialized ticks for pools
+    /// created with the given fee
     pub tick_spacing: u16,
 }
 
+/// Emitted when a new fee amount is enabled for pool creation via the factory
 #[event]
-pub struct FeeAmountEnabledEvent {
+pub struct FeeAmountEnabled {
+    /// The enabled fee, denominated in hundredths of a bip (10^-6)
     #[index]
     pub fee: u32,
+
+    /// The minimum number of ticks between initialized ticks for pools
+    /// created with the given fee
     #[index]
     pub tick_spacing: u16,
 }

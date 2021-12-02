@@ -57,7 +57,7 @@ pub mod swap_router {
         deadline: u64,
         amount_in: u64,
         amount_out_minimum: u64,
-        sqrt_price_limit: f64
+        sqrt_price_limit_x32: u64
     ) -> ProgramResult {
 
         todo!()
@@ -101,7 +101,7 @@ pub mod swap_router {
         deadline: u64,
         amount_out: u64,
         amount_in_maximum: u64,
-        sqrt_price_limit: f64
+        sqrt_price_limit_x32: u64
     ) -> ProgramResult {
 
         todo!()

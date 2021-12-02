@@ -4,7 +4,7 @@ pub mod error;
 pub mod states;
 use crate::context::*;
 use cyclos_core::libraries::tick_math;
-use cyclos_core::states::pool::PoolState;
+// use cyclos_core::states::pool::PoolState;
 
 use anchor_lang::prelude::*;
 use error::ErrorCode;
@@ -176,29 +176,29 @@ pub mod non_fungible_position_manager {
     }
 }
 
-/// Internal function to add tokens to an initialized pool. Makes a CPI to
-/// core.mint(). Returns a 3-tuple of liquidity, token_0 and token_1 consumed
-///
-/// Tokens convert into liquidity depending on slippage
-///
-pub fn add_liquidity<'info>(
-    pool_state: &Account<'info, PoolState>,
-    recipient: &AccountInfo<'info>,
-    tick_lower: i32,
-    tick_upper: i32,
-    amount_0_desired: u64,
-    amount_1_desired: u64,
-    amount_0_min: u64,
-    amount_1_min: u64
-) -> (u32, u64, u64) {
-    let sqrt_ratio_a = tick_math::get_sqrt_price_at_tick(tick_lower);
-    let sqrt_ratio_b = tick_math::get_sqrt_price_at_tick(tick_upper);
+// /// Internal function to add tokens to an initialized pool. Makes a CPI to
+// /// core.mint(). Returns a 3-tuple of liquidity, token_0 and token_1 consumed
+// ///
+// /// Tokens convert into liquidity depending on slippage
+// ///
+// pub fn add_liquidity<'info>(
+//     pool_state: &Account<'info, PoolState>,
+//     recipient: &AccountInfo<'info>,
+//     tick_lower: i32,
+//     tick_upper: i32,
+//     amount_0_desired: u64,
+//     amount_1_desired: u64,
+//     amount_0_min: u64,
+//     amount_1_min: u64
+// ) -> (u32, u64, u64) {
+//     let sqrt_ratio_a = tick_math::get_sqrt_price_at_tick(tick_lower);
+//     let sqrt_ratio_b = tick_math::get_sqrt_price_at_tick(tick_upper);
 
-    let liquidity = get_liquidity_for_amounts(pool_state.sqrt_price, sqrt_ratio_a, sqrt_ratio_b, amount_0_desired, amount_1_desired);
+//     let liquidity = get_liquidity_for_amounts(pool_state.sqrt_price, sqrt_ratio_a, sqrt_ratio_b, amount_0_desired, amount_1_desired);
 
-    // CPI to core.mint()
+//     // CPI to core.mint()
 
-    // TODO slippage check by reading balance from token accounts of minter
+//     // TODO slippage check by reading balance from token accounts of minter
 
-    (0,0,0)
-}
+//     (0,0,0)
+// }
