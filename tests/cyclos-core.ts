@@ -7,6 +7,7 @@ import chaiAsPromised from 'chai-as-promised'
 chai.use(chaiAsPromised)
 
 import { CyclosCore } from '../target/types/cyclos_core';
+import { MAX_SQRT_RATIO, MIN_SQRT_RATIO, u16ToSeed, u32ToSeed } from './utils';
 
 const { PublicKey, Keypair, SystemProgram } = anchor.web3;
 
@@ -27,7 +28,7 @@ describe('cyclos-core', async () => {
   console.log("Factory", factoryState.toString(), factoryStateBump);
 
   const [feeState, feeStateBump] = await PublicKey.findProgramAddress(
-    [numberToBigEndian(fee)],
+    [u32ToSeed(fee)],
     program.programId
   );
   console.log("Fee", feeState.toString(), feeStateBump)
@@ -44,6 +45,9 @@ describe('cyclos-core', async () => {
 
   let poolState: web3.PublicKey
   let poolStateBump: number
+
+  let initialObservationState: web3.PublicKey
+  let initialObservationBump: number
 
   it('Create token mints', async () => {
     const transferSolTx = new web3.Transaction().add(
@@ -88,7 +92,7 @@ describe('cyclos-core', async () => {
       [
         token0.publicKey.toBuffer(),
         token1.publicKey.toBuffer(),
-        numberToBigEndian(fee)
+        u32ToSeed(fee)
       ],
       program.programId
     )
@@ -267,7 +271,7 @@ describe('cyclos-core', async () => {
     it('fails if fee is too great', async () => {
       const highFee = 1_000_000
       const [highFeeState, highFeeStateBump] = await PublicKey.findProgramAddress(
-        [numberToBigEndian(highFee)],
+        [u32ToSeed(highFee)],
         program.programId
       );
 
@@ -357,6 +361,161 @@ describe('cyclos-core', async () => {
   const initialTick = 10
 
   describe('#create_and_init_pool', () => {
+    it('derive observation address', async () => {
+      [initialObservationState, initialObservationBump] = await PublicKey.findProgramAddress(
+        [
+          token0.publicKey.toBuffer(),
+          token1.publicKey.toBuffer(),
+          u32ToSeed(fee),
+          u16ToSeed(0)
+        ],
+        program.programId
+      )
+    })
+
+    it('fails if tokens are passed in reverse', async () => {
+      // Unlike Uniswap, we must pass the tokens by address sort order
+      await expect(program.rpc.createAndInitPool(poolStateBump, initialObservationBump, initialPriceX32, {
+        accounts: {
+          poolCreator: owner,
+          token0: token1.publicKey,
+          token1: token0.publicKey,
+          feeState,
+          poolState,
+          initialObservationState,
+          vault0: vault1,
+          vault1: vault0,
+          systemProgram: SystemProgram.programId,
+          rent: web3.SYSVAR_RENT_PUBKEY,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID
+        }
+      })).to.be.rejectedWith(Error)
+    })
+
+    it('fails if token0 == token1', async () => {
+      // Unlike Uniswap, we must pass the tokens by address sort order
+      await expect(program.rpc.createAndInitPool(poolStateBump, initialObservationBump, initialPriceX32, {
+        accounts: {
+          poolCreator: owner,
+          token0: token0.publicKey,
+          token1: token0.publicKey,
+          feeState,
+          poolState,
+          initialObservationState,
+          vault0,
+          vault1: vault0,
+          systemProgram: SystemProgram.programId,
+          rent: web3.SYSVAR_RENT_PUBKEY,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID
+        }
+      })).to.be.rejectedWith(Error)
+    })
+
+    it('fails if fee amount is not enabled', async () => {
+      const [uninitializedFeeState, _] = await PublicKey.findProgramAddress(
+        [u32ToSeed(fee + 1)],
+        program.programId
+      );
+
+      await expect(program.rpc.createAndInitPool(poolStateBump, initialObservationBump, initialPriceX32, {
+        accounts: {
+          poolCreator: owner,
+          token0: token0.publicKey,
+          token1: token0.publicKey,
+          feeState: uninitializedFeeState,
+          poolState,
+          initialObservationState,
+          vault0,
+          vault1: vault0,
+          systemProgram: SystemProgram.programId,
+          rent: web3.SYSVAR_RENT_PUBKEY,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID
+        }
+      })).to.be.rejectedWith(Error)
+    })
+
+    it('fails if starting price is too low', async () => {
+      await expect(program.rpc.createAndInitPool(poolStateBump, initialObservationBump, new BN(1), {
+        accounts: {
+          poolCreator: owner,
+          token0: token0.publicKey,
+          token1: token1.publicKey,
+          feeState,
+          poolState,
+          initialObservationState,
+          vault0,
+          vault1,
+          systemProgram: SystemProgram.programId,
+          rent: web3.SYSVAR_RENT_PUBKEY,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID
+        }
+      })).to.be.rejectedWith('R')
+
+      await expect(program.rpc.createAndInitPool(
+        poolStateBump,
+        initialObservationBump,
+        MIN_SQRT_RATIO.subn(1), {
+          accounts: {
+            poolCreator: owner,
+            token0: token0.publicKey,
+            token1: token1.publicKey,
+            feeState,
+            poolState,
+            initialObservationState,
+            vault0,
+            vault1,
+            systemProgram: SystemProgram.programId,
+            rent: web3.SYSVAR_RENT_PUBKEY,
+            tokenProgram: TOKEN_PROGRAM_ID,
+            associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID
+          }
+      })).to.be.rejectedWith('R')
+
+    })
+
+    it('fails if starting price is too high', async () => {
+      await expect(program.rpc.createAndInitPool(poolStateBump, initialObservationBump, MAX_SQRT_RATIO, {
+        accounts: {
+          poolCreator: owner,
+          token0: token0.publicKey,
+          token1: token1.publicKey,
+          feeState,
+          poolState,
+          initialObservationState,
+          vault0,
+          vault1,
+          systemProgram: SystemProgram.programId,
+          rent: web3.SYSVAR_RENT_PUBKEY,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID
+        }
+      })).to.be.rejectedWith('R')
+
+      await expect(program.rpc.createAndInitPool(
+        poolStateBump,
+        initialObservationBump,
+        new BN(2).pow(new BN(64)).subn(1), { // u64::MAX
+          accounts: {
+            poolCreator: owner,
+            token0: token0.publicKey,
+            token1: token1.publicKey,
+            feeState,
+            poolState,
+            initialObservationState,
+            vault0,
+            vault1,
+            systemProgram: SystemProgram.programId,
+            rent: web3.SYSVAR_RENT_PUBKEY,
+            tokenProgram: TOKEN_PROGRAM_ID,
+            associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID
+          }
+      })).to.be.rejectedWith('R')
+    })
+
     it('creates a new pool and initializes it with a starting price', async () => {
       let listener = null;
       let [_event, _slot] = await new Promise((resolve, _reject) => {
@@ -372,13 +531,14 @@ describe('cyclos-core', async () => {
           resolve([event, slot]);
         });
 
-        program.rpc.createAndInitPool(poolStateBump, initialPriceX32, {
+        program.rpc.createAndInitPool(poolStateBump, initialObservationBump, initialPriceX32, {
           accounts: {
             poolCreator: owner,
             token0: token0.publicKey,
             token1: token1.publicKey,
             feeState,
             poolState,
+            initialObservationState,
             vault0,
             vault1,
             systemProgram: SystemProgram.programId,
@@ -387,12 +547,11 @@ describe('cyclos-core', async () => {
             associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID
           }
         })
-      });
-      await program.removeEventListener(listener);
+      })
+      await program.removeEventListener(listener)
 
+      // pool state variables
       const poolStateData = await program.account.poolState.fetch(poolState)
-      console.log('Pool state', poolStateData)
-
       assert.equal(poolStateData.bump, poolStateBump)
       assert((poolStateData.token0).equals(token0.publicKey))
       assert((poolStateData.token1).equals(token1.publicKey))
@@ -401,12 +560,9 @@ describe('cyclos-core', async () => {
       assert.equal(poolStateData.liquidity, 0)
       assert((poolStateData.sqrtPriceX32).eq(initialPriceX32))
       assert.equal(poolStateData.tick, initialTick)
-
-      // TODO test oracle variables
       assert.equal(poolStateData.observationIndex, 0)
-      assert.equal(poolStateData.observationCardinality, 0)
-      assert.equal(poolStateData.observationCardinalityNext, 0)
-
+      assert.equal(poolStateData.observationCardinality, 1)
+      assert.equal(poolStateData.observationCardinalityNext, 1)
       assert(poolStateData.feeGrowthGlobal0X32.eq(new BN(0)))
       assert(poolStateData.feeGrowthGlobal1X32.eq(new BN(0)))
       assert.equal(poolStateData.feeProtocol, 0)
@@ -414,18 +570,33 @@ describe('cyclos-core', async () => {
       assert(poolStateData.protocolFeesToken1.eq(new BN(0)))
       assert(poolStateData.unlocked)
 
+      // first observations slot
+      const observationStateData = await program.account.observationState.fetch(initialObservationState)
+      assert.equal(observationStateData.bump, initialObservationBump)
+      assert.equal(observationStateData.index, 0)
+      assert(observationStateData.tickCumulative.eq(new BN(0)))
+      assert(observationStateData.secondsPerLiquidityCumulativeX32.eq(new BN(0)))
+      assert(observationStateData.initialized)
+      assert.approximately(observationStateData.blockTimestamp, Math.floor(Date.now() / 1000), 10)
     })
 
-
+    it('fails if already initialized', async () => {
+      await expect(program.rpc.createAndInitPool(poolStateBump, initialObservationBump, initialPriceX32, {
+        accounts: {
+          poolCreator: owner,
+          token0: token0.publicKey,
+          token1: token1.publicKey,
+          feeState,
+          poolState,
+          initialObservationState,
+          vault0,
+          vault1,
+          systemProgram: SystemProgram.programId,
+          rent: web3.SYSVAR_RENT_PUBKEY,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID
+        }
+      })).to.be.rejectedWith(Error)
+    })
   })
-
 });
-
-export function numberToBigEndian(num: number) {
-  const arr = new ArrayBuffer(4)
-  const view = new DataView(arr)
-  view.setUint32(0, num, false)
-
-  const bigEndianArray = new Uint8Array(arr)
-  return bigEndianArray
-}

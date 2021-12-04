@@ -1,5 +1,5 @@
-use crate::libraries::tick_math;
 use anchor_lang::prelude::*;
+use crate::libraries::tick_math;
 use crate::error::ErrorCode;
 
 /// The pool state

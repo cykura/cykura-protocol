@@ -34,6 +34,7 @@ pub mod cyclos_core {
     ///
     /// # Arguments
     ///
+    /// * `ctx`- Initializes the factory state account
     /// * `factory_state_bump` - Bump to validate factory state address
     ///
     pub fn init_factory(ctx: Context<Initialize>, factory_state_bump: u8) -> ProgramResult {
@@ -51,6 +52,10 @@ pub mod cyclos_core {
     /// Updates the owner of the factory
     /// Must be called by the current owner
     ///
+    /// # Arguments
+    ///
+    /// * `ctx`- Checks whether protocol owner has signed
+    ///
     pub fn set_owner(ctx: Context<SetOwner>) -> ProgramResult {
         ctx.accounts.factory_state.owner = ctx.accounts.new_owner.key();
 
@@ -67,6 +72,7 @@ pub mod cyclos_core {
     ///
     /// # Arguments
     ///
+    /// * `ctx`- Checks whether protocol owner has signed and initializes the fee account
     /// * `fee_state_bump` - Bump to validate fee state address
     /// * `fee` - The fee amount to enable, denominated in hundredths of a bip (i.e. 1e-6)
     /// * `tick_spacing` - The spacing between ticks to be enforced for all pools created
@@ -96,22 +102,26 @@ pub mod cyclos_core {
     // ---------------------------------------------------------------------
     // 2. Pool instructions
 
-    /// Creates a pool for the given token pair and fee, and sets an initial price
+    /// Creates a pool for the given token pair and fee, and sets the initial price
+    ///
+    /// A single function in place of Uniswap's Factory.createPool(), PoolDeployer.deploy()
+    /// Pool.initialize() and pool.Constructor()
     ///
     /// # Arguments
     ///
+    /// * `ctx`- Validates token addresses and fee state. Initializes pool, observation and
+    /// token accounts
     /// * `pool_state_bump` - Bump to validate Pool State address
+    /// * `observation_state_bump` - Bump to validate Observation State address
     /// * `sqrt_price_x32` - the initial sqrt price (amount_token_1 / amount_token_0) of the pool as a Q32.32
-    ///
-    /// Single function in place of Factory.createPool(), PoolDeployer.deploy()
-    /// Pool.initialize() and pool.Constructor()
     ///
     pub fn create_and_init_pool(
         ctx: Context<CreateAndInitPool>,
         pool_state_bump: u8,
+        observation_state_bump: u8,
         sqrt_price_x32: u64,
     ) -> ProgramResult {
-        let tick = tick_math::get_tick_at_sqrt_ratio(sqrt_price_x32).unwrap();
+        let tick = tick_math::get_tick_at_sqrt_ratio(sqrt_price_x32)?;
 
         ctx.accounts.pool_state.bump = pool_state_bump;
         ctx.accounts.pool_state.token_0 = ctx.accounts.token_0.key();
@@ -121,8 +131,14 @@ pub mod cyclos_core {
         ctx.accounts.pool_state.sqrt_price_x32 = sqrt_price_x32;
         ctx.accounts.pool_state.tick = tick;
         ctx.accounts.pool_state.unlocked = true;
-        // TODO init oracle variables
-        // remaining variables are assigned default value of 0
+        ctx.accounts.pool_state.observation_cardinality = 1;
+        ctx.accounts.pool_state.observation_cardinality_next = 1;
+
+        ctx.accounts.initial_observation_state.bump = observation_state_bump;
+        ctx.accounts.initial_observation_state.block_timestamp = _block_timestamp();
+        ctx.accounts.initial_observation_state.initialized = true;
+
+        // default value 0 for remaining variables
 
         emit!(PoolCreatedAndInitialized {
             token_0: ctx.accounts.token_0.key(),
@@ -566,6 +582,12 @@ pub mod cyclos_core {
     //     ctx.accounts.pool_state.unlocked = true;
     //     Ok(())
     // }
+}
+
+/// Returns the block timestamp truncated to 32 bits, i.e. mod 2**32
+///
+pub fn _block_timestamp() -> u32 {
+    Clock::get().unwrap().unix_timestamp as u32 // truncation is desired
 }
 
 // /// Update position with given liquidity_delta

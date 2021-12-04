@@ -98,7 +98,7 @@ pub fn get_sqrt_ratio_at_tick(tick: i32) -> Result<u64, ErrorCode> {
 ///
 pub fn get_tick_at_sqrt_ratio(sqrt_price_x32: u64) -> Result<i32, ErrorCode> {
     // second inequality must be < because the price can never reach the price at the max tick
-    require!(sqrt_price_x32 >= MIN_SQRT_RATIO && sqrt_price_x32 < MAX_SQRT_RATIO, ErrorCode::T);
+    require!(sqrt_price_x32 >= MIN_SQRT_RATIO && sqrt_price_x32 < MAX_SQRT_RATIO, ErrorCode::R);
 
     let mut r = sqrt_price_x32;
     let mut msb = 0; // in [1, 64)

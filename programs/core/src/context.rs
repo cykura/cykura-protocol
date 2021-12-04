@@ -10,6 +10,7 @@ use crate::states::factory::FactoryState;
 use crate::states::fee::FeeState;
 use crate::states::pool::PoolState;
 use crate::states::position::PositionState;
+use crate::states::oracle::ObservationState;
 use crate::states::tick::TickState;
 use crate::states::tick_bitmap::TickBitmapState;
 
@@ -76,7 +77,7 @@ pub struct SetOwner<'info> {
 }
 
 #[derive(Accounts)]
-#[instruction(pool_state_bump: u8)]
+#[instruction(pool_state_bump: u8, observation_state_bump: u8)]
 pub struct CreateAndInitPool<'info> {
     /// Address paying to create the pool. Can be anyone
     pub pool_creator: Signer<'info>,
@@ -105,6 +106,21 @@ pub struct CreateAndInitPool<'info> {
         space = 8 + size_of::<PoolState>()
     )]
     pub pool_state: Box<Account<'info, PoolState>>,
+
+    /// Initialize an account to store oracle observations
+    #[account(
+        init,
+        seeds = [
+            token_0.key().as_ref(),
+            token_1.key().as_ref(),
+            &fee_state.fee.to_be_bytes(),
+            &0_u16.to_be_bytes(),
+        ],
+        bump = observation_state_bump,
+        payer = pool_creator,
+        space = 8 + size_of::<ObservationState>()
+    )]
+    pub initial_observation_state: Box<Account<'info, ObservationState>>,
 
     /// Accounts to hold pool tokens
     #[account(
