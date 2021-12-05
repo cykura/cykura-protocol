@@ -2,24 +2,38 @@ use anchor_lang::prelude::*;
 
 #[error]
 pub enum ErrorCode {
-    #[msg("Pool is Locked")]
-    Locked,
+    #[msg("LOK")]
+    LOK,
     #[msg("Minting amount should be greater than 0")]
     ZeroMintAmount,
 
     // states/pool.rs
+
+    // The lower tick must be below the upper tick
     #[msg("TLU")]
     TLU,
+
+    // The lower tick must be greater, or equal to, the minimum tick
     #[msg("TLM")]
     TLM,
+
+    // The upper tick must be lesser than, or equal to, the maximum tick
     #[msg("TUM")]
     TUM,
 
-    // Balance in pool before minting should be less than or equal to balance before minting
+    // Mint 0, The balance of token0 in the given pool before minting must be less than,
+    // or equal to, the balance after minting
     #[msg("M0")]
     M0,
+
+    // Mint 1, The balance of token1 in the given pool before minting must be less than,
+    // or equal to, the balance after minting
     #[msg("M1")]
     M1,
+
+    // Observation state seed should be valid
+    #[msg("OS")]
+    OS,
 
     // libraries/tick_math.rs
 
@@ -32,9 +46,11 @@ pub enum ErrorCode {
 
     // libraries/liquidity_math.rs
 
-    #[msg("LS")] // Liquidity Sub
+    // Liquidity Sub
+    #[msg("LS")]
     LS,
 
-    #[msg("LA")] // Liquidity Add
+    // Liquidity Add
+    #[msg("LA")]
     LA,
 }

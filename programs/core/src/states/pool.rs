@@ -40,7 +40,8 @@ pub struct PoolState {
     /// The current maximum number of observations stored in the pool
     pub observation_cardinality: u16,
 
-    /// The next maximum number of observations, to be updated when the observation
+    /// The next maximum number of observations, to be updated when an observation for a
+    /// mint/swap/burn is recorded
     pub observation_cardinality_next: u16,
 
     /// The fee growth as a Q32.32 number, i.e. fees of token_0 and token_1 collected per

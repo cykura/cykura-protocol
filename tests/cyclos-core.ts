@@ -1,5 +1,5 @@
 import * as anchor from '@project-serum/anchor';
-import { Program, web3, BN } from '@project-serum/anchor';
+import { Program, web3, BN, ProgramError } from '@project-serum/anchor';
 import { Token, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID } from '@solana/spl-token'
 import { assert, expect } from 'chai';
 import * as chai from 'chai'
@@ -361,7 +361,7 @@ describe('cyclos-core', async () => {
   const initialTick = 10
 
   describe('#create_and_init_pool', () => {
-    it('derive observation address', async () => {
+    it('derive first observation slot address', async () => {
       [initialObservationState, initialObservationBump] = await PublicKey.findProgramAddress(
         [
           token0.publicKey.toBuffer(),
@@ -598,5 +598,321 @@ describe('cyclos-core', async () => {
         }
       })).to.be.rejectedWith(Error)
     })
+  })
+
+  describe('#increase_observation_cardinality_next', () => {
+    it('fails if bump does not produce a PDA with observation state seeds', async () => {
+      const [observationState, _] = await PublicKey.findProgramAddress(
+        [
+          token0.publicKey.toBuffer(),
+          token1.publicKey.toBuffer(),
+          u32ToSeed(fee),
+          u16ToSeed(1)
+        ],
+        program.programId
+      )
+
+      await expect(program.rpc.increaseObservationCardinalityNext(Buffer.from([0]), {
+        accounts: {
+          payer: owner,
+          poolState,
+          systemProgram: SystemProgram.programId,
+        }, remainingAccounts: [{
+          pubkey: observationState,
+          isSigner: true,
+          isWritable: true
+        }]
+      })).to.be.rejectedWith('Signature verification failed')
+
+    })
+
+    it('fails if bump is valid but account does not match expected address for current cardinality_next', async () => {
+      const [_, observationStateBump] = await PublicKey.findProgramAddress(
+        [
+          token0.publicKey.toBuffer(),
+          token1.publicKey.toBuffer(),
+          u32ToSeed(fee),
+          u16ToSeed(1)
+        ],
+        program.programId
+      )
+      const fakeAccount = new Keypair()
+
+      await expect(program.rpc.increaseObservationCardinalityNext(Buffer.from([observationStateBump]), {
+        accounts: {
+          payer: owner,
+          poolState,
+          systemProgram: SystemProgram.programId,
+        }, remainingAccounts: [{
+          pubkey: fakeAccount.publicKey,
+          isSigner: true,
+          isWritable: true
+        }], signers: [fakeAccount]
+      })).to.be.rejectedWith('OS')
+    })
+
+    it('fails if a single address is passed with index greater than cardinality_next', async () => {
+      const [observationState2, observationState2Bump] = await PublicKey.findProgramAddress(
+        [
+          token0.publicKey.toBuffer(),
+          token1.publicKey.toBuffer(),
+          u32ToSeed(fee),
+          u16ToSeed(2)
+        ],
+        program.programId
+      )
+
+      await expect(program.rpc.increaseObservationCardinalityNext(Buffer.from([observationState2Bump]), {
+        accounts: {
+          payer: owner,
+          poolState,
+          systemProgram: SystemProgram.programId,
+        }, remainingAccounts: [{
+          pubkey: observationState2,
+          isSigner: false,
+          isWritable: true
+        }]
+      })).to.be.rejectedWith(/OS|Provided seeds do not result in a valid address/)
+    })
+
+    it('increase cardinality by one', async () => {
+      const [observationState1, observationState1Bump] = await PublicKey.findProgramAddress(
+        [
+          token0.publicKey.toBuffer(),
+          token1.publicKey.toBuffer(),
+          u32ToSeed(fee),
+          u16ToSeed(1)
+        ],
+        program.programId
+      )
+
+      let listener: number
+      let [_event, _slot] = await new Promise((resolve, _reject) => {
+        listener = program.addEventListener("IncreaseObservationCardinalityNext", (event, slot) => {
+          assert.equal(event.observationCardinalityNextOld, 1)
+          assert.equal(event.observationCardinalityNextNew, 2)
+          resolve([event, slot]);
+        });
+
+        program.rpc.increaseObservationCardinalityNext(Buffer.from([observationState1Bump]), {
+          accounts: {
+            payer: owner,
+            poolState,
+            systemProgram: SystemProgram.programId,
+          }, remainingAccounts: [{
+            pubkey: observationState1,
+            isSigner: false,
+            isWritable: true
+          }]
+        })
+      })
+      await program.removeEventListener(listener)
+
+      const observationState1Data = await program.account.observationState.fetch(observationState1)
+      console.log('Observation state 1 data', observationState1Data)
+      assert.equal(observationState1Data.bump, observationState1Bump)
+      assert.equal(observationState1Data.index, 1)
+      assert.equal(observationState1Data.blockTimestamp, 1)
+      assert(observationState1Data.tickCumulative.eq(new BN(0)))
+      assert(observationState1Data.secondsPerLiquidityCumulativeX32.eq(new BN(0)))
+      assert.isFalse(observationState1Data.initialized)
+
+      const poolStateData = await program.account.poolState.fetch(poolState)
+      assert.equal(poolStateData.observationCardinalityNext, 2)
+    })
+
+    it('fails if accounts are not in ascending order of index', async () => {
+      const [observationState2, observationState2Bump] = await PublicKey.findProgramAddress(
+        [
+          token0.publicKey.toBuffer(),
+          token1.publicKey.toBuffer(),
+          u32ToSeed(fee),
+          u16ToSeed(2)
+        ],
+        program.programId
+      )
+      const [observationState3, observationState3Bump] = await PublicKey.findProgramAddress(
+        [
+          token0.publicKey.toBuffer(),
+          token1.publicKey.toBuffer(),
+          u32ToSeed(fee),
+          u16ToSeed(3)
+        ],
+        program.programId
+      )
+
+      await expect(program.rpc.increaseObservationCardinalityNext(Buffer.from([observationState3Bump, observationState2Bump]), {
+        accounts: {
+          payer: owner,
+          poolState,
+          systemProgram: SystemProgram.programId,
+        }, remainingAccounts: [{
+          pubkey: observationState3,
+          isSigner: false,
+          isWritable: true
+        },
+        {
+          pubkey: observationState2,
+          isSigner: false,
+          isWritable: true
+        }]
+      })).to.be.rejectedWith(/OS|Provided seeds do not result in a valid address/)
+    })
+
+    it('fails if a stray account is present between the array of observation accounts', async () => {
+      const [observationState2, observationState2Bump] = await PublicKey.findProgramAddress(
+        [
+          token0.publicKey.toBuffer(),
+          token1.publicKey.toBuffer(),
+          u32ToSeed(fee),
+          u16ToSeed(2)
+        ],
+        program.programId
+      )
+      const [observationState3, observationState3Bump] = await PublicKey.findProgramAddress(
+        [
+          token0.publicKey.toBuffer(),
+          token1.publicKey.toBuffer(),
+          u32ToSeed(fee),
+          u16ToSeed(3)
+        ],
+        program.programId
+      )
+
+      await expect(program.rpc.increaseObservationCardinalityNext(Buffer.from([observationState2Bump, observationState3Bump]), {
+        accounts: {
+          payer: owner,
+          poolState,
+          systemProgram: SystemProgram.programId,
+        }, remainingAccounts: [{
+          pubkey: observationState2,
+          isSigner: false,
+          isWritable: true
+        },
+        {
+          pubkey: new Keypair().publicKey,
+          isSigner: false,
+          isWritable: true
+        },
+        {
+          pubkey: observationState3,
+          isSigner: false,
+          isWritable: true
+        }]
+      })).to.be.rejectedWith(/OS|Provided seeds do not result in a valid address/)
+    })
+
+    it('fails if less than current value of cardinality_next', async () => {
+      const [observationState1, observationState1Bump] = await PublicKey.findProgramAddress(
+        [
+          token0.publicKey.toBuffer(),
+          token1.publicKey.toBuffer(),
+          u32ToSeed(fee),
+          u16ToSeed(1)
+        ],
+        program.programId
+      )
+
+      await expect(program.rpc.increaseObservationCardinalityNext(Buffer.from([observationState1Bump]), {
+        accounts: {
+          payer: owner,
+          poolState,
+          systemProgram: SystemProgram.programId,
+        }, remainingAccounts: [{
+          pubkey: observationState1,
+          isSigner: false,
+          isWritable: true
+        }]
+      })).to.be.rejectedWith(/OS|Provided seeds do not result in a valid address/)
+    })
+
+    const MAX_OBSERVATION_INITS_PER_IX = 20
+
+    it('fails if compute unit limit reached by passing more accounts than max limit', async () => {
+      const bumps: number[] = []
+      const observationAccounts: {
+        pubkey: anchor.web3.PublicKey;
+        isSigner: boolean;
+        isWritable: boolean;
+      }[] = []
+
+      for (let i = 2; i < 2 + MAX_OBSERVATION_INITS_PER_IX + 1; i++) {
+        const [observationState, observationStateBump] = await PublicKey.findProgramAddress(
+          [
+            token0.publicKey.toBuffer(),
+            token1.publicKey.toBuffer(),
+            u32ToSeed(fee),
+            u16ToSeed(i)
+          ],
+          program.programId
+        )
+        bumps.push(observationStateBump)
+        observationAccounts.push({
+          pubkey: observationState,
+          isSigner: false,
+          isWritable: true
+        })
+      }
+
+      await expect(program.rpc.increaseObservationCardinalityNext(Buffer.from(bumps), {
+        accounts: {
+          payer: owner,
+          poolState,
+          systemProgram: SystemProgram.programId,
+        }, remainingAccounts: observationAccounts
+      })).to.be.rejectedWith(Error)
+    })
+
+    it('increase cardinality by max possible amount per instruction permitted by compute budget', async () => {
+      const bumps: number[] = []
+      const observationAccounts: {
+        pubkey: anchor.web3.PublicKey;
+        isSigner: boolean;
+        isWritable: boolean;
+      }[] = []
+      const currentCardinality = 2
+
+      for (let i = 0; i < MAX_OBSERVATION_INITS_PER_IX; i++) {
+        const [observationState, observationStateBump] = await PublicKey.findProgramAddress(
+          [
+            token0.publicKey.toBuffer(),
+            token1.publicKey.toBuffer(),
+            u32ToSeed(fee),
+            u16ToSeed(currentCardinality + i)
+          ],
+          program.programId
+        )
+        bumps.push(observationStateBump)
+        observationAccounts.push({
+          pubkey: observationState,
+          isSigner: false,
+          isWritable: true
+        })
+      }
+
+      await program.rpc.increaseObservationCardinalityNext(Buffer.from(bumps), {
+        accounts: {
+          payer: owner,
+          poolState,
+          systemProgram: SystemProgram.programId,
+        }, remainingAccounts: observationAccounts
+      })
+
+      const poolStateData = await program.account.poolState.fetch(poolState)
+      assert.equal(poolStateData.observationCardinalityNext, currentCardinality + MAX_OBSERVATION_INITS_PER_IX)
+
+      for (let i = 0; i < MAX_OBSERVATION_INITS_PER_IX; i++) {
+        const observationAccount = observationAccounts[i].pubkey
+        const observationStateData = await program.account.observationState.fetch(observationAccount)
+        assert.equal(observationStateData.bump, bumps[i])
+        assert.equal(observationStateData.index, currentCardinality + i)
+        assert.equal(observationStateData.blockTimestamp, 1)
+        assert(observationStateData.tickCumulative.eq(new BN(0)))
+        assert(observationStateData.secondsPerLiquidityCumulativeX32.eq(new BN(0)))
+        assert.isFalse(observationStateData.initialized)
+      }
+    })
+
+
   })
 });

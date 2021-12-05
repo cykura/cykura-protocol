@@ -39,3 +39,23 @@ pub struct ObservationState {
     /// Whether the observation has been initialized and the values are safe to use
     pub initialized: bool,
 }
+
+/// Returns the block timestamp truncated to 32 bits, i.e. mod 2**32
+///
+pub fn _block_timestamp() -> u32 {
+    Clock::get().unwrap().unix_timestamp as u32 // truncation is desired
+}
+
+/// Emitted by the pool for increases to the number of observations that can be stored
+///
+/// `observation_cardinality_next` is not the observation cardinality until an observation
+/// is written at the index just before a mint/swap/burn.
+///
+#[event]
+pub struct IncreaseObservationCardinalityNext {
+    /// The previous value of the next observation cardinality
+    pub observation_cardinality_next_old: u16,
+
+    /// The updated value of the next observation cardinality
+    pub observation_cardinality_next_new: u16,
+}

@@ -9,8 +9,8 @@ use anchor_lang::solana_program::{self, instruction::Instruction};
 use anchor_lang::AccountsClose;
 use anchor_spl::{associated_token, token};
 use context::*;
-use error::ErrorCode;
 use libraries::sqrt_price_math::{get_amount_0_delta_signed, get_amount_1_delta_signed};
+use crate::error::ErrorCode;
 use states::factory::*;
 use states::fee::*;
 use states::pool::*;
@@ -18,12 +18,17 @@ use states::position::*;
 use states::tick::*;
 use states::tick_bitmap::*;
 use std::convert::TryInto;
+use crate::states::oracle::ObservationState;
 use std::mem::size_of;
 
 declare_id!("37kn8WUzihQoAnhYxueA2BnqCA7VRnrVvYoHy1hQ6Veu");
 
 #[program]
 pub mod cyclos_core {
+    use anchor_lang::solana_program::{system_instruction::{SystemInstruction, create_account_with_seed, create_account}, pubkey};
+
+    use crate::states::oracle;
+
     use super::*;
 
     // ---------------------------------------------------------------------
@@ -135,7 +140,7 @@ pub mod cyclos_core {
         ctx.accounts.pool_state.observation_cardinality_next = 1;
 
         ctx.accounts.initial_observation_state.bump = observation_state_bump;
-        ctx.accounts.initial_observation_state.block_timestamp = _block_timestamp();
+        ctx.accounts.initial_observation_state.block_timestamp = oracle::_block_timestamp();
         ctx.accounts.initial_observation_state.initialized = true;
 
         // default value 0 for remaining variables
@@ -149,6 +154,90 @@ pub mod cyclos_core {
             sqrt_price_x32,
             tick,
         });
+        Ok(())
+    }
+
+    // ---------------------------------------------------------------------
+    // Oracle
+
+    /// Increase the maximum number of price and liquidity observations that this pool will store
+    ///
+    /// An `ObservationState` account is created per unit increase in cardinality_next,
+    /// and `observation_cardinality_next` is accordingly incremented.
+    ///
+    /// # Arguments
+    ///
+    /// * `ctx` - Holds the pool and payer addresses, along with a vector of
+    /// observation accounts which will be initialized
+    /// * `observation_account_bumps` - Vector of bumps to initialize the observation state PDAs
+    ///
+    pub fn increase_observation_cardinality_next<'a, 'b, 'c, 'info>(
+        ctx: Context<'a, 'b, 'c, 'info, IncreaseObservationCardinalityNext<'info>>,
+        observation_account_bumps: Vec<u8>
+    ) -> ProgramResult {
+        require!(ctx.accounts.pool_state.unlocked, ErrorCode::LOK);
+        ctx.accounts.pool_state.unlocked = false;
+
+        let mut i: usize = 0;
+        while i < observation_account_bumps.len() {
+
+            let observation_account_seeds = [
+                ctx.accounts.pool_state.token_0.as_ref(),
+                ctx.accounts.pool_state.token_1.as_ref(),
+                &ctx.accounts.pool_state.fee.to_be_bytes(),
+                &(ctx.accounts.pool_state.observation_cardinality_next + i as u16).to_be_bytes(),
+                &[observation_account_bumps[i]]
+            ];
+
+            require!(
+                ctx.remaining_accounts[i].key() == Pubkey::create_program_address(
+                    &observation_account_seeds[..],
+                    &ctx.program_id
+                )?,
+                ErrorCode::OS
+            );
+
+            let space = 8 + size_of::<ObservationState>();
+            let rent = Rent::get()?;
+            let lamports = rent.minimum_balance(space);
+            let ix = create_account(
+                ctx.accounts.payer.key,
+                &ctx.remaining_accounts[i].key,
+                lamports,
+                space as u64,
+                ctx.program_id
+            );
+
+            solana_program::program::invoke_signed(
+                &ix,
+                &[
+                    ctx.accounts.payer.to_account_info(),
+                    ctx.remaining_accounts[i].to_account_info(),
+                    ctx.accounts.system_program.to_account_info()
+                ],
+                &[&observation_account_seeds[..]]
+            )?;
+
+            let mut observation_state = Account::<ObservationState>::try_from_unchecked(
+                &ctx.remaining_accounts[i].to_account_info()
+            ).unwrap();
+            // this data will not be used because the initialized boolean is still false
+            observation_state.bump = observation_account_bumps[i];
+            observation_state.index = ctx.accounts.pool_state.observation_cardinality_next + i as u16;
+            observation_state.block_timestamp = 1;
+            observation_state.exit(ctx.program_id)?;
+
+            i += 1;
+        }
+        let observation_cardinality_next_old = ctx.accounts.pool_state.observation_cardinality_next;
+        ctx.accounts.pool_state.observation_cardinality_next += i as u16;
+
+        emit!(oracle::IncreaseObservationCardinalityNext {
+            observation_cardinality_next_old,
+            observation_cardinality_next_new: ctx.accounts.pool_state.observation_cardinality_next,
+        });
+
+        ctx.accounts.pool_state.unlocked = true;
         Ok(())
     }
 
@@ -227,7 +316,7 @@ pub mod cyclos_core {
     //     ];
     //     let signer_seeds = &[&seeds[..]];
 
-    //     // let cpi_ctx = CpiContext::from(&*ctx.accounts).with_signer(signer);
+    // bumps: observation_account_bumps/ let cpi_ctx = CpiContext::from(&*ctx.accounts).with_signer(signer);
     //     // non_fungible_position_manager::cpi::mint_callback(cpi_ctx, data)
 
     //     // Sign with pool
@@ -259,8 +348,7 @@ pub mod cyclos_core {
     //         tick_upper: ctx.accounts.tick_upper_state.tick,
     //         amount,
     //         amount_0,
-    //         amount_1,
-    //     });
+    //         amount_bump: bumps   //     });
 
     //     // ______________________________________________
     //     ctx.accounts.pool_state.unlocked = true;
@@ -582,12 +670,6 @@ pub mod cyclos_core {
     //     ctx.accounts.pool_state.unlocked = true;
     //     Ok(())
     // }
-}
-
-/// Returns the block timestamp truncated to 32 bits, i.e. mod 2**32
-///
-pub fn _block_timestamp() -> u32 {
-    Clock::get().unwrap().unix_timestamp as u32 // truncation is desired
 }
 
 // /// Update position with given liquidity_delta

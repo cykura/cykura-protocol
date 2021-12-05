@@ -149,6 +149,19 @@ pub struct CreateAndInitPool<'info> {
     pub associated_token_program: Program<'info, AssociatedToken>,
 }
 
+#[derive(Accounts)]
+pub struct IncreaseObservationCardinalityNext<'info> {
+    /// Pays to increase storage slots for oracle observations
+    pub payer: Signer<'info>,
+
+    /// Increase observation slots for this pool
+    #[account(mut)]
+    pub pool_state: Box<Account<'info, PoolState>>,
+
+    /// To create new program accounts
+    pub system_program: Program<'info, System>,
+}
+
 // #[derive(Accounts)]
 // #[instruction(fee: u32, token_0: Pubkey, token_1: Pubkey, tick_lower:u128, tick_upper:u128, bump: u8)]
 // pub struct CreatePosition<'info> {
