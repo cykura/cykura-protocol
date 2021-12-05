@@ -7,7 +7,7 @@ import chaiAsPromised from 'chai-as-promised'
 chai.use(chaiAsPromised)
 
 import { CyclosCore } from '../target/types/cyclos_core';
-import { MAX_SQRT_RATIO, MIN_SQRT_RATIO, u16ToSeed, u32ToSeed } from './utils';
+import { MaxU64, MAX_SQRT_RATIO, MIN_SQRT_RATIO, u16ToSeed, u32ToSeed } from './utils';
 
 const { PublicKey, Keypair, SystemProgram } = anchor.web3;
 
@@ -459,20 +459,20 @@ describe('cyclos-core', async () => {
         poolStateBump,
         initialObservationBump,
         MIN_SQRT_RATIO.subn(1), {
-          accounts: {
-            poolCreator: owner,
-            token0: token0.publicKey,
-            token1: token1.publicKey,
-            feeState,
-            poolState,
-            initialObservationState,
-            vault0,
-            vault1,
-            systemProgram: SystemProgram.programId,
-            rent: web3.SYSVAR_RENT_PUBKEY,
-            tokenProgram: TOKEN_PROGRAM_ID,
-            associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID
-          }
+        accounts: {
+          poolCreator: owner,
+          token0: token0.publicKey,
+          token1: token1.publicKey,
+          feeState,
+          poolState,
+          initialObservationState,
+          vault0,
+          vault1,
+          systemProgram: SystemProgram.programId,
+          rent: web3.SYSVAR_RENT_PUBKEY,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID
+        }
       })).to.be.rejectedWith('R')
 
     })
@@ -499,20 +499,20 @@ describe('cyclos-core', async () => {
         poolStateBump,
         initialObservationBump,
         new BN(2).pow(new BN(64)).subn(1), { // u64::MAX
-          accounts: {
-            poolCreator: owner,
-            token0: token0.publicKey,
-            token1: token1.publicKey,
-            feeState,
-            poolState,
-            initialObservationState,
-            vault0,
-            vault1,
-            systemProgram: SystemProgram.programId,
-            rent: web3.SYSVAR_RENT_PUBKEY,
-            tokenProgram: TOKEN_PROGRAM_ID,
-            associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID
-          }
+        accounts: {
+          poolCreator: owner,
+          token0: token0.publicKey,
+          token1: token1.publicKey,
+          feeState,
+          poolState,
+          initialObservationState,
+          vault0,
+          vault1,
+          systemProgram: SystemProgram.programId,
+          rent: web3.SYSVAR_RENT_PUBKEY,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID
+        }
       })).to.be.rejectedWith('R')
     })
 
@@ -836,7 +836,8 @@ describe('cyclos-core', async () => {
         isWritable: boolean;
       }[] = []
 
-      for (let i = 2; i < 2 + MAX_OBSERVATION_INITS_PER_IX + 1; i++) {
+      // max limit is approximate. Add a larger delta so that tests always pass
+      for (let i = 2; i < 2 + MAX_OBSERVATION_INITS_PER_IX + 5; i++) {
         const [observationState, observationStateBump] = await PublicKey.findProgramAddress(
           [
             token0.publicKey.toBuffer(),
@@ -971,4 +972,100 @@ describe('cyclos-core', async () => {
       assert.equal(poolStateData.feeProtocol, 102)
     })
   })
-});
+
+  const protocolFeeRecipient = new Keypair()
+  let recipientWallet0: web3.PublicKey
+  let recipientWallet1: web3.PublicKey
+
+  describe('#collect_protocol', () => {
+    it('creates token accounts for recipient', async () => {
+      recipientWallet0 = await token0.createAssociatedTokenAccount(protocolFeeRecipient.publicKey)
+      recipientWallet1 = await token1.createAssociatedTokenAccount(protocolFeeRecipient.publicKey)
+    })
+
+    it('fails if caller is not owner', async () => {
+      await expect(program.rpc.collectProtocol(MaxU64, MaxU64, {
+        accounts: {
+          owner: notOwner,
+          factoryState,
+          poolState,
+          vault0,
+          vault1,
+          recipientWallet0,
+          recipientWallet1,
+          tokenProgram: TOKEN_PROGRAM_ID,
+        }
+      })).to.be.rejectedWith(Error)
+    })
+
+    it('fails if vault 0 address is not valid', async () => {
+      await expect(program.rpc.collectProtocol(MaxU64, MaxU64, {
+        accounts: {
+          owner: notOwner,
+          factoryState,
+          poolState,
+          vault0: new Keypair().publicKey,
+          vault1,
+          recipientWallet0,
+          recipientWallet1,
+          tokenProgram: TOKEN_PROGRAM_ID,
+        }
+      })).to.be.rejectedWith(Error)
+    })
+
+    it('fails if vault 1 address is not valid', async () => {
+      await expect(program.rpc.collectProtocol(MaxU64, MaxU64, {
+        accounts: {
+          owner: notOwner,
+          factoryState,
+          poolState,
+          vault0,
+          vault1: new Keypair().publicKey,
+          recipientWallet0,
+          recipientWallet1,
+          tokenProgram: TOKEN_PROGRAM_ID,
+        }
+      })).to.be.rejectedWith(Error)
+    })
+
+    it('no token transfers if no fees', async () => {
+      let listener: number
+      let [_event, _slot] = await new Promise((resolve, _reject) => {
+        listener = program.addEventListener("CollectProtocolEvent", (event, slot) => {
+          assert((event.poolState as web3.PublicKey).equals(poolState))
+          assert((event.sender as web3.PublicKey).equals(owner))
+          assert((event.amount0 as BN).eqn(0))
+          assert((event.amount1 as BN).eqn(0))
+
+          resolve([event, slot]);
+        });
+
+        program.rpc.collectProtocol(MaxU64, MaxU64, {
+          accounts: {
+            owner,
+            factoryState,
+            poolState,
+            vault0,
+            vault1,
+            recipientWallet0,
+            recipientWallet1,
+            tokenProgram: TOKEN_PROGRAM_ID,
+          }
+        })
+      })
+      await program.removeEventListener(listener)
+
+      const poolStateData = await program.account.poolState.fetch(poolState)
+      assert(poolStateData.protocolFeesToken0.eqn(0))
+      assert(poolStateData.protocolFeesToken1.eqn(0))
+
+      const recipientWallet0Info = await token0.getAccountInfo(recipientWallet0)
+      const recipientWallet1Info = await token1.getAccountInfo(recipientWallet1)
+      assert(recipientWallet0Info.amount.eqn(0))
+      assert(recipientWallet1Info.amount.eqn(0))
+    })
+
+    // TODO remaining tests after swap component is ready
+  })
+
+})

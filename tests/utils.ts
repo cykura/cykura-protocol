@@ -18,3 +18,5 @@ export function u16ToSeed(num: number) {
   view.setUint16(0, num, false)
   return new Uint8Array(arr)
 }
+
+export const MaxU64= new BN(2).pow(new BN(64)).subn(1)

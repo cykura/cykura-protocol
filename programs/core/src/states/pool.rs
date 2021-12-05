@@ -132,11 +132,26 @@ pub struct SetFeeProtocolEvent {
     pub fee_protocol_1: u8,
 }
 
+/// Emitted when the collected protocol fees are withdrawn by the factory owner
 #[event]
 pub struct CollectProtocolEvent {
     #[index]
     pub pool_state: Pubkey,
+
+    /// The address that collects the protocol fees
+    #[index]
+    pub sender: Pubkey,
+
+    /// The address that receives the collected token_0 protocol fees
+    pub recipient_wallet_0: Pubkey,
+
+    /// The address that receives the collected token_1 protocol fees
+    pub recipient_wallet_1: Pubkey,
+
+    /// The amount of token_0 protocol fees that is withdrawn
     pub amount_0: u64,
+
+    /// The amount of token_0 protocol fees that is withdrawn
     pub amount_1: u64,
 }
 

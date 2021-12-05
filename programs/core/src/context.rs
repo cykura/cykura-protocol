@@ -122,7 +122,7 @@ pub struct CreateAndInitPool<'info> {
     )]
     pub initial_observation_state: Box<Account<'info, ObservationState>>,
 
-    /// Accounts to hold pool tokens
+    /// The address that holds pool tokens for token_0
     #[account(
         init_if_needed,
         associated_token::mint = token_0,
@@ -130,6 +130,8 @@ pub struct CreateAndInitPool<'info> {
         payer = pool_creator,
     )]
     pub vault_0: Box<Account<'info, TokenAccount>>,
+
+    /// The address that holds pool tokens for token_1
     #[account(
         init_if_needed,
         associated_token::mint = token_1,
@@ -176,57 +178,46 @@ pub struct SetFeeProtocol<'info> {
     pub pool_state: Box<Account<'info, PoolState>>,
 }
 
-// #[derive(Accounts)]
-// pub struct CollectProtocol<'info> {
-//     pub owner: Signer<'info>,
+#[derive(Accounts)]
+pub struct CollectProtocol<'info> {
+    /// Valid protocol owner
+    pub owner: Signer<'info>,
 
-//     #[account(
-//         mut,
-//         seeds = [],
-//         bump = factory_state.bump,
-//         constraint = owner.key() == factory_state.owner @ErrorCode::NotAnOwner
-//     )]
-//     pub factory_state: Box<Account<'info, FactoryState>>,
+    /// Factory state stores the protocol owner address
+    #[account(mut)]
+    pub factory_state: Box<Account<'info, FactoryState>>,
 
-//     #[account(
-//         mut,
-//         seeds = [
-//             &pool_state.fee_protocol.to_be_bytes(),
-//         ],
-//         bump = pool_state.bump,
-//     )]
-//     pub pool_state: Box<Account<'info, PoolState>>,
+    /// Pool state stores accumulated protocol fee amount
+    #[account(mut)]
+    pub pool_state: Box<Account<'info, PoolState>>,
 
-//     #[account(
-//         mut,
-//         associated_token::mint = pool_state.token_0.key(),
-//         associated_token::authority = pool_state,
-//     )]
-//     pub vault_0: Box<Account<'info, TokenAccount>>,
+    /// The address that holds pool tokens for token_0
+    #[account(
+        mut,
+        associated_token::mint = pool_state.token_0.key(),
+        associated_token::authority = pool_state,
+    )]
+    pub vault_0: Box<Account<'info, TokenAccount>>,
 
-//     #[account(
-//         mut,
-//         associated_token::mint = pool_state.token_1.key(),
-//         associated_token::authority = pool_state,
-//     )]
-//     pub vault_1: Box<Account<'info, TokenAccount>>,
+    /// The address that holds pool tokens for token_1
+    #[account(
+        mut,
+        associated_token::mint = pool_state.token_1.key(),
+        associated_token::authority = pool_state,
+    )]
+    pub vault_1: Box<Account<'info, TokenAccount>>,
 
-//     #[account(
-//         mut,
-//         associated_token::mint = pool_state.token_0.key(),
-//         associated_token::authority = owner.key(),
-//     )]
-//     pub owner_wallet_0: Box<Account<'info, TokenAccount>>,
+    /// The address that receives the collected token_0 protocol fees
+    #[account(mut)]
+    pub recipient_wallet_0: Box<Account<'info, TokenAccount>>,
 
-//     #[account(
-//         mut,
-//         associated_token::mint = pool_state.token_1.key(),
-//         associated_token::authority = owner.key(),
-//     )]
-//     pub owner_wallet_1: Box<Account<'info, TokenAccount>>,
+    /// The address that receives the collected token_1 protocol fees
+    #[account(mut)]
+    pub recipient_wallet_1: Box<Account<'info, TokenAccount>>,
 
-//     pub token_program: Program<'info, Token>,
-// }
+    /// The SPL program to perform token transfers
+    pub token_program: Program<'info, Token>,
+}
 
 // #[derive(Accounts)]
 // #[instruction(fee: u32, token_0: Pubkey, token_1: Pubkey, tick_lower:u128, tick_upper:u128, bump: u8)]
