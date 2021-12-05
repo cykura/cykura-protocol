@@ -119,7 +119,7 @@ describe('cyclos-core', async () => {
 
     // Test for event and owner value
     it('initializes factory and emits an event', async () => {
-      let listener = null;
+      let listener: number
       let [_event, _slot] = await new Promise((resolve, _reject) => {
         listener = program.addEventListener("OwnerChanged", (event, slot) => {
           assert((event.oldOwner as web3.PublicKey).equals(new PublicKey(0)))
@@ -195,7 +195,7 @@ describe('cyclos-core', async () => {
 
     // Test for event and updated owner value
     it('updates owner and emits an event', async function () {
-      let listener = null;
+      let listener: number
       let [_event, _slot] = await new Promise((resolve, _reject) => {
         listener = program.addEventListener("OwnerChanged", (event, slot) => {
           assert((event.oldOwner as web3.PublicKey).equals(owner))
@@ -308,7 +308,7 @@ describe('cyclos-core', async () => {
     })
 
     it('sets the fee amount and emits an event', async () => {
-      let listener = null;
+      let listener: number
       let [_event, _slot] = await new Promise((resolve, _reject) => {
         listener = program.addEventListener("FeeAmountEnabled", (event, slot) => {
           assert.equal(event.fee, fee)
@@ -517,7 +517,7 @@ describe('cyclos-core', async () => {
     })
 
     it('creates a new pool and initializes it with a starting price', async () => {
-      let listener = null;
+      let listener: number
       let [_event, _slot] = await new Promise((resolve, _reject) => {
         listener = program.addEventListener("PoolCreatedAndInitialized", (event, slot) => {
           assert((event.token0 as web3.PublicKey).equals(token0.publicKey))
@@ -912,7 +912,63 @@ describe('cyclos-core', async () => {
         assert.isFalse(observationStateData.initialized)
       }
     })
+  })
 
+  describe('#set_fee_protocol', () => {
+    it('cannot be changed by addresses that are not owner', async () => {
+      await expect(program.rpc.setFeeProtocol(6, 6, {
+        accounts: {
+          owner: notOwner.publicKey,
+          poolState,
+          factoryState,
+        }, signers: [notOwner]
+      })).to.be.rejectedWith(Error)
+    })
 
+    it('cannot be changed out of bounds', async () => {
+      await expect(program.rpc.setFeeProtocol(3, 3, {
+        accounts: {
+          owner,
+          poolState,
+          factoryState,
+        }
+      })).to.be.rejectedWith(Error)
+
+      await expect(program.rpc.setFeeProtocol(11, 11, {
+        accounts: {
+          owner,
+          poolState,
+          factoryState,
+        }
+      })).to.be.rejectedWith(Error)
+    })
+
+    it('can be changed by owner', async () => {
+      let listener: number
+      let [_event, _slot] = await new Promise((resolve, _reject) => {
+        listener = program.addEventListener("SetFeeProtocolEvent", (event, slot) => {
+          assert((event.poolState as web3.PublicKey).equals(poolState))
+          assert.equal(event.feeProtocol0Old, 0)
+          assert.equal(event.feeProtocol1Old, 0)
+          assert.equal(event.feeProtocol0, 6)
+          assert.equal(event.feeProtocol1, 6)
+
+          resolve([event, slot]);
+        });
+
+        program.rpc.setFeeProtocol(6, 6, {
+          accounts: {
+            owner,
+            poolState,
+            factoryState,
+          }
+        })
+      })
+      await program.removeEventListener(listener)
+
+      const poolStateData = await program.account.poolState.fetch(poolState)
+      assert.equal((6 << 4) + 6, 102)
+      assert.equal(poolStateData.feeProtocol, 102)
+    })
   })
 });

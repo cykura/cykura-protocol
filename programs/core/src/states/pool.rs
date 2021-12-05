@@ -112,13 +112,23 @@ pub struct PoolCreatedAndInitialized {
     pub tick: i32,
 }
 
+/// Emitted when the protocol fee is changed for a pool
 #[event]
 pub struct SetFeeProtocolEvent {
+    /// The pool whose protocol fee is changed
     #[index]
     pub pool_state: Pubkey,
+
+    /// The previous value of the token_0 protocol fee
     pub fee_protocol_0_old: u8,
+
+    /// The previous value of the token_1 protocol fee
     pub fee_protocol_1_old: u8,
+
+    /// The updated value of the token_0 protocol fee
     pub fee_protocol_0: u8,
+
+    /// The updated value of the token_1 protocol fee
     pub fee_protocol_1: u8,
 }
 

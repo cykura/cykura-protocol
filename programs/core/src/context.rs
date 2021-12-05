@@ -162,6 +162,72 @@ pub struct IncreaseObservationCardinalityNext<'info> {
     pub system_program: Program<'info, System>,
 }
 
+#[derive(Accounts)]
+pub struct SetFeeProtocol<'info> {
+    /// Valid protocol owner
+    #[account(address = factory_state.owner)]
+    pub owner: Signer<'info>,
+
+    /// Factory state stores the protocol owner address
+    pub factory_state: Box<Account<'info, FactoryState>>,
+
+    /// Set protocol fee for this pool
+    #[account(mut)]
+    pub pool_state: Box<Account<'info, PoolState>>,
+}
+
+// #[derive(Accounts)]
+// pub struct CollectProtocol<'info> {
+//     pub owner: Signer<'info>,
+
+//     #[account(
+//         mut,
+//         seeds = [],
+//         bump = factory_state.bump,
+//         constraint = owner.key() == factory_state.owner @ErrorCode::NotAnOwner
+//     )]
+//     pub factory_state: Box<Account<'info, FactoryState>>,
+
+//     #[account(
+//         mut,
+//         seeds = [
+//             &pool_state.fee_protocol.to_be_bytes(),
+//         ],
+//         bump = pool_state.bump,
+//     )]
+//     pub pool_state: Box<Account<'info, PoolState>>,
+
+//     #[account(
+//         mut,
+//         associated_token::mint = pool_state.token_0.key(),
+//         associated_token::authority = pool_state,
+//     )]
+//     pub vault_0: Box<Account<'info, TokenAccount>>,
+
+//     #[account(
+//         mut,
+//         associated_token::mint = pool_state.token_1.key(),
+//         associated_token::authority = pool_state,
+//     )]
+//     pub vault_1: Box<Account<'info, TokenAccount>>,
+
+//     #[account(
+//         mut,
+//         associated_token::mint = pool_state.token_0.key(),
+//         associated_token::authority = owner.key(),
+//     )]
+//     pub owner_wallet_0: Box<Account<'info, TokenAccount>>,
+
+//     #[account(
+//         mut,
+//         associated_token::mint = pool_state.token_1.key(),
+//         associated_token::authority = owner.key(),
+//     )]
+//     pub owner_wallet_1: Box<Account<'info, TokenAccount>>,
+
+//     pub token_program: Program<'info, Token>,
+// }
+
 // #[derive(Accounts)]
 // #[instruction(fee: u32, token_0: Pubkey, token_1: Pubkey, tick_lower:u128, tick_upper:u128, bump: u8)]
 // pub struct CreatePosition<'info> {
@@ -268,78 +334,3 @@ pub struct IncreaseObservationCardinalityNext<'info> {
 //     pub system_program: Program<'info, System>,
 // }
 
-// #[derive(Accounts)]
-// pub struct SetFeeProtocol<'info> {
-//     pub owner: Signer<'info>,
-
-//     #[account(
-//         mut,
-//         seeds = [
-//             pool_state.token_0.as_ref(),
-//             pool_state.token_1.as_ref(),
-//             &pool_state.fee.to_be_bytes()
-//         ],
-//         bump = pool_state.bump,
-//     )]
-//     pub pool_state: Box<Account<'info, PoolState>>,
-
-//     #[account(
-//         mut,
-//         seeds = [],
-//         bump = factory_state.bump,
-//         constraint = owner.key() == factory_state.owner @ErrorCode::NotAnOwner
-//     )]
-//     pub factory_state: Box<Account<'info, FactoryState>>,
-// }
-
-// #[derive(Accounts)]
-// pub struct CollectProtocol<'info> {
-//     pub owner: Signer<'info>,
-
-//     #[account(
-//         mut,
-//         seeds = [],
-//         bump = factory_state.bump,
-//         constraint = owner.key() == factory_state.owner @ErrorCode::NotAnOwner
-//     )]
-//     pub factory_state: Box<Account<'info, FactoryState>>,
-
-//     #[account(
-//         mut,
-//         seeds = [
-//             &pool_state.fee_protocol.to_be_bytes(),
-//         ],
-//         bump = pool_state.bump,
-//     )]
-//     pub pool_state: Box<Account<'info, PoolState>>,
-
-//     #[account(
-//         mut,
-//         associated_token::mint = pool_state.token_0.key(),
-//         associated_token::authority = pool_state,
-//     )]
-//     pub vault_0: Box<Account<'info, TokenAccount>>,
-
-//     #[account(
-//         mut,
-//         associated_token::mint = pool_state.token_1.key(),
-//         associated_token::authority = pool_state,
-//     )]
-//     pub vault_1: Box<Account<'info, TokenAccount>>,
-
-//     #[account(
-//         mut,
-//         associated_token::mint = pool_state.token_0.key(),
-//         associated_token::authority = owner.key(),
-//     )]
-//     pub owner_wallet_0: Box<Account<'info, TokenAccount>>,
-
-//     #[account(
-//         mut,
-//         associated_token::mint = pool_state.token_1.key(),
-//         associated_token::authority = owner.key(),
-//     )]
-//     pub owner_wallet_1: Box<Account<'info, TokenAccount>>,
-
-//     pub token_program: Program<'info, Token>,
-// }

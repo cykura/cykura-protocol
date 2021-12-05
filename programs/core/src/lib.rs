@@ -32,7 +32,7 @@ pub mod cyclos_core {
     use super::*;
 
     // ---------------------------------------------------------------------
-    // 1. Factory instructions
+    // Factory instructions
     // The Factory facilitates creation of pools and control over the protocol fees
 
     /// Initialize the factory state and set the protocol owner
@@ -105,7 +105,7 @@ pub mod cyclos_core {
     }
 
     // ---------------------------------------------------------------------
-    // 2. Pool instructions
+    // Pool instructions
 
     /// Creates a pool for the given token pair and fee, and sets the initial price
     ///
@@ -240,6 +240,147 @@ pub mod cyclos_core {
         ctx.accounts.pool_state.unlocked = true;
         Ok(())
     }
+
+     // ---------------------------------------------------------------------
+    // Pool owner instructions
+
+    /// Set the denominator of the protocol's % share of the fees
+    ///
+    /// # Arguments
+    ///
+    /// * `fee_protocol_0` - new protocol fee for token_0 of the pool
+    /// * `fee_protocol_1` - new protocol fee for token_1 of the pool
+    ///
+    pub fn set_fee_protocol(
+        ctx: Context<SetFeeProtocol>,
+        fee_protocol_0: u8,
+        fee_protocol_1: u8,
+    ) -> ProgramResult {
+        require!(ctx.accounts.pool_state.unlocked, ErrorCode::LOK);
+        ctx.accounts.pool_state.unlocked = false;
+
+        assert!(
+            (fee_protocol_0 == 0 || (fee_protocol_0 >= 4 && fee_protocol_0 <= 10)) &&
+            (fee_protocol_1 == 0 || (fee_protocol_1 >= 4 && fee_protocol_1 <= 10))
+        );
+
+        let fee_protocol_old = ctx.accounts.pool_state.fee_protocol;
+        ctx.accounts.pool_state.fee_protocol = (fee_protocol_1 << 4) + fee_protocol_0;
+
+        emit!(SetFeeProtocolEvent {
+            pool_state: ctx.accounts.pool_state.key(),
+            fee_protocol_0_old: fee_protocol_old % 16,
+            fee_protocol_1_old: fee_protocol_old >> 4,
+            fee_protocol_0,
+            fee_protocol_1,
+        });
+
+        ctx.accounts.pool_state.unlocked = true;
+        Ok(())
+    }
+
+    // /// Collect protocol fees
+    // /// Amounts can be 0 to collect fees only in the other token
+    // pub fn collect_protocol(
+    //     ctx: Context<CollectProtocol>,
+    //     amount_0_requested: u64,
+    //     amount_1_requested: u64,
+    // ) -> ProgramResult {
+    //     if !ctx.accounts.pool_state.unlocked {
+    //         return Err(ErrorCode::Locked.into());
+    //     }
+    //     ctx.accounts.pool_state.unlocked = false;
+    //     let pool_state = &mut *ctx.accounts.pool_state;
+
+    //     // Amounts to be transferred to owner = MIN (requested, accrued)
+    //     // Cannot transfer out more than accrued
+    //     let mut amount_0 = if amount_0_requested > pool_state.protocol_fees_token_0 {
+    //         pool_state.protocol_fees_token_0
+    //     } else {
+    //         amount_0_requested
+    //     };
+    //     let mut amount_1 = if amount_1_requested > pool_state.protocol_fees_token_1 {
+    //         pool_state.protocol_fees_token_1
+    //     } else {
+    //         amount_1_requested
+    //     };
+
+    //     let token_0 = pool_state.token_0.clone();
+    //     let token_1 = pool_state.token_1.clone();
+
+    //     let seeds = &[
+    //         &token_0.to_bytes() as &[u8],
+    //         &token_1.to_bytes() as &[u8],
+    //         &pool_state.fee.to_be_bytes() as &[u8],
+    //         &[pool_state.bump],
+    //     ];
+    //     let signer_seeds = &[&seeds[..]];
+
+    //     if amount_0 > 0 {
+    //         // Note- Uniswap leaves out 1 fee unit in state so
+    //         // register is not cleared. This saves gas.
+    //         // If there are 100 unclaimed units, maxiumum 99 can be sent
+    //         // Retained for API compatibility
+    //         if amount_0 == pool_state.protocol_fees_token_0 {
+    //             amount_0 = amount_0.checked_sub(1).unwrap();
+    //         }
+
+    //         pool_state.protocol_fees_token_0 = pool_state
+    //             .protocol_fees_token_0
+    //             .checked_sub(amount_0)
+    //             .unwrap();
+
+    //         // Transfer
+    //         token::transfer(
+    //             CpiContext::new_with_signer(
+    //                 ctx.accounts.token_program.to_account_info().clone(),
+    //                 token::Transfer {
+    //                     from: ctx.accounts.vault_0.to_account_info().clone(),
+    //                     to: ctx.accounts.owner_wallet_0.to_account_info().clone(),
+    //                     authority: pool_state.to_account_info().clone(),
+    //                 },
+    //                 signer_seeds,
+    //             ),
+    //             amount_0,
+    //         )?; //handle error. Possible for it to remain locked , make unlocked=true
+    //     }
+    //     if amount_1 > 0 {
+    //         // Note- Uniswap leaves out 1 fee unit in state so
+    //         // register is not cleared. This saves gas.
+    //         // If there are 100 unclaimed units, maxiumum 99 can be sent
+    //         if amount_1 == pool_state.protocol_fees_token_1 {
+    //             amount_1 = amount_1.checked_sub(1).unwrap();
+    //         }
+
+    //         pool_state.protocol_fees_token_1 = pool_state
+    //             .protocol_fees_token_1
+    //             .checked_sub(amount_1)
+    //             .unwrap();
+
+    //         // Transfer
+    //         token::transfer(
+    //             CpiContext::new_with_signer(
+    //                 ctx.accounts.token_program.to_account_info().clone(),
+    //                 token::Transfer {
+    //                     from: ctx.accounts.vault_1.to_account_info().clone(),
+    //                     to: ctx.accounts.owner_wallet_1.to_account_info().clone(),
+    //                     authority: pool_state.to_account_info().clone(),
+    //                 },
+    //                 signer_seeds,
+    //             ),
+    //             amount_1,
+    //         )?; //handle error , make unlocked=true
+    //     }
+
+    //     emit!(CollectProtocolEvent {
+    //         pool_state: pool_state.key(),
+    //         amount_0,
+    //         amount_1,
+    //     });
+
+    //     ctx.accounts.pool_state.unlocked = true;
+    //     Ok(())
+    // }
 
     // ---------------------------------------------------------------------
     // 3. Position instructions
@@ -529,147 +670,7 @@ pub mod cyclos_core {
     //     todo!()
     // }
 
-    // // ---------------------------------------------------------------------
-    // // 5. Pool owner instructions
 
-    // /// Update protocol fees for a pool
-    // /// Protocol fee can be 0 or 1/N where 4 <= N <= 10 (fits in 4 bits)
-    // /// Both tokens in the pool can have different protocol fees
-    // /// Compress as a single u8, where fee_protocol_1 are leftmost bits and fee_protocol_0 are rightmost
-    // pub fn set_fee_protocol(
-    //     ctx: Context<SetFeeProtocol>,
-    //     fee_protocol_0: u8,
-    //     fee_protocol_1: u8,
-    // ) -> ProgramResult {
-    //     if !ctx.accounts.pool_state.unlocked {
-    //         return Err(ErrorCode::Locked.into());
-    //     }
-    //     ctx.accounts.pool_state.unlocked = false;
-
-    //     if (fee_protocol_0 == 0 || (fee_protocol_0 >= 4 && fee_protocol_0 <= 10))
-    //         && (fee_protocol_1 == 0 || (fee_protocol_1 >= 4 && fee_protocol_1 <= 10))
-    //     {
-    //         msg!("Error: Protocol fee should be 0 or 1/N where 4 <= N <= 10 ")
-    //     }
-
-    //     let fee_protocol_old = ctx.accounts.pool_state.fee_protocol;
-    //     // 8 bits = [4 bits of fee_protocol_1][4 bits of fee_protocol_0]
-    //     ctx.accounts.pool_state.fee_protocol = (fee_protocol_1 << 4) + fee_protocol_0;
-
-    //     emit!(SetFeeProtocolEvent {
-    //         pool_state: ctx.accounts.pool_state.key(),
-    //         fee_protocol_0_old: fee_protocol_old % 16,
-    //         fee_protocol_1_old: fee_protocol_old >> 4,
-    //         fee_protocol_0,
-    //         fee_protocol_1,
-    //     });
-
-    //     ctx.accounts.pool_state.unlocked = true;
-    //     Ok(())
-    // }
-
-    // /// Collect protocol fees
-    // /// Amounts can be 0 to collect fees only in the other token
-    // pub fn collect_protocol(
-    //     ctx: Context<CollectProtocol>,
-    //     amount_0_requested: u64,
-    //     amount_1_requested: u64,
-    // ) -> ProgramResult {
-    //     if !ctx.accounts.pool_state.unlocked {
-    //         return Err(ErrorCode::Locked.into());
-    //     }
-    //     ctx.accounts.pool_state.unlocked = false;
-    //     let pool_state = &mut *ctx.accounts.pool_state;
-
-    //     // Amounts to be transferred to owner = MIN (requested, accrued)
-    //     // Cannot transfer out more than accrued
-    //     let mut amount_0 = if amount_0_requested > pool_state.protocol_fees_token_0 {
-    //         pool_state.protocol_fees_token_0
-    //     } else {
-    //         amount_0_requested
-    //     };
-    //     let mut amount_1 = if amount_1_requested > pool_state.protocol_fees_token_1 {
-    //         pool_state.protocol_fees_token_1
-    //     } else {
-    //         amount_1_requested
-    //     };
-
-    //     let token_0 = pool_state.token_0.clone();
-    //     let token_1 = pool_state.token_1.clone();
-
-    //     let seeds = &[
-    //         &token_0.to_bytes() as &[u8],
-    //         &token_1.to_bytes() as &[u8],
-    //         &pool_state.fee.to_be_bytes() as &[u8],
-    //         &[pool_state.bump],
-    //     ];
-    //     let signer_seeds = &[&seeds[..]];
-
-    //     if amount_0 > 0 {
-    //         // Note- Uniswap leaves out 1 fee unit in state so
-    //         // register is not cleared. This saves gas.
-    //         // If there are 100 unclaimed units, maxiumum 99 can be sent
-    //         // Retained for API compatibility
-    //         if amount_0 == pool_state.protocol_fees_token_0 {
-    //             amount_0 = amount_0.checked_sub(1).unwrap();
-    //         }
-
-    //         pool_state.protocol_fees_token_0 = pool_state
-    //             .protocol_fees_token_0
-    //             .checked_sub(amount_0)
-    //             .unwrap();
-
-    //         // Transfer
-    //         token::transfer(
-    //             CpiContext::new_with_signer(
-    //                 ctx.accounts.token_program.to_account_info().clone(),
-    //                 token::Transfer {
-    //                     from: ctx.accounts.vault_0.to_account_info().clone(),
-    //                     to: ctx.accounts.owner_wallet_0.to_account_info().clone(),
-    //                     authority: pool_state.to_account_info().clone(),
-    //                 },
-    //                 signer_seeds,
-    //             ),
-    //             amount_0,
-    //         )?; //handle error. Possible for it to remain locked , make unlocked=true
-    //     }
-    //     if amount_1 > 0 {
-    //         // Note- Uniswap leaves out 1 fee unit in state so
-    //         // register is not cleared. This saves gas.
-    //         // If there are 100 unclaimed units, maxiumum 99 can be sent
-    //         if amount_1 == pool_state.protocol_fees_token_1 {
-    //             amount_1 = amount_1.checked_sub(1).unwrap();
-    //         }
-
-    //         pool_state.protocol_fees_token_1 = pool_state
-    //             .protocol_fees_token_1
-    //             .checked_sub(amount_1)
-    //             .unwrap();
-
-    //         // Transfer
-    //         token::transfer(
-    //             CpiContext::new_with_signer(
-    //                 ctx.accounts.token_program.to_account_info().clone(),
-    //                 token::Transfer {
-    //                     from: ctx.accounts.vault_1.to_account_info().clone(),
-    //                     to: ctx.accounts.owner_wallet_1.to_account_info().clone(),
-    //                     authority: pool_state.to_account_info().clone(),
-    //                 },
-    //                 signer_seeds,
-    //             ),
-    //             amount_1,
-    //         )?; //handle error , make unlocked=true
-    //     }
-
-    //     emit!(CollectProtocolEvent {
-    //         pool_state: pool_state.key(),
-    //         amount_0,
-    //         amount_1,
-    //     });
-
-    //     ctx.accounts.pool_state.unlocked = true;
-    //     Ok(())
-    // }
 }
 
 // /// Update position with given liquidity_delta
