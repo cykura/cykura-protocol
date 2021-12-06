@@ -135,6 +135,7 @@ pub struct SetFeeProtocolEvent {
 /// Emitted when the collected protocol fees are withdrawn by the factory owner
 #[event]
 pub struct CollectProtocolEvent {
+    /// The pool whose protocol fee is collected
     #[index]
     pub pool_state: Pubkey,
 

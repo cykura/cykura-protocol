@@ -1,15 +1,16 @@
 import * as anchor from '@project-serum/anchor';
 import { Program, web3, BN, ProgramError } from '@project-serum/anchor';
 import { Token, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID } from '@solana/spl-token'
-import { assert, expect } from 'chai';
+import { assert, expect } from 'chai'
 import * as chai from 'chai'
 import chaiAsPromised from 'chai-as-promised'
 chai.use(chaiAsPromised)
 
-import { CyclosCore } from '../target/types/cyclos_core';
-import { MaxU64, MAX_SQRT_RATIO, MIN_SQRT_RATIO, u16ToSeed, u32ToSeed } from './utils';
+import { CyclosCore } from '../target/types/cyclos_core'
+import { NonFungiblePositionManager } from '../target/types/non_fungible_position_manager'
+import { MaxU64, MAX_SQRT_RATIO, MIN_SQRT_RATIO, u16ToSeed, u32ToSeed } from './utils'
 
-const { PublicKey, Keypair, SystemProgram } = anchor.web3;
+const { PublicKey, Keypair, SystemProgram } = anchor.web3
 
 describe('cyclos-core', async () => {
   // Configure the client to use the local cluster.
@@ -18,7 +19,7 @@ describe('cyclos-core', async () => {
   const program = anchor.workspace.CyclosCore as Program<CyclosCore>;
   // const program = anchor.workspace.CyclosCore as Program;
   const { connection, wallet } = anchor.getProvider()
-  const owner = anchor.getProvider().wallet.publicKey;
+  const owner = anchor.getProvider().wallet.publicKey
   const notOwner = new Keypair()
 
   const fee = 500;
@@ -1066,6 +1067,37 @@ describe('cyclos-core', async () => {
     })
 
     // TODO remaining tests after swap component is ready
+  })
+
+  const mgrProgram = anchor.workspace.NonFungiblePositionManager as Program<NonFungiblePositionManager>
+  const [posMgrState, posMgrBump] = await PublicKey.findProgramAddress([], mgrProgram.programId)
+
+  describe('non-fungible-position-manager#initialize', () => {
+    it('initializes the position manager', async () => {
+      await mgrProgram.rpc.initialize(posMgrBump, {
+        accounts: {
+          signer: owner,
+          positionManagerState: posMgrState,
+          core: factoryState,
+          systemProgram: SystemProgram.programId,
+        }
+      })
+
+      const posMgrStateData = await mgrProgram.account.positionManagerState.fetch(posMgrState)
+      assert.equal(posMgrStateData.bump, posMgrBump)
+      assert(posMgrStateData.core.equals(factoryState))
+    })
+
+    it('fails on trying to re-initialize', async () => {
+      await expect(mgrProgram.rpc.initialize(posMgrBump, {
+        accounts: {
+          signer: owner,
+          positionManagerState: posMgrState,
+          core: factoryState,
+          systemProgram: SystemProgram.programId,
+        }
+      })).to.be.rejectedWith(Error)
+    })
   })
 
 })
