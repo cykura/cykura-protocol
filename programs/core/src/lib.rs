@@ -362,6 +362,14 @@ pub mod cyclos_core {
     // /// This contains pool key(t0, t1, fee) and msg.sender. It is required by the
     // /// perephery NFT position manager. 3rd parties may need more params for flexibility
     // /// We can implement this through a data: &[u8] field and remaining_accounts in context
+
+    pub fn mint(
+        ctx: Context<MintContext>,
+        amount: u32
+    ) -> ProgramResult {
+        Ok(())
+    }
+
     // pub fn mint(
     //     ctx: Context<MintAccount>,
     //     amount: u32, // Δliquidity

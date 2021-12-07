@@ -19,7 +19,7 @@ describe('cyclos-core', async () => {
   // Configure the client to use the local cluster.
   anchor.setProvider(anchor.Provider.env());
 
-  const program = anchor.workspace.CyclosCore as Program<CyclosCore>;
+  const coreProgram = anchor.workspace.CyclosCore as Program<CyclosCore>;
   // const program = anchor.workspace.CyclosCore as Program;
   const { connection, wallet } = anchor.getProvider()
   const owner = anchor.getProvider().wallet.publicKey
@@ -28,12 +28,12 @@ describe('cyclos-core', async () => {
   const fee = 500;
   const tickSpacing = 10;
 
-  const [factoryState, factoryStateBump] = await PublicKey.findProgramAddress([], program.programId);
+  const [factoryState, factoryStateBump] = await PublicKey.findProgramAddress([], coreProgram.programId);
   console.log("Factory", factoryState.toString(), factoryStateBump);
 
   const [feeState, feeStateBump] = await PublicKey.findProgramAddress(
     [u32ToSeed(fee)],
-    program.programId
+    coreProgram.programId
   );
   console.log("Fee", feeState.toString(), feeStateBump)
 
@@ -98,7 +98,7 @@ describe('cyclos-core', async () => {
         token1.publicKey.toBuffer(),
         u32ToSeed(fee)
       ],
-      program.programId
+      coreProgram.programId
     )
   })
 
@@ -125,14 +125,14 @@ describe('cyclos-core', async () => {
     it('initializes factory and emits an event', async () => {
       let listener: number
       let [_event, _slot] = await new Promise((resolve, _reject) => {
-        listener = program.addEventListener("OwnerChanged", (event, slot) => {
+        listener = coreProgram.addEventListener("OwnerChanged", (event, slot) => {
           assert((event.oldOwner as web3.PublicKey).equals(new PublicKey(0)))
           assert((event.newOwner as web3.PublicKey).equals(owner))
 
           resolve([event, slot]);
         });
 
-        program.rpc.initFactory(factoryStateBump, {
+        coreProgram.rpc.initFactory(factoryStateBump, {
           accounts: {
             owner,
             factoryState,
@@ -140,15 +140,15 @@ describe('cyclos-core', async () => {
           }
         });
       });
-      await program.removeEventListener(listener);
+      await coreProgram.removeEventListener(listener);
 
-      const factoryStateData = await program.account.factoryState.fetch(factoryState)
+      const factoryStateData = await coreProgram.account.factoryState.fetch(factoryState)
       assert.equal(factoryStateData.bump, factoryStateBump)
       assert(factoryStateData.owner.equals(owner))
     });
 
     it('Trying to re-initialize factory fails', async () => {
-      await expect(program.rpc.initFactory(factoryStateBump, {
+      await expect(coreProgram.rpc.initFactory(factoryStateBump, {
         accounts: {
           owner,
           factoryState,
@@ -162,7 +162,7 @@ describe('cyclos-core', async () => {
     const newOwner = new Keypair()
 
     it('fails if owner does not sign', async () => {
-      const tx = program.transaction.setOwner({
+      const tx = coreProgram.transaction.setOwner({
         accounts: {
           owner,
           newOwner: newOwner.publicKey,
@@ -175,7 +175,7 @@ describe('cyclos-core', async () => {
     })
 
     it('fails if caller is not owner', async () => {
-      const tx = program.transaction.setOwner({
+      const tx = coreProgram.transaction.setOwner({
         accounts: {
           owner,
           newOwner: newOwner.publicKey,
@@ -188,7 +188,7 @@ describe('cyclos-core', async () => {
     })
 
     it('fails if correct signer but incorrect owner field', async () => {
-      await expect(program.rpc.setOwner({
+      await expect(coreProgram.rpc.setOwner({
         accounts: {
           owner: notOwner.publicKey,
           newOwner: newOwner.publicKey,
@@ -201,14 +201,14 @@ describe('cyclos-core', async () => {
     it('updates owner and emits an event', async function () {
       let listener: number
       let [_event, _slot] = await new Promise((resolve, _reject) => {
-        listener = program.addEventListener("OwnerChanged", (event, slot) => {
+        listener = coreProgram.addEventListener("OwnerChanged", (event, slot) => {
           assert((event.oldOwner as web3.PublicKey).equals(owner))
           assert((event.newOwner as web3.PublicKey).equals(newOwner.publicKey))
 
           resolve([event, slot]);
         });
 
-        program.rpc.setOwner({
+        coreProgram.rpc.setOwner({
           accounts: {
             owner,
             newOwner: newOwner.publicKey,
@@ -216,28 +216,28 @@ describe('cyclos-core', async () => {
           }
         });
       });
-      await program.removeEventListener(listener);
+      await coreProgram.removeEventListener(listener);
 
-      const factoryStateData = await program.account.factoryState.fetch(factoryState)
+      const factoryStateData = await coreProgram.account.factoryState.fetch(factoryState)
       assert(factoryStateData.owner.equals(newOwner.publicKey))
     })
 
     it('reverts to original owner when signed by the new owner', async () => {
-      await program.rpc.setOwner({
+      await coreProgram.rpc.setOwner({
         accounts: {
           owner: newOwner.publicKey,
           newOwner: owner,
           factoryState,
         }, signers: [newOwner]
       });
-      const factoryStateData = await program.account.factoryState.fetch(factoryState)
+      const factoryStateData = await coreProgram.account.factoryState.fetch(factoryState)
       assert(factoryStateData.owner.equals(owner))
     })
   })
 
   describe('#enable_fee_amount', () => {
     it('fails if PDA seeds do not match', async () => {
-      await expect(program.rpc.enableFeeAmount(feeStateBump, fee + 1, tickSpacing, {
+      await expect(coreProgram.rpc.enableFeeAmount(feeStateBump, fee + 1, tickSpacing, {
         accounts: {
           owner,
           factoryState,
@@ -248,7 +248,7 @@ describe('cyclos-core', async () => {
     })
 
     it('fails if PDA bump does not match', async () => {
-      await expect(program.rpc.enableFeeAmount(feeStateBump + 1, fee, tickSpacing, {
+      await expect(coreProgram.rpc.enableFeeAmount(feeStateBump + 1, fee, tickSpacing, {
         accounts: {
           owner,
           factoryState,
@@ -259,7 +259,7 @@ describe('cyclos-core', async () => {
     })
 
     it('fails if caller is not owner', async () => {
-      const tx = program.transaction.enableFeeAmount(feeStateBump, fee, tickSpacing, {
+      const tx = coreProgram.transaction.enableFeeAmount(feeStateBump, fee, tickSpacing, {
         accounts: {
           owner: notOwner.publicKey,
           factoryState,
@@ -276,10 +276,10 @@ describe('cyclos-core', async () => {
       const highFee = 1_000_000
       const [highFeeState, highFeeStateBump] = await PublicKey.findProgramAddress(
         [u32ToSeed(highFee)],
-        program.programId
+        coreProgram.programId
       );
 
-      await expect(program.rpc.enableFeeAmount(highFeeStateBump, highFee, tickSpacing, {
+      await expect(coreProgram.rpc.enableFeeAmount(highFeeStateBump, highFee, tickSpacing, {
         accounts: {
           owner,
           factoryState,
@@ -290,7 +290,7 @@ describe('cyclos-core', async () => {
     })
 
     it('fails if tick spacing is too small', async () => {
-      await expect(program.rpc.enableFeeAmount(feeStateBump, fee, 0, {
+      await expect(coreProgram.rpc.enableFeeAmount(feeStateBump, fee, 0, {
         accounts: {
           owner,
           factoryState,
@@ -301,7 +301,7 @@ describe('cyclos-core', async () => {
     })
 
     it('fails if tick spacing is too large', async () => {
-      await expect(program.rpc.enableFeeAmount(feeStateBump, fee, 16384, {
+      await expect(coreProgram.rpc.enableFeeAmount(feeStateBump, fee, 16384, {
         accounts: {
           owner,
           factoryState,
@@ -314,14 +314,14 @@ describe('cyclos-core', async () => {
     it('sets the fee amount and emits an event', async () => {
       let listener: number
       let [_event, _slot] = await new Promise((resolve, _reject) => {
-        listener = program.addEventListener("FeeAmountEnabled", (event, slot) => {
+        listener = coreProgram.addEventListener("FeeAmountEnabled", (event, slot) => {
           assert.equal(event.fee, fee)
           assert.equal(event.tickSpacing, tickSpacing)
 
           resolve([event, slot]);
         });
 
-        program.rpc.enableFeeAmount(feeStateBump, fee, tickSpacing, {
+        coreProgram.rpc.enableFeeAmount(feeStateBump, fee, tickSpacing, {
           accounts: {
             owner,
             factoryState,
@@ -330,16 +330,16 @@ describe('cyclos-core', async () => {
           }
         })
       });
-      await program.removeEventListener(listener);
+      await coreProgram.removeEventListener(listener);
 
-      const feeStateData = await program.account.feeState.fetch(feeState)
+      const feeStateData = await coreProgram.account.feeState.fetch(feeState)
       assert.equal(feeStateData.bump, feeStateBump)
       assert.equal(feeStateData.fee, fee)
       assert.equal(feeStateData.tickSpacing, tickSpacing)
     })
 
     it('fails if already initialized', async () => {
-      await expect(program.rpc.enableFeeAmount(feeStateBump, fee, tickSpacing, {
+      await expect(coreProgram.rpc.enableFeeAmount(feeStateBump, fee, tickSpacing, {
         accounts: {
           owner,
           factoryState,
@@ -350,7 +350,7 @@ describe('cyclos-core', async () => {
     })
 
     it('cannot change spacing of a fee tier', async () => {
-      await expect(program.rpc.enableFeeAmount(feeStateBump, fee, tickSpacing + 1, {
+      await expect(coreProgram.rpc.enableFeeAmount(feeStateBump, fee, tickSpacing + 1, {
         accounts: {
           owner,
           factoryState,
@@ -373,13 +373,13 @@ describe('cyclos-core', async () => {
           u32ToSeed(fee),
           u16ToSeed(0)
         ],
-        program.programId
+        coreProgram.programId
       )
     })
 
     it('fails if tokens are passed in reverse', async () => {
       // Unlike Uniswap, we must pass the tokens by address sort order
-      await expect(program.rpc.createAndInitPool(poolStateBump, initialObservationBump, initialPriceX32, {
+      await expect(coreProgram.rpc.createAndInitPool(poolStateBump, initialObservationBump, initialPriceX32, {
         accounts: {
           poolCreator: owner,
           token0: token1.publicKey,
@@ -399,7 +399,7 @@ describe('cyclos-core', async () => {
 
     it('fails if token0 == token1', async () => {
       // Unlike Uniswap, we must pass the tokens by address sort order
-      await expect(program.rpc.createAndInitPool(poolStateBump, initialObservationBump, initialPriceX32, {
+      await expect(coreProgram.rpc.createAndInitPool(poolStateBump, initialObservationBump, initialPriceX32, {
         accounts: {
           poolCreator: owner,
           token0: token0.publicKey,
@@ -420,10 +420,10 @@ describe('cyclos-core', async () => {
     it('fails if fee amount is not enabled', async () => {
       const [uninitializedFeeState, _] = await PublicKey.findProgramAddress(
         [u32ToSeed(fee + 1)],
-        program.programId
+        coreProgram.programId
       );
 
-      await expect(program.rpc.createAndInitPool(poolStateBump, initialObservationBump, initialPriceX32, {
+      await expect(coreProgram.rpc.createAndInitPool(poolStateBump, initialObservationBump, initialPriceX32, {
         accounts: {
           poolCreator: owner,
           token0: token0.publicKey,
@@ -442,7 +442,7 @@ describe('cyclos-core', async () => {
     })
 
     it('fails if starting price is too low', async () => {
-      await expect(program.rpc.createAndInitPool(poolStateBump, initialObservationBump, new BN(1), {
+      await expect(coreProgram.rpc.createAndInitPool(poolStateBump, initialObservationBump, new BN(1), {
         accounts: {
           poolCreator: owner,
           token0: token0.publicKey,
@@ -459,7 +459,7 @@ describe('cyclos-core', async () => {
         }
       })).to.be.rejectedWith('R')
 
-      await expect(program.rpc.createAndInitPool(
+      await expect(coreProgram.rpc.createAndInitPool(
         poolStateBump,
         initialObservationBump,
         MIN_SQRT_RATIO.subn(1), {
@@ -482,7 +482,7 @@ describe('cyclos-core', async () => {
     })
 
     it('fails if starting price is too high', async () => {
-      await expect(program.rpc.createAndInitPool(poolStateBump, initialObservationBump, MAX_SQRT_RATIO, {
+      await expect(coreProgram.rpc.createAndInitPool(poolStateBump, initialObservationBump, MAX_SQRT_RATIO, {
         accounts: {
           poolCreator: owner,
           token0: token0.publicKey,
@@ -499,7 +499,7 @@ describe('cyclos-core', async () => {
         }
       })).to.be.rejectedWith('R')
 
-      await expect(program.rpc.createAndInitPool(
+      await expect(coreProgram.rpc.createAndInitPool(
         poolStateBump,
         initialObservationBump,
         new BN(2).pow(new BN(64)).subn(1), { // u64::MAX
@@ -523,7 +523,7 @@ describe('cyclos-core', async () => {
     it('creates a new pool and initializes it with a starting price', async () => {
       let listener: number
       let [_event, _slot] = await new Promise((resolve, _reject) => {
-        listener = program.addEventListener("PoolCreatedAndInitialized", (event, slot) => {
+        listener = coreProgram.addEventListener("PoolCreatedAndInitialized", (event, slot) => {
           assert((event.token0 as web3.PublicKey).equals(token0.publicKey))
           assert((event.token1 as web3.PublicKey).equals(token1.publicKey))
           assert.equal(event.fee, fee)
@@ -535,7 +535,7 @@ describe('cyclos-core', async () => {
           resolve([event, slot]);
         });
 
-        program.rpc.createAndInitPool(poolStateBump, initialObservationBump, initialPriceX32, {
+        coreProgram.rpc.createAndInitPool(poolStateBump, initialObservationBump, initialPriceX32, {
           accounts: {
             poolCreator: owner,
             token0: token0.publicKey,
@@ -552,10 +552,10 @@ describe('cyclos-core', async () => {
           }
         })
       })
-      await program.removeEventListener(listener)
+      await coreProgram.removeEventListener(listener)
 
       // pool state variables
-      const poolStateData = await program.account.poolState.fetch(poolState)
+      const poolStateData = await coreProgram.account.poolState.fetch(poolState)
       assert.equal(poolStateData.bump, poolStateBump)
       assert((poolStateData.token0).equals(token0.publicKey))
       assert((poolStateData.token1).equals(token1.publicKey))
@@ -575,7 +575,7 @@ describe('cyclos-core', async () => {
       assert(poolStateData.unlocked)
 
       // first observations slot
-      const observationStateData = await program.account.observationState.fetch(initialObservationState)
+      const observationStateData = await coreProgram.account.observationState.fetch(initialObservationState)
       assert.equal(observationStateData.bump, initialObservationBump)
       assert.equal(observationStateData.index, 0)
       assert(observationStateData.tickCumulative.eq(new BN(0)))
@@ -585,7 +585,7 @@ describe('cyclos-core', async () => {
     })
 
     it('fails if already initialized', async () => {
-      await expect(program.rpc.createAndInitPool(poolStateBump, initialObservationBump, initialPriceX32, {
+      await expect(coreProgram.rpc.createAndInitPool(poolStateBump, initialObservationBump, initialPriceX32, {
         accounts: {
           poolCreator: owner,
           token0: token0.publicKey,
@@ -613,10 +613,10 @@ describe('cyclos-core', async () => {
           u32ToSeed(fee),
           u16ToSeed(1)
         ],
-        program.programId
+        coreProgram.programId
       )
 
-      await expect(program.rpc.increaseObservationCardinalityNext(Buffer.from([0]), {
+      await expect(coreProgram.rpc.increaseObservationCardinalityNext(Buffer.from([0]), {
         accounts: {
           payer: owner,
           poolState,
@@ -638,11 +638,11 @@ describe('cyclos-core', async () => {
           u32ToSeed(fee),
           u16ToSeed(1)
         ],
-        program.programId
+        coreProgram.programId
       )
       const fakeAccount = new Keypair()
 
-      await expect(program.rpc.increaseObservationCardinalityNext(Buffer.from([observationStateBump]), {
+      await expect(coreProgram.rpc.increaseObservationCardinalityNext(Buffer.from([observationStateBump]), {
         accounts: {
           payer: owner,
           poolState,
@@ -663,10 +663,10 @@ describe('cyclos-core', async () => {
           u32ToSeed(fee),
           u16ToSeed(2)
         ],
-        program.programId
+        coreProgram.programId
       )
 
-      await expect(program.rpc.increaseObservationCardinalityNext(Buffer.from([observationState2Bump]), {
+      await expect(coreProgram.rpc.increaseObservationCardinalityNext(Buffer.from([observationState2Bump]), {
         accounts: {
           payer: owner,
           poolState,
@@ -687,18 +687,18 @@ describe('cyclos-core', async () => {
           u32ToSeed(fee),
           u16ToSeed(1)
         ],
-        program.programId
+        coreProgram.programId
       )
 
       let listener: number
       let [_event, _slot] = await new Promise((resolve, _reject) => {
-        listener = program.addEventListener("IncreaseObservationCardinalityNext", (event, slot) => {
+        listener = coreProgram.addEventListener("IncreaseObservationCardinalityNext", (event, slot) => {
           assert.equal(event.observationCardinalityNextOld, 1)
           assert.equal(event.observationCardinalityNextNew, 2)
           resolve([event, slot]);
         });
 
-        program.rpc.increaseObservationCardinalityNext(Buffer.from([observationState1Bump]), {
+        coreProgram.rpc.increaseObservationCardinalityNext(Buffer.from([observationState1Bump]), {
           accounts: {
             payer: owner,
             poolState,
@@ -710,9 +710,9 @@ describe('cyclos-core', async () => {
           }]
         })
       })
-      await program.removeEventListener(listener)
+      await coreProgram.removeEventListener(listener)
 
-      const observationState1Data = await program.account.observationState.fetch(observationState1)
+      const observationState1Data = await coreProgram.account.observationState.fetch(observationState1)
       console.log('Observation state 1 data', observationState1Data)
       assert.equal(observationState1Data.bump, observationState1Bump)
       assert.equal(observationState1Data.index, 1)
@@ -721,7 +721,7 @@ describe('cyclos-core', async () => {
       assert(observationState1Data.secondsPerLiquidityCumulativeX32.eq(new BN(0)))
       assert.isFalse(observationState1Data.initialized)
 
-      const poolStateData = await program.account.poolState.fetch(poolState)
+      const poolStateData = await coreProgram.account.poolState.fetch(poolState)
       assert.equal(poolStateData.observationCardinalityNext, 2)
     })
 
@@ -733,7 +733,7 @@ describe('cyclos-core', async () => {
           u32ToSeed(fee),
           u16ToSeed(2)
         ],
-        program.programId
+        coreProgram.programId
       )
       const [observationState3, observationState3Bump] = await PublicKey.findProgramAddress(
         [
@@ -742,10 +742,10 @@ describe('cyclos-core', async () => {
           u32ToSeed(fee),
           u16ToSeed(3)
         ],
-        program.programId
+        coreProgram.programId
       )
 
-      await expect(program.rpc.increaseObservationCardinalityNext(Buffer.from([observationState3Bump, observationState2Bump]), {
+      await expect(coreProgram.rpc.increaseObservationCardinalityNext(Buffer.from([observationState3Bump, observationState2Bump]), {
         accounts: {
           payer: owner,
           poolState,
@@ -771,7 +771,7 @@ describe('cyclos-core', async () => {
           u32ToSeed(fee),
           u16ToSeed(2)
         ],
-        program.programId
+        coreProgram.programId
       )
       const [observationState3, observationState3Bump] = await PublicKey.findProgramAddress(
         [
@@ -780,10 +780,10 @@ describe('cyclos-core', async () => {
           u32ToSeed(fee),
           u16ToSeed(3)
         ],
-        program.programId
+        coreProgram.programId
       )
 
-      await expect(program.rpc.increaseObservationCardinalityNext(Buffer.from([observationState2Bump, observationState3Bump]), {
+      await expect(coreProgram.rpc.increaseObservationCardinalityNext(Buffer.from([observationState2Bump, observationState3Bump]), {
         accounts: {
           payer: owner,
           poolState,
@@ -814,10 +814,10 @@ describe('cyclos-core', async () => {
           u32ToSeed(fee),
           u16ToSeed(1)
         ],
-        program.programId
+        coreProgram.programId
       )
 
-      await expect(program.rpc.increaseObservationCardinalityNext(Buffer.from([observationState1Bump]), {
+      await expect(coreProgram.rpc.increaseObservationCardinalityNext(Buffer.from([observationState1Bump]), {
         accounts: {
           payer: owner,
           poolState,
@@ -849,7 +849,7 @@ describe('cyclos-core', async () => {
             u32ToSeed(fee),
             u16ToSeed(i)
           ],
-          program.programId
+          coreProgram.programId
         )
         bumps.push(observationStateBump)
         observationAccounts.push({
@@ -859,7 +859,7 @@ describe('cyclos-core', async () => {
         })
       }
 
-      await expect(program.rpc.increaseObservationCardinalityNext(Buffer.from(bumps), {
+      await expect(coreProgram.rpc.increaseObservationCardinalityNext(Buffer.from(bumps), {
         accounts: {
           payer: owner,
           poolState,
@@ -885,7 +885,7 @@ describe('cyclos-core', async () => {
             u32ToSeed(fee),
             u16ToSeed(currentCardinality + i)
           ],
-          program.programId
+          coreProgram.programId
         )
         bumps.push(observationStateBump)
         observationAccounts.push({
@@ -895,7 +895,7 @@ describe('cyclos-core', async () => {
         })
       }
 
-      await program.rpc.increaseObservationCardinalityNext(Buffer.from(bumps), {
+      await coreProgram.rpc.increaseObservationCardinalityNext(Buffer.from(bumps), {
         accounts: {
           payer: owner,
           poolState,
@@ -903,12 +903,12 @@ describe('cyclos-core', async () => {
         }, remainingAccounts: observationAccounts
       })
 
-      const poolStateData = await program.account.poolState.fetch(poolState)
+      const poolStateData = await coreProgram.account.poolState.fetch(poolState)
       assert.equal(poolStateData.observationCardinalityNext, currentCardinality + MAX_OBSERVATION_INITS_PER_IX)
 
       for (let i = 0; i < MAX_OBSERVATION_INITS_PER_IX; i++) {
         const observationAccount = observationAccounts[i].pubkey
-        const observationStateData = await program.account.observationState.fetch(observationAccount)
+        const observationStateData = await coreProgram.account.observationState.fetch(observationAccount)
         assert.equal(observationStateData.bump, bumps[i])
         assert.equal(observationStateData.index, currentCardinality + i)
         assert.equal(observationStateData.blockTimestamp, 1)
@@ -921,7 +921,7 @@ describe('cyclos-core', async () => {
 
   describe('#set_fee_protocol', () => {
     it('cannot be changed by addresses that are not owner', async () => {
-      await expect(program.rpc.setFeeProtocol(6, 6, {
+      await expect(coreProgram.rpc.setFeeProtocol(6, 6, {
         accounts: {
           owner: notOwner.publicKey,
           poolState,
@@ -931,7 +931,7 @@ describe('cyclos-core', async () => {
     })
 
     it('cannot be changed out of bounds', async () => {
-      await expect(program.rpc.setFeeProtocol(3, 3, {
+      await expect(coreProgram.rpc.setFeeProtocol(3, 3, {
         accounts: {
           owner,
           poolState,
@@ -939,7 +939,7 @@ describe('cyclos-core', async () => {
         }
       })).to.be.rejectedWith(Error)
 
-      await expect(program.rpc.setFeeProtocol(11, 11, {
+      await expect(coreProgram.rpc.setFeeProtocol(11, 11, {
         accounts: {
           owner,
           poolState,
@@ -951,7 +951,7 @@ describe('cyclos-core', async () => {
     it('can be changed by owner', async () => {
       let listener: number
       let [_event, _slot] = await new Promise((resolve, _reject) => {
-        listener = program.addEventListener("SetFeeProtocolEvent", (event, slot) => {
+        listener = coreProgram.addEventListener("SetFeeProtocolEvent", (event, slot) => {
           assert((event.poolState as web3.PublicKey).equals(poolState))
           assert.equal(event.feeProtocol0Old, 0)
           assert.equal(event.feeProtocol1Old, 0)
@@ -961,7 +961,7 @@ describe('cyclos-core', async () => {
           resolve([event, slot]);
         });
 
-        program.rpc.setFeeProtocol(6, 6, {
+        coreProgram.rpc.setFeeProtocol(6, 6, {
           accounts: {
             owner,
             poolState,
@@ -969,9 +969,9 @@ describe('cyclos-core', async () => {
           }
         })
       })
-      await program.removeEventListener(listener)
+      await coreProgram.removeEventListener(listener)
 
-      const poolStateData = await program.account.poolState.fetch(poolState)
+      const poolStateData = await coreProgram.account.poolState.fetch(poolState)
       assert.equal((6 << 4) + 6, 102)
       assert.equal(poolStateData.feeProtocol, 102)
     })
@@ -988,7 +988,7 @@ describe('cyclos-core', async () => {
     })
 
     it('fails if caller is not owner', async () => {
-      await expect(program.rpc.collectProtocol(MaxU64, MaxU64, {
+      await expect(coreProgram.rpc.collectProtocol(MaxU64, MaxU64, {
         accounts: {
           owner: notOwner,
           factoryState,
@@ -1003,7 +1003,7 @@ describe('cyclos-core', async () => {
     })
 
     it('fails if vault 0 address is not valid', async () => {
-      await expect(program.rpc.collectProtocol(MaxU64, MaxU64, {
+      await expect(coreProgram.rpc.collectProtocol(MaxU64, MaxU64, {
         accounts: {
           owner: notOwner,
           factoryState,
@@ -1018,7 +1018,7 @@ describe('cyclos-core', async () => {
     })
 
     it('fails if vault 1 address is not valid', async () => {
-      await expect(program.rpc.collectProtocol(MaxU64, MaxU64, {
+      await expect(coreProgram.rpc.collectProtocol(MaxU64, MaxU64, {
         accounts: {
           owner: notOwner,
           factoryState,
@@ -1035,7 +1035,7 @@ describe('cyclos-core', async () => {
     it('no token transfers if no fees', async () => {
       let listener: number
       let [_event, _slot] = await new Promise((resolve, _reject) => {
-        listener = program.addEventListener("CollectProtocolEvent", (event, slot) => {
+        listener = coreProgram.addEventListener("CollectProtocolEvent", (event, slot) => {
           assert((event.poolState as web3.PublicKey).equals(poolState))
           assert((event.sender as web3.PublicKey).equals(owner))
           assert((event.amount0 as BN).eqn(0))
@@ -1044,7 +1044,7 @@ describe('cyclos-core', async () => {
           resolve([event, slot]);
         });
 
-        program.rpc.collectProtocol(MaxU64, MaxU64, {
+        coreProgram.rpc.collectProtocol(MaxU64, MaxU64, {
           accounts: {
             owner,
             factoryState,
@@ -1057,9 +1057,9 @@ describe('cyclos-core', async () => {
           }
         })
       })
-      await program.removeEventListener(listener)
+      await coreProgram.removeEventListener(listener)
 
-      const poolStateData = await program.account.poolState.fetch(poolState)
+      const poolStateData = await coreProgram.account.poolState.fetch(poolState)
       assert(poolStateData.protocolFeesToken0.eqn(0))
       assert(poolStateData.protocolFeesToken1.eqn(0))
 
@@ -1130,14 +1130,16 @@ describe('cyclos-core', async () => {
           toPubkey: metadataAccount,
           lamports: await connection.getMinimumBalanceForRentExemption(MAX_METADATA_LEN)
         })
-        await mgrProgram.rpc.mint({
+        await mgrProgram.rpc.mint(0, 100, {
           accounts: {
             minter: owner,
             recipient: owner,
             positionManagerState: posMgrState,
             nftMint: nftMintKeypair.publicKey,
             nftAccount: positionNftAccount,
+            poolState,
             metadataAccount,
+            coreProgram: coreProgram.programId,
             systemProgram: SystemProgram.programId,
             rent: web3.SYSVAR_RENT_PUBKEY,
             tokenProgram: TOKEN_PROGRAM_ID,

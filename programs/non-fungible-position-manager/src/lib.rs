@@ -23,6 +23,8 @@ pub const BASE_URI: &str = "https://api.cyclos.io/mint=";
 
 #[program]
 pub mod non_fungible_position_manager {
+    use cyclos_core::cpi::accounts::MintContext;
+
     use super::*;
 
     /// Initializes the position manager by saving the core program address
@@ -57,8 +59,8 @@ pub mod non_fungible_position_manager {
     ///
     pub fn mint(
         ctx: Context<MintPosition>,
-        // tick_lower: i32,
-        // tick_upper: i32,
+        tick_lower: i32,
+        tick_upper: i32,
         // amount_0_desired: u64,
         // amount_1_desired: u64,
         // amount_0_min: u64,
@@ -67,7 +69,25 @@ pub mod non_fungible_position_manager {
     ) -> ProgramResult {
         // require!(Clock::get()?.slot <= deadline, ErrorCode::OldTransaction);
 
-        // Call add_liquidity() to create position on core.mint()
+        let seeds = [&[ctx.accounts.position_manager_state.load()?.bump] as &[u8]];
+
+        let sqrt_price_x32 = ctx.accounts.pool_state.sqrt_price_x32;
+        let sqrt_ratio_a_x32 = tick_math::get_sqrt_ratio_at_tick(tick_lower)?;
+        let sqrt_ratio_b_x32 = tick_math::get_sqrt_ratio_at_tick(tick_upper)?;
+
+        let mint_accounts = MintContext {
+            minter: ctx.accounts.position_manager_state.to_account_info(),
+            pool_state: ctx.accounts.pool_state.to_account_info(),
+            system_program: ctx.accounts.system_program.to_account_info()
+        };
+        cyclos_core::cpi::mint(
+            CpiContext::new_with_signer(
+                ctx.accounts.core_program.to_account_info(),
+                mint_accounts,
+                &[&seeds[..]]
+            ),
+            10
+        )?;
 
         // Generate NFT metadata
         let metadata_infos: &[AccountInfo] = &[
@@ -97,7 +117,7 @@ pub mod non_fungible_position_manager {
             true,
             false
         );
-        let seeds = [&[ctx.accounts.position_manager_state.load()?.bump] as &[u8]];
+
         solana_program::program::invoke_signed(
             &create_metadata_ix,
             metadata_infos,
@@ -115,7 +135,7 @@ pub mod non_fungible_position_manager {
             &[&seeds[..]]
         ), 1)?;
 
-        // Prevent more minting
+        // Disable minting
         token::set_authority(CpiContext::new_with_signer(
             ctx.accounts.token_program.to_account_info().clone(),
             token::SetAuthority {

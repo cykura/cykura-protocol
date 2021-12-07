@@ -3,6 +3,9 @@ import BN from "bn.js";
 export const MIN_SQRT_RATIO = new BN(65536)
 export const MAX_SQRT_RATIO = new BN(281474976710656)
 
+export const MIN_TICK = -221818
+export const MAX_TICK = 221818
+
 // Generate seed buffer from a u32 number
 export function u32ToSeed(num: number) {
   const arr = new ArrayBuffer(4)

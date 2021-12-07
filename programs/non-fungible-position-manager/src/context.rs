@@ -61,7 +61,9 @@ pub struct MintPosition<'info> {
     pub metadata_account: UncheckedAccount<'info>,
 
     // #[account(signer, owner = position_manager_state.core)]
-    // pub pool_state: Box<Account<'info, PoolState>>,
+    #[account(mut)]
+    // pub pool_state: UncheckedAccount<'info>,
+    pub pool_state: Box<Account<'info, PoolState>>,
 
     // Validated and initialized inside core
     // TODO explore alternate way to init these, or need to pass seeds every time
@@ -103,6 +105,8 @@ pub struct MintPosition<'info> {
     //     associated_token::authority = pool_state,
     // )]
     // pub vault_1: Box<Account<'info, TokenAccount>>,
+
+    pub core_program: Program<'info, cyclos_core::program::CyclosCore>,
 
     /// Sysvar for token mint and ATA creation
     pub rent: Sysvar<'info, Rent>,

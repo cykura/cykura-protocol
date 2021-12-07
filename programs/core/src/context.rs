@@ -234,7 +234,7 @@ pub struct CollectProtocol<'info> {
 //     pub system_program: Program<'info, System>,
 // }
 
-// #[derive(Accounts)]
+#[derive(Accounts)]
 // #[instruction(
 //     position_bump: u8,
 //     tick_lower_bump: u8,
@@ -242,86 +242,78 @@ pub struct CollectProtocol<'info> {
 //     tick_lower: u32,
 //     tick_upper: u32
 // )]
-// pub struct MintAccount<'info> {
-//     pub minter: Signer<'info>,
+pub struct MintContext<'info> {
+    pub minter: Signer<'info>,
 
-//     #[account(
-//         mut,
-//         seeds = [
-//             pool_state.token_0.key().as_ref(),
-//             pool_state.token_1.key().as_ref(),
-//             &pool_state.fee.to_be_bytes()
-//         ],
-//         bump = pool_state.bump,
-//     )]
-//     pub pool_state: Box<Account<'info, PoolState>>,
+    #[account(mut)]
+    pub pool_state: Box<Account<'info, PoolState>>,
 
-//     #[account(
-//         init_if_needed,
-//         seeds = [
-//             pool_state.token_0.key().as_ref(),
-//             pool_state.token_1.key().as_ref(),
-//             &pool_state.fee.to_be_bytes(),
-//             &tick_lower.to_be_bytes(),
-//             &tick_upper.to_be_bytes()
-//         ],
-//         bump = position_bump,
-//         payer = minter
-//     )]
-//     pub position_state: Box<Account<'info, PositionState>>,
+    // #[account(
+    //     init_if_needed,
+    //     seeds = [
+    //         pool_state.token_0.key().as_ref(),
+    //         pool_state.token_1.key().as_ref(),
+    //         &pool_state.fee.to_be_bytes(),
+    //         &tick_lower.to_be_bytes(),
+    //         &tick_upper.to_be_bytes()
+    //     ],
+    //     bump = position_bump,
+    //     payer = minter
+    // )]
+    // pub position_state: Box<Account<'info, PositionState>>,
 
-//     #[account(
-//         init_if_needed,
-//         seeds = [
-//             pool_state.token_0.key().as_ref(),
-//             pool_state.token_1.key().as_ref(),
-//             &pool_state.fee.to_be_bytes(),
-//             &tick_lower.to_be_bytes()
-//         ],
-//         bump = tick_lower_bump,
-//         payer = minter
-//     )]
-//     pub tick_lower_state: Box<Account<'info, TickState>>,
+    // #[account(
+    //     init_if_needed,
+    //     seeds = [
+    //         pool_state.token_0.key().as_ref(),
+    //         pool_state.token_1.key().as_ref(),
+    //         &pool_state.fee.to_be_bytes(),
+    //         &tick_lower.to_be_bytes()
+    //     ],
+    //     bump = tick_lower_bump,
+    //     payer = minter
+    // )]
+    // pub tick_lower_state: Box<Account<'info, TickState>>,
 
-//     // How to save variables if it was just initialized?
-//     #[account(
-//         init_if_needed,
-//         seeds = [
-//             pool_state.token_0.key().as_ref(),
-//             pool_state.token_1.key().as_ref(),
-//             &pool_state.fee.to_be_bytes(),
-//             &tick_upper.to_be_bytes()
-//         ],
-//         bump = tick_upper_bump,
-//         payer = minter
-//     )]
-//     pub tick_upper_state: Box<Account<'info, TickState>>,
-//     pub tick_lower_bitmap: Box<Account<'info, TickBitmapState>>,
-//     pub tick_upper_bitmap: Box<Account<'info, TickBitmapState>>,
+    // // How to save variables if it was just initialized?
+    // #[account(
+    //     init_if_needed,
+    //     seeds = [
+    //         pool_state.token_0.key().as_ref(),
+    //         pool_state.token_1.key().as_ref(),
+    //         &pool_state.fee.to_be_bytes(),
+    //         &tick_upper.to_be_bytes()
+    //     ],
+    //     bump = tick_upper_bump,
+    //     payer = minter
+    // )]
+    // pub tick_upper_state: Box<Account<'info, TickState>>,
+    // pub tick_lower_bitmap: Box<Account<'info, TickBitmapState>>,
+    // pub tick_upper_bitmap: Box<Account<'info, TickBitmapState>>,
 
-//     #[account(mut)]
-//     pub token_account_0: Box<Account<'info, TokenAccount>>,
+    // #[account(mut)]
+    // pub token_account_0: Box<Account<'info, TokenAccount>>,
 
-//     #[account(mut)]
-//     pub token_account_1: Box<Account<'info, TokenAccount>>,
+    // #[account(mut)]
+    // pub token_account_1: Box<Account<'info, TokenAccount>>,
 
-//     #[account(
-//         mut,
-//         associated_token::mint = pool_state.token_0,
-//         associated_token::authority = pool_state,
-//     )]
-//     pub vault_0: Box<Account<'info, TokenAccount>>,
+    // #[account(
+    //     mut,
+    //     associated_token::mint = pool_state.token_0,
+    //     associated_token::authority = pool_state,
+    // )]
+    // pub vault_0: Box<Account<'info, TokenAccount>>,
 
-//     #[account(
-//         mut,
-//         associated_token::mint = pool_state.token_1,
-//         associated_token::authority = pool_state,
-//     )]
-//     pub vault_1: Box<Account<'info, TokenAccount>>,
+    // #[account(
+    //     mut,
+    //     associated_token::mint = pool_state.token_1,
+    //     associated_token::authority = pool_state,
+    // )]
+    // pub vault_1: Box<Account<'info, TokenAccount>>,
 
-//     pub token_program: Program<'info, Token>,
+    // pub token_program: Program<'info, Token>,
 
-//     // pub callback_handler: Program<'info, NonFungiblePositionManager>,
-//     pub system_program: Program<'info, System>,
-// }
+    // // pub callback_handler: Program<'info, NonFungiblePositionManager>,
+    pub system_program: Program<'info, System>,
+}
 
