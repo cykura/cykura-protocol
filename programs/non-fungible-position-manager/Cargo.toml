@@ -20,3 +20,4 @@ anchor-spl = "0.18.0"
 cyclos-core = { path = "../core", features = ["cpi"] }
 spl-token = { version = "3.2.0", features = ["no-entrypoint"] }
 spl-token-metadata = { version = "0.0.1", features = ["no-entrypoint"] }
+muldiv = "1.0.0"

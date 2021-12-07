@@ -1,147 +1,187 @@
-/// Implementations of formula 6.29 and 6.30 to find
-/// liquidity <> token_0, token_1
+use cyclos_core::libraries::fixed_point_x32;
+///! Liquidity amount functions
+///! Provides functions for computing liquidity amounts from token amounts and prices
+///! Implements formula 6.29 and 6.30
+///
 
-// Liquidity received for a given amount of token_0 and price range
-// ΔL = Δx (√P_upper x √P_lower)/(√P_upper - √P_lower)
+use muldiv::MulDiv;
+use std::convert::TryFrom;
+
+/// Computes the amount of liquidity received for a given amount of token_0 and price range
+/// Calculates ΔL = Δx (√P_upper x √P_lower)/(√P_upper - √P_lower)
+///
+/// # Arguments
+///
+/// * `sqrt_ratio_a_x32` - A sqrt price representing the first tick boundary
+/// * `sqrt_ratio_b_x32` - A sqrt price representing the second tick boundary
+/// * `amount_0` - The amount_0 being sent in
+///
 pub fn get_liquidity_for_amount_0(
-    mut sqrt_price_a: f64,
-    mut sqrt_price_b: f64,
+    mut sqrt_ratio_a_x32: u64,
+    mut sqrt_ratio_b_x32: u64,
     amount_0: u64,
 ) -> u32 {
-    // sqrt_price_b (upper) should be greater than sqrt_price_a (lower)
-    if sqrt_price_a > sqrt_price_b {
-        let temp = sqrt_price_a;
-        sqrt_price_a = sqrt_price_b;
-        sqrt_price_b = temp;
-    }
-
-    (amount_0 as f64 * sqrt_price_b * sqrt_price_a / (sqrt_price_b - sqrt_price_a)) as u32
-}
-
-// Liquidity received for a given amount of token_1 and price range
-// ΔL = Δy / ( √(P_upper) * √(P_lower) )
-pub fn get_liquidity_for_amount_1(
-    mut sqrt_price_a: f64,
-    mut sqrt_price_b: f64,
-    amount_1: u64,
-) -> u32 {
-    // sqrt_price_b (upper) should be greater than sqrt_price_a (lower)
-    if sqrt_price_a > sqrt_price_b {
-        let temp = sqrt_price_a;
-        sqrt_price_a = sqrt_price_b;
-        sqrt_price_b = temp;
-    }
-
-    (amount_1 as f64 / (sqrt_price_b * sqrt_price_a)).round() as u32
-}
-
-// Computes the maximum amount of liquidity received for a given amount
-// of token0, token1, the current pool prices and the prices at the tick boundaries
-// Formulae 6.29 and 6.30
-// @param sqrt_price Square root of current pool price
-// @param sqrt_price_a A sqrt price representing first tick boundary
-// @param sqrt_price_b A sqrt price representing second tick boundary
-// @param amount_0 Amount of token_0 sent in
-// @param amount_1 Amount of token_1 sent in
-pub fn get_liquidity_for_amounts(
-    sqrt_price: f64,
-    mut sqrt_price_a: f64,
-    mut sqrt_price_b: f64,
-    amount_0: u64,
-    amount_1: u64,
-) -> u32 {
-    // sqrt_price_b (upper) should be greater than sqrt_price_a (lower)
-    if sqrt_price_a > sqrt_price_b {
-        let temp = sqrt_price_a;
-        sqrt_price_a = sqrt_price_b;
-        sqrt_price_b = temp;
-    }
-    let liquidity: u32 = if sqrt_price <= sqrt_price_a {
-        // If current price is less the or equal P_lower
-        // can only supply token_0, not token_1
-        get_liquidity_for_amount_0(sqrt_price_a, sqrt_price_b, amount_0)
-    } else if sqrt_price < sqrt_price_b {
-        // If current price is in within range
-        // can supply both tokens
-        let liquidity_0 = get_liquidity_for_amount_0(sqrt_price_a, sqrt_price_b, amount_0);
-        let liquidity_1 = get_liquidity_for_amount_1(sqrt_price_a, sqrt_price_b, amount_0);
-
-        u32::min(liquidity_0, liquidity_1)
-    } else {
-        // If current price is greater than P_upper
-        // can only supply token_1, not token_0
-        get_liquidity_for_amount_1(sqrt_price_a, sqrt_price_b, amount_1)
+    // sqrt_ratio_a_x32 should hold the smaller value
+    if sqrt_ratio_a_x32 > sqrt_ratio_b_x32 {
+        std::mem::swap(&mut sqrt_ratio_a_x32, &mut sqrt_ratio_b_x32);
     };
 
-    liquidity
+    let intermediate = sqrt_ratio_a_x32.mul_div_floor(sqrt_ratio_b_x32, fixed_point_x32::Q32).unwrap();
+
+    u32::try_from(
+        amount_0.mul_div_floor(intermediate, sqrt_ratio_b_x32 - sqrt_ratio_a_x32).unwrap()
+    ).unwrap()
 }
 
-// Computes the amount of token_0 for a given amount of liquidity and a price range
-// Δx = ΔL (√P_upper - √P_lower) / (√P_upper x √P_lower)
+/// Computes the amount of liquidity received for a given amount of token_1 and price range
+/// Calculates ΔL = Δy / (√P_upper - √P_lower)
+///
+/// # Arguments
+///
+/// * `sqrt_ratio_a_x32` - A sqrt price representing the first tick boundary
+/// * `sqrt_ratio_b_x32` - A sqrt price representing the second tick boundary
+/// * `amount_1` - The amount_1 being sent in
+///
+pub fn get_liquidity_for_amount_1(
+    mut sqrt_ratio_a_x32: u64,
+    mut sqrt_ratio_b_x32: u64,
+    amount_1: u64,
+) -> u32 {
+    // sqrt_ratio_a_x32 should hold the smaller value
+    if sqrt_ratio_a_x32 > sqrt_ratio_b_x32 {
+        std::mem::swap(&mut sqrt_ratio_a_x32, &mut sqrt_ratio_b_x32);
+    };
+
+    u32::try_from(
+        amount_1.mul_div_floor(fixed_point_x32::Q32, sqrt_ratio_b_x32 - sqrt_ratio_a_x32).unwrap()
+    ).unwrap()
+}
+
+/// Computes the maximum amount of liquidity received for a given amount of token0, token1, the current
+/// pool prices and the prices at the tick boundaries
+///
+/// # Arguments
+///
+/// * `sqrt_ratio_x32` - A sqrt price representing the current pool prices
+/// * `sqrt_ratio_a_x32` - A sqrt price representing the first tick boundary
+/// * `sqrt_ratio_b_x32` - A sqrt price representing the second tick boundary
+/// * `amount_0` - The amount of token_0 being sent in
+/// * `amount_1` - The amount of token_1 being sent in
+///
+pub fn get_liquidity_for_amounts(
+    sqrt_ratio_x32: u64,
+    mut sqrt_ratio_a_x32: u64,
+    mut sqrt_ratio_b_x32: u64,
+    amount_0: u64,
+    amount_1: u64,
+) -> u32 {
+    // sqrt_ratio_a_x32 should hold the smaller value
+    if sqrt_ratio_a_x32 > sqrt_ratio_b_x32 {
+        std::mem::swap(&mut sqrt_ratio_a_x32, &mut sqrt_ratio_b_x32);
+    };
+
+    if sqrt_ratio_x32 <= sqrt_ratio_a_x32 {
+        // If P ≤ P_lower, only token_0 liquidity is active
+        get_liquidity_for_amount_0(sqrt_ratio_a_x32, sqrt_ratio_b_x32, amount_0)
+    } else if sqrt_ratio_x32 < sqrt_ratio_b_x32 {
+        // If P_lower < P < P_upper, active liquidity is the minimum of the liquidity provided
+        // by token_0 and token_1
+        u32::min(
+            get_liquidity_for_amount_0(sqrt_ratio_x32, sqrt_ratio_b_x32, amount_0),
+            get_liquidity_for_amount_1(sqrt_ratio_a_x32, sqrt_ratio_x32, amount_1)
+        )
+    } else {
+        // If P ≥ P_upper, only token_1 liquidity is active
+        get_liquidity_for_amount_1(sqrt_ratio_a_x32, sqrt_ratio_b_x32, amount_1)
+    }
+}
+
+/// Computes the amount of token_0 for a given amount of liquidity and a price range
+/// Calculates Δx = ΔL (√P_upper - √P_lower) / (√P_upper x √P_lower)
+///
+/// # Arguments
+///
+/// * `sqrt_ratio_a_x32` - A sqrt price representing the first tick boundary
+/// * `sqrt_ratio_b_x32` - A sqrt price representing the second tick boundary
+/// * `liquidity` - The liquidity being valued
+///
 pub fn get_amount_0_for_liquidity(
-    mut sqrt_price_a: f64,
-    mut sqrt_price_b: f64,
+    mut sqrt_ratio_a_x32: u64,
+    mut sqrt_ratio_b_x32: u64,
     liquidity: u32,
 ) -> u64 {
-    // sqrt_price_b (upper) should be greater than sqrt_price_a (lower)
-    if sqrt_price_a > sqrt_price_b {
-        let temp = sqrt_price_a;
-        sqrt_price_a = sqrt_price_b;
-        sqrt_price_b = temp;
-    }
+    // sqrt_ratio_a_x32 should hold the smaller value
+    if sqrt_ratio_a_x32 > sqrt_ratio_b_x32 {
+        std::mem::swap(&mut sqrt_ratio_a_x32, &mut sqrt_ratio_b_x32);
+    };
 
-    liquidity as u64 * (((sqrt_price_b - sqrt_price_a) / (sqrt_price_b * sqrt_price_a)) as u64)
+    ((liquidity as u64) << fixed_point_x32::RESOLUTION).mul_div_floor(
+        sqrt_ratio_b_x32 - sqrt_ratio_a_x32,
+        sqrt_ratio_b_x32
+    ).unwrap() / sqrt_ratio_a_x32
 }
 
-// Computes the amount of token_1 for a given amount of liquidity and a price range
-// Δy = ΔL ( √(P_upper) - √(P_lower) )
+/// Computes the amount of token_1 for a given amount of liquidity and a price range
+/// Calculates Δy = ΔL * (√P_upper - √P_lower)
+///
+/// # Arguments
+///
+/// * `sqrt_ratio_a_x32` - A sqrt price representing the first tick boundary
+/// * `sqrt_ratio_b_x32` - A sqrt price representing the second tick boundary
+/// * `liquidity` - The liquidity being valued
+///
 pub fn get_amount_1_for_liquidity(
-    mut sqrt_price_a: f64,
-    mut sqrt_price_b: f64,
-    liquidity: u32
+    mut sqrt_ratio_a_x32: u64,
+    mut sqrt_ratio_b_x32: u64,
+    liquidity: u32,
 ) -> u64 {
-    // sqrt_price_b (upper) should be greater than sqrt_price_a (lower)
-    if sqrt_price_a > sqrt_price_b {
-        let temp = sqrt_price_a;
-        sqrt_price_a = sqrt_price_b;
-        sqrt_price_b = temp;
-    }
+    // sqrt_ratio_a_x32 should hold the smaller value
+    if sqrt_ratio_a_x32 > sqrt_ratio_b_x32 {
+        std::mem::swap(&mut sqrt_ratio_a_x32, &mut sqrt_ratio_b_x32);
+    };
 
-    liquidity as u64 * ((sqrt_price_b - sqrt_price_a) as u64)
+    (liquidity as u64).mul_div_floor(
+        sqrt_ratio_b_x32 - sqrt_ratio_a_x32,
+        fixed_point_x32::Q32
+    ).unwrap()
 }
 
-// Get amounts of token_0 and token_1 for a given amount of liquidity,
-// current pool price and prices at tick boundaries
-// @param sqrt_price sqrt of current pool price
-// @param sqrt_price_a A sqrt price representing first tick boundary
-// @param sqrt_price_b A sqrt price representing second tick boundary
-// @param liquidity The liquidity being balued
+/// Computes the token_0 and token_1 value for a given amount of liquidity, the current
+/// pool prices and the prices at the tick boundaries
+///
+/// # Arguments
+///
+/// * `sqrt_ratio_x32` - A sqrt price representing the current pool prices
+/// * `sqrt_ratio_a_x32` - A sqrt price representing the first tick boundary
+/// * `sqrt_ratio_b_x32` - A sqrt price representing the second tick boundary
+/// * `liquidity` - The liquidity being valued
+/// * `amount_0` - The amount of token_0
+/// * `amount_1` - The amount of token_1
+///
 pub fn get_amounts_for_liquidity(
-    sqrt_price: f64,
-    mut sqrt_price_a: f64,
-    mut sqrt_price_b: f64,
+    sqrt_ratio_x32: u64,
+    mut sqrt_ratio_a_x32: u64,
+    mut sqrt_ratio_b_x32: u64,
     liquidity: u32,
 ) -> (u64, u64) {
-    // sqrt_price_b (upper) should be greater than sqrt_price_a (lower)
-    if sqrt_price_a > sqrt_price_b {
-        let temp = sqrt_price_a;
-        sqrt_price_a = sqrt_price_b;
-        sqrt_price_b = temp;
-    }
-    let mut amount_0 = 0;
-    let mut amount_1 = 0;
+    // sqrt_ratio_a_x32 should hold the smaller value
+    if sqrt_ratio_a_x32 > sqrt_ratio_b_x32 {
+        std::mem::swap(&mut sqrt_ratio_a_x32, &mut sqrt_ratio_b_x32);
+    };
 
-    if sqrt_price <= sqrt_price_a {
-        // entire liquidity is in token_0
-        amount_0 = get_amount_0_for_liquidity(sqrt_price_a, sqrt_price_b, liquidity);
-    } else if sqrt_price < sqrt_price_b {
-        // liquidity is in a mix of token_0 and token_1
-        amount_0 = get_amount_0_for_liquidity(sqrt_price, sqrt_price_b, liquidity);
-        amount_1 = get_amount_1_for_liquidity(sqrt_price_a, sqrt_price, liquidity);
+    if sqrt_ratio_x32 <= sqrt_ratio_a_x32 {
+        // If P ≤ P_lower, active liquidity is entirely in token_0
+        (get_amount_0_for_liquidity(sqrt_ratio_a_x32, sqrt_ratio_b_x32, liquidity), 0)
+    } else if sqrt_ratio_x32 < sqrt_ratio_b_x32 {
+        // If P_lower < P < P_upper, active liquidity is in token_0 and token_1
+        (
+            get_amount_0_for_liquidity(sqrt_ratio_x32, sqrt_ratio_b_x32, liquidity),
+            get_amount_1_for_liquidity(sqrt_ratio_a_x32, sqrt_ratio_x32, liquidity)
+        )
     } else {
-        // entire liquidity is in token_1
-        amount_1  = get_amount_1_for_liquidity(sqrt_price_a, sqrt_price, liquidity);
+        // If P ≥ P_upper, active liquidity is entirely in token_1
+        (0, get_amount_1_for_liquidity(sqrt_ratio_a_x32, sqrt_ratio_b_x32, liquidity))
     }
-
-    (amount_0, amount_1)
 }
+
+// TODO tests

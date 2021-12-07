@@ -698,6 +698,7 @@ dependencies = [
  "anchor-lang",
  "anchor-spl",
  "cyclos-core",
+ "muldiv",
  "spl-token",
  "spl-token-metadata",
 ]
