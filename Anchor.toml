@@ -15,3 +15,7 @@ test = "ts-mocha -p ./tsconfig.json -t 10000000 tests/**/*.ts"
 
 [test]
 startup_wait = 20000
+
+[[test.genesis]]
+address = "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s"
+program = "./spl_token_metadata/spl_token_metadata.so"

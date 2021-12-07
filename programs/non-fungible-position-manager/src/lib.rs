@@ -5,14 +5,21 @@ pub mod states;
 use states::position_manager;
 use crate::context::*;
 use cyclos_core::libraries::tick_math;
-// use cyclos_core::states::pool::PoolState;
-
 use anchor_lang::prelude::*;
 use error::ErrorCode;
-use anchor_spl::token;
 use libraries::liquidity_amounts::get_liquidity_for_amounts;
+use spl_token_metadata::state::{MAX_METADATA_LEN, Creator, MAX_CREATOR_LEN};
+use anchor_lang::solana_program::{self, system_instruction};
+use anchor_spl::token;
+use spl_token::instruction::AuthorityType;
+use spl_token_metadata::instruction::{create_metadata_accounts, CreateMetadataAccountArgs};
 
 declare_id!("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS");
+
+
+pub const NFT_NAME: &str = "Uniswap Positions NFT-V1";
+pub const NFT_SYMBOL: &str = "CYS-POS";
+pub const BASE_URI: &str = "https://api.cyclos.io/mint=";
 
 #[program]
 pub mod non_fungible_position_manager {
@@ -32,10 +39,95 @@ pub mod non_fungible_position_manager {
     ) -> ProgramResult {
         let position_manager_state = &mut ctx.accounts.position_manager_state.load_init()?;
         position_manager_state.bump = position_manager_state_bump;
-        position_manager_state.core = ctx.accounts.core.key();
 
         Ok(())
     }
+
+    /// Creates a new position wrapped in a NFT
+    /// Position manager acts as a proxy, owning all positions created on core.
+    /// LPs in turn claim ownership through ownership of NFTs
+    ///
+    /// # Arguments
+    ///
+    /// * `ctx` - Holds pool and position accounts
+    /// * `tick_lower`, `tick_upper` - Tick range for the position
+    /// * `amount_0_desired`, `amount_1_desired` - Desired amounts of token_0 and token_1 to be added
+    /// * `amount_0_min`, `amount_1_min`: - Mint fails if amounts added are below minimum levels
+    /// * `deadline` - Mint fails if instruction is executed past the deadline
+    ///
+    pub fn mint(
+        ctx: Context<MintPosition>,
+        // tick_lower: i32,
+        // tick_upper: i32,
+        // amount_0_desired: u64,
+        // amount_1_desired: u64,
+        // amount_0_min: u64,
+        // amount_1_min: u64,
+        // deadline: u64
+    ) -> ProgramResult {
+        // require!(Clock::get()?.slot <= deadline, ErrorCode::OldTransaction);
+
+        // Call add_liquidity() to create position on core.mint()
+
+        // Generate NFT metadata
+        let metadata_infos: &[AccountInfo] = &[
+            ctx.accounts.metadata_account.to_account_info().clone(),
+            ctx.accounts.nft_mint.to_account_info().clone(),
+            ctx.accounts.minter.to_account_info().clone(), // payer
+            ctx.accounts.position_manager_state.to_account_info().clone(), // mint and update authority
+            ctx.accounts.system_program.to_account_info().clone(),
+            ctx.accounts.rent.to_account_info().clone(),
+        ];
+        let create_metadata_ix = create_metadata_accounts(
+            ctx.accounts.metadata_program.key(),
+            ctx.accounts.metadata_account.key(),
+            ctx.accounts.nft_mint.key(),
+            ctx.accounts.position_manager_state.key(),
+            ctx.accounts.minter.key(),
+            ctx.accounts.position_manager_state.key(),
+            NFT_NAME.to_string(),
+            NFT_SYMBOL.to_string(),
+            format!("{}{}", BASE_URI, ctx.accounts.nft_mint.key()),
+            Some(vec![Creator {
+                address: ctx.accounts.position_manager_state.key(),
+                verified: true,
+                share: 100,
+            }]),
+            0,
+            true,
+            false
+        );
+        let seeds = [&[ctx.accounts.position_manager_state.load()?.bump] as &[u8]];
+        solana_program::program::invoke_signed(
+            &create_metadata_ix,
+            metadata_infos,
+            &[&seeds[..]]
+        )?;
+
+        // Mint the NFT
+        token::mint_to(CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info().clone(),
+            token::MintTo {
+                mint: ctx.accounts.nft_mint.to_account_info().clone(),
+                to: ctx.accounts.nft_account.to_account_info().clone(),
+                authority: ctx.accounts.position_manager_state.to_account_info().clone(),
+            },
+            &[&seeds[..]]
+        ), 1)?;
+
+        // Prevent more minting
+        token::set_authority(CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info().clone(),
+            token::SetAuthority {
+                current_authority: ctx.accounts.position_manager_state.to_account_info().clone(),
+                account_or_mint: ctx.accounts.nft_mint.to_account_info().clone(),
+            },
+            &[&seeds[..]]
+        ), AuthorityType::MintTokens, None)?;
+
+        Ok(())
+    }
+
 
     // /// Callback to pay tokens for creating or adding liquidity to a position
     // ///
@@ -86,37 +178,7 @@ pub mod non_fungible_position_manager {
     //     Ok(())
     // }
 
-    // /// Create a new position wrapped in an NFT
-    // /// Position manager acts as a proxy, owning all positions created on core.
-    // /// LPs in turn claim ownership through ownership of NFTs
-    // ///
-    // /// # Arguments
-    // ///
-    // /// * `ctx` - Holds pool and position accounts
-    // /// * `tick_lower`, `tick_upper` - Tick range for the position
-    // /// * `amount_0_desired`, `amount_1_desired` - Desired amounts of token_0 and token_1 to be added
-    // /// * `amount_0_min`, `amount_1_min`: - Mint fails if amounts added are below minimum levels
-    // /// * `deadline` - Mint fails if instruction is executed past the deadline
-    // ///
-    // pub fn mint(
-    //     ctx: Context<MintPosition>,
-    //     tick_lower: i32,
-    //     tick_upper: i32,
-    //     amount_0_desired: u64,
-    //     amount_1_desired: u64,
-    //     amount_0_min: u64,
-    //     amount_1_min: u64,
-    //     deadline: u64
-    // ) -> ProgramResult {
-    //     require!(ctx.accounts.clock.slot <= deadline, ErrorCode::OldTransaction);
 
-    //     // Call add_liquidity() to create position on core.mint()
-
-    //     // Mint NFT- create token mint, ATA, and metaplex metadata
-
-    //     // Write position data to PositionState PDA
-    //     Ok(())
-    // }
 
     // /// Increases liquidity in a position, with amount paid by `payer`
     // ///
@@ -183,30 +245,3 @@ pub mod non_fungible_position_manager {
     //     todo!()
     // }
 }
-
-// /// Internal function to add tokens to an initialized pool. Makes a CPI to
-// /// core.mint(). Returns a 3-tuple of liquidity, token_0 and token_1 consumed
-// ///
-// /// Tokens convert into liquidity depending on slippage
-// ///
-// pub fn add_liquidity<'info>(
-//     pool_state: &Account<'info, PoolState>,
-//     recipient: &AccountInfo<'info>,
-//     tick_lower: i32,
-//     tick_upper: i32,
-//     amount_0_desired: u64,
-//     amount_1_desired: u64,
-//     amount_0_min: u64,
-//     amount_1_min: u64
-// ) -> (u32, u64, u64) {
-//     let sqrt_ratio_a = tick_math::get_sqrt_price_at_tick(tick_lower);
-//     let sqrt_ratio_b = tick_math::get_sqrt_price_at_tick(tick_upper);
-
-//     let liquidity = get_liquidity_for_amounts(pool_state.sqrt_price, sqrt_ratio_a, sqrt_ratio_b, amount_0_desired, amount_1_desired);
-
-//     // CPI to core.mint()
-
-//     // TODO slippage check by reading balance from token accounts of minter
-
-//     (0,0,0)
-// }

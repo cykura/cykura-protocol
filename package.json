@@ -1,5 +1,6 @@
 {
     "dependencies": {
+        "@metaplex/js": "^4.9.0",
         "@project-serum/anchor": "^0.18.2",
         "@solana/spl-token": "^0.1.8"
     },

@@ -1,5 +1,6 @@
-import * as anchor from '@project-serum/anchor';
-import { Program, web3, BN, ProgramError } from '@project-serum/anchor';
+import * as anchor from '@project-serum/anchor'
+import { Program, web3, BN, ProgramError } from '@project-serum/anchor'
+import * as metaplex from '@metaplex/js'
 import { Token, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID } from '@solana/spl-token'
 import { assert, expect } from 'chai'
 import * as chai from 'chai'
@@ -9,10 +10,12 @@ chai.use(chaiAsPromised)
 import { CyclosCore } from '../target/types/cyclos_core'
 import { NonFungiblePositionManager } from '../target/types/non_fungible_position_manager'
 import { MaxU64, MAX_SQRT_RATIO, MIN_SQRT_RATIO, u16ToSeed, u32ToSeed } from './utils'
+const { metadata: { Metadata } } = metaplex.programs
 
 const { PublicKey, Keypair, SystemProgram } = anchor.web3
 
 describe('cyclos-core', async () => {
+
   // Configure the client to use the local cluster.
   anchor.setProvider(anchor.Provider.env());
 
@@ -1072,32 +1075,108 @@ describe('cyclos-core', async () => {
   const mgrProgram = anchor.workspace.NonFungiblePositionManager as Program<NonFungiblePositionManager>
   const [posMgrState, posMgrBump] = await PublicKey.findProgramAddress([], mgrProgram.programId)
 
-  describe('non-fungible-position-manager#initialize', () => {
-    it('initializes the position manager', async () => {
-      await mgrProgram.rpc.initialize(posMgrBump, {
-        accounts: {
-          signer: owner,
-          positionManagerState: posMgrState,
-          core: factoryState,
-          systemProgram: SystemProgram.programId,
-        }
+  const nftMintKeypair = new Keypair()
+  const positionNftAccount = await Token.getAssociatedTokenAddress(
+    ASSOCIATED_TOKEN_PROGRAM_ID,
+    TOKEN_PROGRAM_ID,
+    nftMintKeypair.publicKey,
+    owner,
+  )
+
+  const metadataAccount = (
+    await web3.PublicKey.findProgramAddress(
+      [
+        Buffer.from('metadata'),
+        metaplex.programs.metadata.MetadataProgram.PUBKEY.toBuffer(),
+        nftMintKeypair.publicKey.toBuffer(),
+      ],
+      metaplex.programs.metadata.MetadataProgram.PUBKEY,
+    )
+  )[0];
+
+  describe('non-fungible-position-manager', async () => {
+    describe('#initialize', () => {
+      it('initializes the position manager', async () => {
+        await mgrProgram.rpc.initialize(posMgrBump, {
+          accounts: {
+            signer: owner,
+            positionManagerState: posMgrState,
+            systemProgram: SystemProgram.programId,
+          }
+        })
+
+        const posMgrStateData = await mgrProgram.account.positionManagerState.fetch(posMgrState)
+        assert.equal(posMgrStateData.bump, posMgrBump)
       })
 
-      const posMgrStateData = await mgrProgram.account.positionManagerState.fetch(posMgrState)
-      assert.equal(posMgrStateData.bump, posMgrBump)
-      assert(posMgrStateData.core.equals(factoryState))
+      it('fails on trying to re-initialize', async () => {
+        await expect(mgrProgram.rpc.initialize(posMgrBump, {
+          accounts: {
+            signer: owner,
+            positionManagerState: posMgrState,
+            systemProgram: SystemProgram.programId,
+          }
+        })).to.be.rejectedWith(Error)
+      })
     })
 
-    it('fails on trying to re-initialize', async () => {
-      await expect(mgrProgram.rpc.initialize(posMgrBump, {
-        accounts: {
-          signer: owner,
-          positionManagerState: posMgrState,
-          core: factoryState,
-          systemProgram: SystemProgram.programId,
-        }
-      })).to.be.rejectedWith(Error)
+    describe('#mint', () => {
+      it('creates a new position wrapped in an NFT', async () => {
+        const MAX_METADATA_LEN = 679 // used in metaplex metadata program
+
+        // Required to initialize metadata account
+        const lamportsIx = SystemProgram.transfer({
+          fromPubkey: owner,
+          toPubkey: metadataAccount,
+          lamports: await connection.getMinimumBalanceForRentExemption(MAX_METADATA_LEN)
+        })
+        await mgrProgram.rpc.mint({
+          accounts: {
+            minter: owner,
+            recipient: owner,
+            positionManagerState: posMgrState,
+            nftMint: nftMintKeypair.publicKey,
+            nftAccount: positionNftAccount,
+            metadataAccount,
+            systemProgram: SystemProgram.programId,
+            rent: web3.SYSVAR_RENT_PUBKEY,
+            tokenProgram: TOKEN_PROGRAM_ID,
+            metadataProgram: metaplex.programs.metadata.MetadataProgram.PUBKEY,
+            associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID
+          }, signers: [nftMintKeypair],
+          instructions: [lamportsIx]
+        })
+
+        const nftMint = new Token(
+          connection,
+          nftMintKeypair.publicKey,
+          TOKEN_PROGRAM_ID,
+          new Keypair()
+        )
+        const nftMintInfo = await nftMint.getMintInfo()
+        assert.isNull(nftMintInfo.mintAuthority)
+        assert.equal(nftMintInfo.decimals, 0)
+        const nftAccountInfo = await nftMint.getAccountInfo(positionNftAccount)
+        assert(nftAccountInfo.amount.eqn(1))
+
+        const metadata = await Metadata.load(connection, metadataAccount)
+        assert.equal(metadata.data.mint, nftMint.publicKey.toString())
+        assert.equal(metadata.data.updateAuthority, posMgrState.toString())
+        assert.equal(metadata.data.data.name, 'Uniswap Positions NFT-V1')
+        assert.equal(metadata.data.data.symbol, 'CYS-POS')
+        assert.equal(metadata.data.data.uri, 'https://api.cyclos.io/mint=' + nftMint.publicKey.toString())
+        assert.deepEqual(metadata.data.data.creators, [{
+          address: posMgrState.toString(),
+          // @ts-ignore
+          verified: 1,
+          share: 100,
+        }])
+        assert.equal(metadata.data.data.sellerFeeBasisPoints, 0)
+        // @ts-ignore
+        assert.equal(metadata.data.isMutable, 0)
+      })
     })
   })
+
 
 })
