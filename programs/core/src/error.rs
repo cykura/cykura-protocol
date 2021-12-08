@@ -13,6 +13,10 @@ pub enum ErrorCode {
     #[msg("TLU")]
     TLU,
 
+    // The tick should be a multiple of tick spacing
+    #[msg("TMS")]
+    TMS,
+
     // The lower tick must be greater, or equal to, the minimum tick
     #[msg("TLM")]
     TLM,

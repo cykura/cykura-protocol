@@ -20,7 +20,7 @@ pub const BITMAP_SEED: &str = "b";
 ///
 /// Emulates a solidity mapping, where word_position is the key and
 ///
-/// PDA of `[BITMAP_SEED, token_0, token_1, fee, word_position]`
+/// PDA of `[BITMAP_SEED, token_0, token_1, fee, word_pos]`
 ///
 #[account(zero_copy)]
 #[derive(Default)]
@@ -29,7 +29,7 @@ pub struct TickBitmapState {
     pub bump: u8,
 
     /// Most significant 16 bits of the 256 ticks
-    pub word_position: i16,
+    pub word_pos: i16,
 
     /// Packed initialized state for 256 ticks
     pub word: [u128; 2],

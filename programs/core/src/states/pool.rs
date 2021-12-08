@@ -1,6 +1,4 @@
 use anchor_lang::prelude::*;
-use crate::libraries::tick_math;
-use crate::error::ErrorCode;
 
 /// The pool state
 ///
@@ -67,20 +65,7 @@ pub struct PoolState {
 }
 
 impl PoolState {
-    /// Common checks for valid tick inputs.
-    ///
-    /// # Arguments
-    ///
-    /// * `tick_lower` - The lower tick
-    /// * `tick_upper` - The upper tick
-    ///
-    pub fn check_ticks(tick_lower: i32, tick_upper: i32) -> Result<(), ErrorCode> {
-        require!(tick_lower < tick_upper, ErrorCode::TLU);
-        require!(tick_lower >= tick_math::MIN_TICK, ErrorCode::TLM);
-        require!(tick_upper <= tick_math::MAX_TICK, ErrorCode::TUM);
 
-        Ok(())
-    }
 }
 
 /// Emitted when a pool is created and initialized with a starting price

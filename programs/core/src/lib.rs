@@ -13,6 +13,7 @@ use crate::error::ErrorCode;
 use states::factory::*;
 use states::fee::*;
 use states::pool::*;
+use states::tick;
 use states::position::*;
 use states::tick::*;
 use states::tick_bitmap::*;
@@ -365,6 +366,7 @@ pub mod cyclos_core {
     /// * `tick_account_bump` - Bump to validate tick account PDA
     /// * `tick` - The tick for which the account is created
     ///
+    #[access_control(check_tick(tick, ctx.accounts.pool_state.tick_spacing))]
     pub fn init_tick_account(ctx: Context<InitTickAccount>, tick_account_bump: u8, tick: i32) -> ProgramResult {
         let mut tick_account = ctx.accounts.tick_state.load_init()?;
         tick_account.bump = tick_account_bump;
@@ -377,18 +379,19 @@ pub mod cyclos_core {
     /// # Arguments
     ///
     /// * `ctx` - Contains accounts to initialize an empty bitmap account
-    /// * `tick_account_bump` - Bump to validate the bitmap account PDA
-    /// * `word_position` - The word position for which the account is created, i.e. the i16 word
-    /// obtained by right shifting a tick by 8 places
+    /// * `bitmap_account_bump` - Bump to validate the bitmap account PDA
+    /// * `tick` - The tick for which the bitmap account is created. Program address of
+    /// the account is derived using most significant 16 bits of the tick
     ///
+    #[access_control(check_tick(tick, ctx.accounts.pool_state.tick_spacing))]
     pub fn init_bitmap_account(
         ctx: Context<InitBitmapAccount>,
         bitmap_account_bump: u8,
-        word_position: i16
+        tick: i32
     ) -> ProgramResult {
         let mut bitmap_account = ctx.accounts.bitmap_state.load_init()?;
         bitmap_account.bump = bitmap_account_bump;
-        bitmap_account.word_position = word_position;
+        bitmap_account.word_pos = (tick >> 8) as i16;
         Ok(())
     }
 
@@ -705,6 +708,35 @@ pub mod cyclos_core {
     // }
 
 
+}
+
+/// Common checks for a valid tick input.
+/// A tick is valid iff it lies within tick boundaries and it is a multiple
+/// of tick spacing.
+///
+/// # Arguments
+///
+/// * `tick` - The price tick
+///
+pub fn check_tick(tick: i32, tick_spacing: u16) -> Result<(), ErrorCode> {
+    require!(tick >= tick_math::MIN_TICK, ErrorCode::TLM);
+    require!(tick <= tick_math::MAX_TICK, ErrorCode::TUM);
+    require!(tick % tick_spacing as i32 == 0, ErrorCode::TMS);
+    Ok(())
+}
+
+/// Common checks for valid tick inputs.
+///
+/// # Arguments
+///
+/// * `tick_lower` - The lower tick
+/// * `tick_upper` - The upper tick
+///
+pub fn check_ticks(tick_lower: i32, tick_upper: i32) -> Result<(), ErrorCode> {
+    // TODO implement as a context constraint instead
+    require!(tick_lower < tick_upper, ErrorCode::TLU);
+
+    Ok(())
 }
 
 // /// Update position with given liquidity_delta

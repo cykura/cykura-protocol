@@ -1,10 +1,9 @@
-use std::cell::RefMut;
-
 ///! Contains functions for managing tick processes and relevant calculations
-///
+///!
 
 use anchor_lang::prelude::*;
-use crate::libraries::tick_math::{MAX_TICK, MIN_TICK};
+use crate::libraries::tick_math;
+use crate::error::ErrorCode;
 
 /// Account storing info for a price tick
 ///

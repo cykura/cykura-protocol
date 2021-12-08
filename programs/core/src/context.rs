@@ -263,7 +263,7 @@ pub struct InitTickAccount<'info> {
 }
 
 #[derive(Accounts)]
-#[instruction(bitmap_account_bump: u8, word_position: i16)]
+#[instruction(bitmap_account_bump: u8, tick: i32)]
 pub struct InitBitmapAccount<'info> {
     /// Pays to create bitmap account
     #[account(mut)]
@@ -280,7 +280,7 @@ pub struct InitBitmapAccount<'info> {
             pool_state.token_0.key().as_ref(),
             pool_state.token_1.key().as_ref(),
             &pool_state.fee.to_be_bytes(),
-            &word_position.to_be_bytes()
+            &((tick >> 8) as i16).to_be_bytes()
         ],
         bump = bitmap_account_bump,
         payer = signer
@@ -362,7 +362,7 @@ pub struct MintContext<'info> {
             pool_state.token_0.key().as_ref(),
             pool_state.token_1.key().as_ref(),
             &pool_state.fee.to_be_bytes(),
-            &(tick_lower as i16 >> 8 as i16).to_be_bytes()
+            &((tick_lower >> 8) as i16).to_be_bytes()
         ],
         bump = bitmap_lower_bump,
         payer = minter
@@ -376,7 +376,7 @@ pub struct MintContext<'info> {
             pool_state.token_0.key().as_ref(),
             pool_state.token_1.key().as_ref(),
             &pool_state.fee.to_be_bytes(),
-            &(tick_upper as i16 >> 8).to_be_bytes()
+            &((tick_upper >> 8) as i16).to_be_bytes()
         ],
         bump = bitmap_upper_bump,
         payer = minter
