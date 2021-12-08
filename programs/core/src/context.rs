@@ -12,7 +12,7 @@ use crate::states::pool::PoolState;
 use crate::states::position::PositionState;
 use crate::states::oracle::ObservationState;
 use crate::states::tick::TickState;
-use crate::states::tick_bitmap::TickBitmapState;
+use crate::states::tick_bitmap::{BITMAP_SEED, TickBitmapState};
 
 // use non_fungible_position_manager::program::NonFungiblePositionManager;
 
@@ -263,6 +263,35 @@ pub struct InitTickAccount<'info> {
 }
 
 #[derive(Accounts)]
+#[instruction(bitmap_account_bump: u8, word_position: i16)]
+pub struct InitBitmapAccount<'info> {
+    /// Pays to create bitmap account
+    #[account(mut)]
+    pub signer: Signer<'info>,
+
+    /// Create a new bitmap account for this pool
+    pub pool_state: Box<Account<'info, PoolState>>,
+
+    /// The bitmap account to be initialized
+    #[account(
+        init,
+        seeds = [
+            BITMAP_SEED.as_bytes(),
+            pool_state.token_0.key().as_ref(),
+            pool_state.token_1.key().as_ref(),
+            &pool_state.fee.to_be_bytes(),
+            &word_position.to_be_bytes()
+        ],
+        bump = bitmap_account_bump,
+        payer = signer
+    )]
+    pub bitmap_state: Loader<'info, TickBitmapState>,
+
+    /// Program to initialize the tick account
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
 #[instruction(
     position_bump: u8,
     tick_lower_bump: u8,
@@ -329,10 +358,11 @@ pub struct MintContext<'info> {
     #[account(
         init_if_needed,
         seeds = [
+            BITMAP_SEED.as_bytes(),
             pool_state.token_0.key().as_ref(),
             pool_state.token_1.key().as_ref(),
             &pool_state.fee.to_be_bytes(),
-            &(tick_lower >> 8 as i16).to_be_bytes()
+            &(tick_lower as i16 >> 8 as i16).to_be_bytes()
         ],
         bump = bitmap_lower_bump,
         payer = minter
@@ -342,10 +372,11 @@ pub struct MintContext<'info> {
     #[account(
         init_if_needed,
         seeds = [
+            BITMAP_SEED.as_bytes(),
             pool_state.token_0.key().as_ref(),
             pool_state.token_1.key().as_ref(),
             &pool_state.fee.to_be_bytes(),
-            &(tick_upper >> 8 as i16).to_be_bytes()
+            &(tick_upper as i16 >> 8).to_be_bytes()
         ],
         bump = bitmap_upper_bump,
         payer = minter

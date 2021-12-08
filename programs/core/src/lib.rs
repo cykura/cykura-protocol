@@ -353,7 +353,9 @@ pub mod cyclos_core {
     /// ---------------------------------------------------------------------
     /// Account init instructions
     ///
-    /// Separate instructions to save compute units
+    /// Having separate instructions to initialize instructions saves compute units
+    /// and reduces code in downstream instructions
+    ///
 
     /// Initializes a program account for a price tick
     ///
@@ -370,12 +372,32 @@ pub mod cyclos_core {
         Ok(())
     }
 
+    /// Initializes a program account for a tick bitmap
+    ///
+    /// # Arguments
+    ///
+    /// * `ctx` - Contains accounts to initialize an empty bitmap account
+    /// * `tick_account_bump` - Bump to validate the bitmap account PDA
+    /// * `word_position` - The word position for which the account is created, i.e. the i16 word
+    /// obtained by right shifting a tick by 8 places
+    ///
+    pub fn init_bitmap_account(
+        ctx: Context<InitBitmapAccount>,
+        bitmap_account_bump: u8,
+        word_position: i16
+    ) -> ProgramResult {
+        let mut bitmap_account = ctx.accounts.bitmap_state.load_init()?;
+        bitmap_account.bump = bitmap_account_bump;
+        bitmap_account.word_position = word_position;
+        Ok(())
+    }
+
     // ---------------------------------------------------------------------
     // Position instructions
 
     /// Adds liquidity for the given pool/recipient/tickLower/tickUpper position
     ///
-    /// The caller of this method receives a callback in the form of #mintCallback
+    //tick_abitmap_bump: bitmap_account_bump: bitmap_bumphis method receives a callback in the form of #mintCallback
     /// in which they must pay any token_0 or token_1 owed for the liquidity. The
     /// amounbump: tick_account_bump token_0/token_1 due depends on tickLower, tickUpper, the amount of
     /// liquidity, and the current price.

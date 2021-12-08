@@ -9,7 +9,7 @@ chai.use(chaiAsPromised)
 
 import { CyclosCore } from '../target/types/cyclos_core'
 import { NonFungiblePositionManager } from '../target/types/non_fungible_position_manager'
-import { i16ToSeed, MaxU64, MAX_SQRT_RATIO, MIN_SQRT_RATIO, u16ToSeed, u32ToSeed } from './utils'
+import { BITMAP_SEED, i16ToSeed, MaxU64, MAX_SQRT_RATIO, MIN_SQRT_RATIO, u16ToSeed, u32ToSeed } from './utils'
 const { metadata: { Metadata } } = metaplex.programs
 
 const { PublicKey, Keypair, SystemProgram } = anchor.web3
@@ -1122,6 +1122,9 @@ describe('cyclos-core', async () => {
 
     const tickLower = 0
     const tickUpper = 10
+    const wordPosLower = tickLower >> 8
+    const wordPosUpper = tickUpper >> 8
+
     const amount0Desired = new BN(1_000_000)
     const amount1Desired = new BN(1_000_000)
 
@@ -1166,18 +1169,20 @@ describe('cyclos-core', async () => {
         coreProgram.programId
       );
       [bitmapLower, bitmapLowerBump] = await PublicKey.findProgramAddress([
+          BITMAP_SEED,
           token0.publicKey.toBuffer(),
           token1.publicKey.toBuffer(),
           u32ToSeed(fee),
-          u32ToSeed(tickLower >> 8),
+          u16ToSeed(wordPosLower),
         ],
         coreProgram.programId
       );
       [bitmapUpper, bitmapUpperBump] = await PublicKey.findProgramAddress([
+          BITMAP_SEED,
           token0.publicKey.toBuffer(),
           token1.publicKey.toBuffer(),
           u32ToSeed(fee),
-          u32ToSeed(tickUpper >> 8),
+          u16ToSeed(wordPosUpper),
         ],
         coreProgram.programId
       )
@@ -1210,6 +1215,25 @@ describe('cyclos-core', async () => {
         const tickStateUpperData = await coreProgram.account.tickState.fetch(tickUpperState)
         assert.equal(tickStateUpperData.bump, tickUpperStateBump)
         assert.equal(tickStateUpperData.tick, tickUpper)
+      })
+    })
+
+    describe('#init_bitmap_account', () => {
+      it('creates new bitmap account for lower and upper ticks', async () => {
+        await coreProgram.rpc.initBitmapAccount(bitmapLowerBump, wordPosLower, {
+          accounts: {
+            signer: owner,
+            poolState,
+            bitmapState: bitmapLower,
+            systemProgram: SystemProgram.programId,
+          }
+        })
+
+        const bitmapLowerData = await coreProgram.account.tickBitmapState.fetch(bitmapLower)
+        assert.equal(bitmapLowerData.bump, bitmapLowerBump)
+        assert.equal(bitmapLowerData.wordPosition, wordPosLower)
+
+        // bitmap upper = bitmap lower
       })
     })
 

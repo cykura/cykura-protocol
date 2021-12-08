@@ -37,3 +37,6 @@ export function i16ToSeed(num: number) {
 }
 
 export const MaxU64= new BN(2).pow(new BN(64)).subn(1)
+
+// Seed bumps
+export const BITMAP_SEED = Buffer.from('b')
