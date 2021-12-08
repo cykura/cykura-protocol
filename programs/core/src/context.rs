@@ -9,7 +9,7 @@ use crate::error::ErrorCode;
 use crate::states::factory::FactoryState;
 use crate::states::fee::FeeState;
 use crate::states::pool::PoolState;
-use crate::states::position::PositionState;
+use crate::states::position::{POSITION_SEED, PositionState};
 use crate::states::oracle::ObservationState;
 use crate::states::tick::TickState;
 use crate::states::tick_bitmap::{BITMAP_SEED, TickBitmapState};
@@ -292,6 +292,49 @@ pub struct InitBitmapAccount<'info> {
 }
 
 #[derive(Accounts)]
+#[instruction(bump: u8)]
+pub struct InitPositionAccount<'info> {
+    /// Pays to create position account
+    #[account(mut)]
+    pub signer: Signer<'info>,
+
+    /// The address of the position owner
+    pub recipient: UncheckedAccount<'info>,
+
+    /// Create a position account for this pool
+    pub pool_state: Box<Account<'info, PoolState>>,
+
+    /// The lower tick boundary of the position
+    pub tick_lower_state: Loader<'info, TickState>,
+
+    /// The upper tick boundary of the position
+    #[account(
+        constraint = tick_lower_state.load()?.tick < tick_upper_state.load()?.tick @ErrorCode::TLU
+    )]
+    pub tick_upper_state: Loader<'info, TickState>,
+
+    /// The position account to be initialized
+    #[account(
+        init,
+        seeds = [
+            POSITION_SEED.as_bytes(),
+            pool_state.token_0.key().as_ref(),
+            pool_state.token_1.key().as_ref(),
+            &pool_state.fee.to_be_bytes(),
+            recipient.key().as_ref(),
+            &tick_lower_state.load()?.tick.to_be_bytes(),
+            &tick_upper_state.load()?.tick.to_be_bytes(),
+        ],
+        bump = bump,
+        payer = signer
+    )]
+    pub position_state: Loader<'info, PositionState>,
+
+    /// Program to initialize the position account
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
 #[instruction(
     position_bump: u8,
     tick_lower_bump: u8,
@@ -317,6 +360,7 @@ pub struct MintContext<'info> {
     #[account(
         init_if_needed,
         seeds = [
+            POSITION_SEED.as_bytes(),
             pool_state.token_0.key().as_ref(),
             pool_state.token_1.key().as_ref(),
             &pool_state.fee.to_be_bytes(),

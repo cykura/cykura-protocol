@@ -358,7 +358,7 @@ pub mod cyclos_core {
     /// and reduces code in downstream instructions
     ///
 
-    /// Initializes a program account for a price tick
+    /// Initializes an empty program account for a price tick
     ///
     /// # Arguments
     ///
@@ -374,7 +374,7 @@ pub mod cyclos_core {
         Ok(())
     }
 
-    /// Initializes a program account for a tick bitmap
+    /// Initializes an empty program account for a tick bitmap
     ///
     /// # Arguments
     ///
@@ -392,6 +392,24 @@ pub mod cyclos_core {
         let mut bitmap_account = ctx.accounts.bitmap_state.load_init()?;
         bitmap_account.bump = bitmap_account_bump;
         bitmap_account.word_pos = (tick >> 8) as i16;
+        Ok(())
+    }
+
+    /// Initializes an empty program account for a position
+    ///
+    /// # Arguments
+    ///
+    /// * `ctx` - Contains accounts to initialize an empty position account
+    /// * `bump` - Bump to validate the position account PDA
+    /// * `tick` - The tick for which the bitmap account is created. Program address of
+    /// the account is derived using most significant 16 bits of the tick
+    ///
+    pub fn init_position_account(
+        ctx: Context<InitPositionAccount>,
+        bump: u8,
+    ) -> ProgramResult {
+        let mut position_account = ctx.accounts.position_state.load_init()?;
+        position_account.bump = bump;
         Ok(())
     }
 

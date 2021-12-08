@@ -13,6 +13,7 @@ use bitmaps::Bitmap;
 use bitmaps::Bits;
 use bitmaps::BitsImpl;
 
+/// Seed to derive account address and signature
 pub const BITMAP_SEED: &str = "b";
 
 /// Stores info for a single bitmap word.

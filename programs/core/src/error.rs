@@ -39,6 +39,12 @@ pub enum ErrorCode {
     #[msg("OS")]
     OS,
 
+    // states/position.rs
+
+    // No poke/burn for a position with 0 liquidity
+    #[msg("NP")]
+    NP,
+
     // libraries/tick_math.rs
 
     // second inequality must be < because the price can never reach the price at the max tick

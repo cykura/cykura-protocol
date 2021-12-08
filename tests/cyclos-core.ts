@@ -9,7 +9,7 @@ chai.use(chaiAsPromised)
 
 import { CyclosCore } from '../target/types/cyclos_core'
 import { NonFungiblePositionManager } from '../target/types/non_fungible_position_manager'
-import { BITMAP_SEED, i16ToSeed, MaxU64, MAX_SQRT_RATIO, MAX_TICK, MIN_SQRT_RATIO, MIN_TICK, u16ToSeed, u32ToSeed } from './utils'
+import { BITMAP_SEED, i16ToSeed, MaxU64, MAX_SQRT_RATIO, MAX_TICK, MIN_SQRT_RATIO, MIN_TICK, POSITION_SEED, u16ToSeed, u32ToSeed } from './utils'
 const { metadata: { Metadata } } = metaplex.programs
 
 const { PublicKey, Keypair, SystemProgram } = anchor.web3
@@ -1158,16 +1158,6 @@ describe('cyclos-core', async () => {
         coreProgram.programId
       );
 
-      [corePositionState, corePositionBump] = await PublicKey.findProgramAddress([
-          token0.publicKey.toBuffer(),
-          token1.publicKey.toBuffer(),
-          u32ToSeed(fee),
-          posMgrState.toBuffer(),
-          u32ToSeed(tickLower),
-          u32ToSeed(tickUpper)
-        ],
-        coreProgram.programId
-      );
       [bitmapLower, bitmapLowerBump] = await PublicKey.findProgramAddress([
           BITMAP_SEED,
           token0.publicKey.toBuffer(),
@@ -1185,7 +1175,19 @@ describe('cyclos-core', async () => {
           u16ToSeed(wordPosUpper),
         ],
         coreProgram.programId
-      )
+      );
+
+      [corePositionState, corePositionBump] = await PublicKey.findProgramAddress([
+          POSITION_SEED,
+          token0.publicKey.toBuffer(),
+          token1.publicKey.toBuffer(),
+          u32ToSeed(fee),
+          posMgrState.toBuffer(),
+          u32ToSeed(tickLower),
+          u32ToSeed(tickUpper)
+        ],
+        coreProgram.programId
+      );
     })
 
     describe('#init_tick_account', () => {
@@ -1359,6 +1361,51 @@ describe('cyclos-core', async () => {
         assert.equal(bitmapLowerData.wordPos, wordPosLower)
 
         // bitmap upper = bitmap lower
+      })
+    })
+
+    describe('#init_position_account', () => {
+      it('fails if tick lower is not less than tick upper', async () => {
+        const [invalidPosition, invalidPositionBump] = await PublicKey.findProgramAddress([
+            POSITION_SEED,
+            token0.publicKey.toBuffer(),
+            token1.publicKey.toBuffer(),
+            u32ToSeed(fee),
+            posMgrState.toBuffer(),
+            u32ToSeed(tickUpper), // upper first
+            u32ToSeed(tickLower),
+          ],
+          coreProgram.programId
+        );
+
+        await expect(coreProgram.rpc.initPositionAccount(invalidPositionBump, {
+          accounts: {
+            signer: owner,
+            recipient: posMgrState,
+            poolState,
+            tickLowerState: tickUpperState,
+            tickUpperState: tickLowerState,
+            positionState: invalidPosition,
+            systemProgram: SystemProgram.programId,
+          }
+        })).to.be.rejectedWith('TLU')
+      })
+
+      it('creates a new position account', async () => {
+        await coreProgram.rpc.initPositionAccount(corePositionBump, {
+          accounts: {
+            signer: owner,
+            recipient: posMgrState,
+            poolState,
+            tickLowerState,
+            tickUpperState,
+            positionState: corePositionState,
+            systemProgram: SystemProgram.programId,
+          }
+        })
+
+        const corePositionData = await coreProgram.account.positionState.fetch(corePositionState)
+        assert.equal(corePositionData.bump, corePositionBump)
       })
     })
 
