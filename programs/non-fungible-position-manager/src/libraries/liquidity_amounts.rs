@@ -1,9 +1,9 @@
-use cyclos_core::libraries::fixed_point_x32;
 ///! Liquidity amount functions
 ///! Provides functions for computing liquidity amounts from token amounts and prices
 ///! Implements formula 6.29 and 6.30
 ///
 
+use cyclos_core::libraries::fixed_point_x32;
 use muldiv::MulDiv;
 use std::convert::TryFrom;
 

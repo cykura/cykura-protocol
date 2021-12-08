@@ -351,22 +351,38 @@ pub mod cyclos_core {
     // ---------------------------------------------------------------------
     // 3. Position instructions
 
-    // /// Create a new position or add liquidity to an existing one
-    // ///
-    // /// Caller must be a smart contract implementing mint_callback(), where due
-    // /// tokens are paid
-    // /// mint() / increaseLiquidity() -> Periphery.LiquidityManagement.addLiquidity()
-    // /// -> Core.mint() -> Periphery.LiquidityManagement.uniswapV3MintCallback()
-    // ///
-    // /// Uniswap has a data field which is passed to uniswapV3MintCallback().
-    // /// This contains pool key(t0, t1, fee) and msg.sender. It is required by the
-    // /// perephery NFT position manager. 3rd parties may need more params for flexibility
-    // /// We can implement this through a data: &[u8] field and remaining_accounts in context
-
+    /// Adds liquidity for the given pool/recipient/tickLower/tickUpper position
+    ///
+    /// The caller of this method receives a callback in the form of #mintCallback
+    /// in which they must pay any token_0 or token_1 owed for the liquidity. The
+    /// amount of token_0/token_1 due depends on tickLower, tickUpper, the amount of
+    /// liquidity, and the current price.
+    ///
+    /// # Arguments
+    ///
+    /// * `ctx` - Holds the recipient's address and program accounts for
+    /// pool, position and ticks.
+    /// * `tick_lower` - The lower tick of the position in which to add liquidity
+    /// * `tick_upper` - The upper tick of the position in which to add liquidity
+    /// * `amount` - The amount of liquidity to mint
+    ///
     pub fn mint(
         ctx: Context<MintContext>,
+        position_bump: u8,
+        tick_lower_bump: u8,
+        tick_upper_bump: u8,
+        bitmap_lower_bump: u8,
+        bitmap_upper_bump: u8,
+        tick_lower: i32,
+        tick_upper: i32,
         amount: u32
     ) -> ProgramResult {
+        msg!("inside core#mint");
+        // require!(ctx.accounts.pool_state.unlocked, ErrorCode::LOK);
+        // msg!("locking");
+        // ctx.accounts.pool_state.unlocked = false;
+
+        // ctx.accounts.pool_state.unlocked = true;
         Ok(())
     }
 

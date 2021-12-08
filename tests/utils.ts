@@ -14,11 +14,25 @@ export function u32ToSeed(num: number) {
   return new Uint8Array(arr)
 }
 
+export function i32ToSeed(num: number) {
+  const arr = new ArrayBuffer(4)
+  const view = new DataView(arr)
+  view.setInt32(0, num, false)
+  return new Uint8Array(arr)
+}
+
 // Generate seed buffer from a u32 number
 export function u16ToSeed(num: number) {
   const arr = new ArrayBuffer(2)
   const view = new DataView(arr)
   view.setUint16(0, num, false)
+  return new Uint8Array(arr)
+}
+
+export function i16ToSeed(num: number) {
+  const arr = new ArrayBuffer(2)
+  const view = new DataView(arr)
+  view.setInt16(0, num, false)
   return new Uint8Array(arr)
 }
 

@@ -4,7 +4,7 @@ use std::ops::Sub;
 use anchor_lang::prelude::*;
 
 /// addr: [token_0, token_1, fee, owner, tick_lower, tick_upper]
-#[account]
+#[account(zero_copy)]
 #[derive(Default)]
 pub struct PositionState {
     pub bump: u8,

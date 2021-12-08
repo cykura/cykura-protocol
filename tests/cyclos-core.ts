@@ -9,7 +9,7 @@ chai.use(chaiAsPromised)
 
 import { CyclosCore } from '../target/types/cyclos_core'
 import { NonFungiblePositionManager } from '../target/types/non_fungible_position_manager'
-import { MaxU64, MAX_SQRT_RATIO, MIN_SQRT_RATIO, u16ToSeed, u32ToSeed } from './utils'
+import { i16ToSeed, MaxU64, MAX_SQRT_RATIO, MIN_SQRT_RATIO, u16ToSeed, u32ToSeed } from './utils'
 const { metadata: { Metadata } } = metaplex.programs
 
 const { PublicKey, Keypair, SystemProgram } = anchor.web3
@@ -1120,33 +1120,104 @@ describe('cyclos-core', async () => {
       })
     })
 
+    const tickLower = 0
+    const tickUpper = 10
+    const amount0Desired = new BN(1_000_000)
+    const amount1Desired = new BN(1_000_000)
+
+    let tickLowerState: web3.PublicKey
+    let tickLowerStateBump: number
+    let tickUpperState: web3.PublicKey
+    let tickUpperStateBump: number
+    let corePositionState: web3.PublicKey
+    let corePositionBump: number
+    let bitmapLower: web3.PublicKey
+    let bitmapLowerBump: number
+    let bitmapUpper: web3.PublicKey
+    let bitmapUpperBump: number
+
+    it('setup position manager accounts', async () => {
+      [tickLowerState, tickLowerStateBump] = await PublicKey.findProgramAddress([
+          token0.publicKey.toBuffer(),
+          token1.publicKey.toBuffer(),
+          u32ToSeed(fee),
+          u32ToSeed(tickLower)
+        ],
+        coreProgram.programId
+      );
+
+      [tickUpperState, tickUpperStateBump] = await PublicKey.findProgramAddress([
+          token0.publicKey.toBuffer(),
+          token1.publicKey.toBuffer(),
+          u32ToSeed(fee),
+          u32ToSeed(tickUpper)
+        ],
+        coreProgram.programId
+      );
+
+      [corePositionState, corePositionBump] = await PublicKey.findProgramAddress([
+          token0.publicKey.toBuffer(),
+          token1.publicKey.toBuffer(),
+          u32ToSeed(fee),
+          posMgrState.toBuffer(),
+          u32ToSeed(tickLower),
+          u32ToSeed(tickUpper)
+        ],
+        coreProgram.programId
+      );
+      [bitmapLower, bitmapLowerBump] = await PublicKey.findProgramAddress([
+          token0.publicKey.toBuffer(),
+          token1.publicKey.toBuffer(),
+          u32ToSeed(fee),
+          u32ToSeed(tickLower >> 8),
+        ],
+        coreProgram.programId
+      );
+      [bitmapUpper, bitmapUpperBump] = await PublicKey.findProgramAddress([
+          token0.publicKey.toBuffer(),
+          token1.publicKey.toBuffer(),
+          u32ToSeed(fee),
+          u32ToSeed(tickUpper >> 8),
+        ],
+        coreProgram.programId
+      )
+    })
+
     describe('#mint', () => {
       it('creates a new position wrapped in an NFT', async () => {
-        const MAX_METADATA_LEN = 679 // used in metaplex metadata program
 
-        // Required to initialize metadata account
-        const lamportsIx = SystemProgram.transfer({
-          fromPubkey: owner,
-          toPubkey: metadataAccount,
-          lamports: await connection.getMinimumBalanceForRentExemption(MAX_METADATA_LEN)
-        })
-        await mgrProgram.rpc.mint(0, 100, {
-          accounts: {
-            minter: owner,
-            recipient: owner,
-            positionManagerState: posMgrState,
-            nftMint: nftMintKeypair.publicKey,
-            nftAccount: positionNftAccount,
-            poolState,
-            metadataAccount,
-            coreProgram: coreProgram.programId,
-            systemProgram: SystemProgram.programId,
-            rent: web3.SYSVAR_RENT_PUBKEY,
-            tokenProgram: TOKEN_PROGRAM_ID,
-            metadataProgram: metaplex.programs.metadata.MetadataProgram.PUBKEY,
-            associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID
-          }, signers: [nftMintKeypair],
-          instructions: [lamportsIx]
+        await mgrProgram.rpc.mint(
+          corePositionBump,
+          tickLowerStateBump,
+          tickUpperStateBump,
+          bitmapLowerBump,
+          bitmapUpperBump,
+          tickLower,
+          tickUpper,
+          amount0Desired,
+          amount1Desired, {
+            accounts: {
+              minter: owner,
+              recipient: owner,
+              positionManagerState: posMgrState,
+              nftMint: nftMintKeypair.publicKey,
+              nftAccount: positionNftAccount,
+              poolState,
+              corePositionState,
+              tickLowerState,
+              tickUpperState,
+              bitmapLower,
+              bitmapUpper,
+
+              metadataAccount,
+              coreProgram: coreProgram.programId,
+              systemProgram: SystemProgram.programId,
+              rent: web3.SYSVAR_RENT_PUBKEY,
+              tokenProgram: TOKEN_PROGRAM_ID,
+              metadataProgram: metaplex.programs.metadata.MetadataProgram.PUBKEY,
+              associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID
+            },
+          signers: [nftMintKeypair],
         })
 
         const nftMint = new Token(

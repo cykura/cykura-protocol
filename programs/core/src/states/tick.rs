@@ -5,7 +5,7 @@ use crate::libraries::tick_math::{MAX_TICK, MIN_TICK};
 use anchor_lang::prelude::*;
 
 // addr: [token_0, token_1, fee, tick]
-#[account]
+#[account(zero_copy)]
 #[derive(Default)]
 pub struct TickState {
     pub bump: u8,
@@ -24,46 +24,46 @@ pub struct TickState {
 }
 
 impl TickState {
-    /// Get fee growth within the tick range for token 0 and token 1
-    /// fee inside = fee_growth_global - fee_growth_below_tick_lower - fee_growth_above_tick_upper
-    /// Formulae 6.17, 6.18, 6.19
-    /// Refer to excalidraw explanation
-    pub fn get_fee_growth_inside(
-        tick_upper: &Account<TickState>,
-        tick_lower: &Account<TickState>,
-        tick_current: i32,
-        fee_growth_global_0_x32: u64,
-        fee_growth_global_1_x32: u64,
-    ) -> (u64, u64) {
-        // calculate fee growth below
-        let (fee_growth_below_0, fee_growth_below_1) = if tick_current >= tick_upper.tick {
-            (
-                tick_lower.fee_growth_outside_0_x32,
-                tick_lower.fee_growth_outside_1_x32,
-            )
-        } else {
-            (
-                fee_growth_global_0_x32 - tick_lower.fee_growth_outside_0_x32,
-                fee_growth_global_1_x32 - tick_lower.fee_growth_outside_1_x32,
-            )
-        };
-        // Calculate fee growth above
-        let (fee_growth_above_0, fee_growth_above_1) = if tick_current < tick_upper.tick {
-            (
-                tick_upper.fee_growth_outside_0_x32,
-                tick_upper.fee_growth_outside_1_x32,
-            )
-        } else {
-            (
-                fee_growth_global_0_x32 - tick_upper.fee_growth_outside_0_x32,
-                fee_growth_global_1_x32 - tick_upper.fee_growth_outside_1_x32,
-            )
-        };
-        let fee_growth_inside_0 = fee_growth_global_0_x32 - fee_growth_below_0 - fee_growth_above_0;
-        let fee_growth_inside_1 = fee_growth_global_1_x32 - fee_growth_below_1 - fee_growth_above_1;
+    // /// Get fee growth within the tick range for token 0 and token 1
+    // /// fee inside = fee_growth_global - fee_growth_below_tick_lower - fee_growth_above_tick_upper
+    // /// Formulae 6.17, 6.18, 6.19
+    // /// Refer to excalidraw explanation
+    // pub fn get_fee_growth_inside(
+    //     tick_upper: &Account<TickState>,
+    //     tick_lower: &Account<TickState>,
+    //     tick_current: i32,
+    //     fee_growth_global_0_x32: u64,
+    //     fee_growth_global_1_x32: u64,
+    // ) -> (u64, u64) {
+    //     // calculate fee growth below
+    //     let (fee_growth_below_0, fee_growth_below_1) = if tick_current >= tick_upper.tick {
+    //         (
+    //             tick_lower.fee_growth_outside_0_x32,
+    //             tick_lower.fee_growth_outside_1_x32,
+    //         )
+    //     } else {
+    //         (
+    //             fee_growth_global_0_x32 - tick_lower.fee_growth_outside_0_x32,
+    //             fee_growth_global_1_x32 - tick_lower.fee_growth_outside_1_x32,
+    //         )
+    //     };
+    //     // Calculate fee growth above
+    //     let (fee_growth_above_0, fee_growth_above_1) = if tick_current < tick_upper.tick {
+    //         (
+    //             tick_upper.fee_growth_outside_0_x32,
+    //             tick_upper.fee_growth_outside_1_x32,
+    //         )
+    //     } else {
+    //         (
+    //             fee_growth_global_0_x32 - tick_upper.fee_growth_outside_0_x32,
+    //             fee_growth_global_1_x32 - tick_upper.fee_growth_outside_1_x32,
+    //         )
+    //     };
+    //     let fee_growth_inside_0 = fee_growth_global_0_x32 - fee_growth_below_0 - fee_growth_above_0;
+    //     let fee_growth_inside_1 = fee_growth_global_1_x32 - fee_growth_below_1 - fee_growth_above_1;
 
-        (fee_growth_inside_0, fee_growth_inside_1)
-    }
+    //     (fee_growth_inside_0, fee_growth_inside_1)
+    // }
 
     // Update init state, liquidity, fee growth and oracle variables for a tick
     // Return true if tick was flipped
@@ -124,6 +124,7 @@ impl TickState {
 
     // Clear stored data
     // Delete account after clearing
+    // TODO replace- clear() should de-initialize tick account
     pub fn clear(&mut self) {
         self.bump = 0;
         self.token_0 = Pubkey::default();

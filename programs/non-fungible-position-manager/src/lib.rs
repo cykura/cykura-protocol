@@ -5,10 +5,10 @@ pub mod states;
 use states::position_manager;
 use crate::context::*;
 use cyclos_core::libraries::tick_math;
-use anchor_lang::prelude::*;
+use anchor_lang::{prelude::*, solana_program::{instruction::Instruction, sysvar}};
 use error::ErrorCode;
-use libraries::liquidity_amounts::get_liquidity_for_amounts;
-use spl_token_metadata::state::{MAX_METADATA_LEN, Creator, MAX_CREATOR_LEN};
+use libraries::liquidity_amounts;
+use spl_token_metadata::{state::{MAX_METADATA_LEN, Creator, MAX_CREATOR_LEN, Data}, instruction::MetadataInstruction};
 use anchor_lang::solana_program::{self, system_instruction};
 use anchor_spl::token;
 use spl_token::instruction::AuthorityType;
@@ -59,10 +59,15 @@ pub mod non_fungible_position_manager {
     ///
     pub fn mint(
         ctx: Context<MintPosition>,
+        core_position_bump: u8,
+        tick_lower_bump: u8,
+        tick_upper_bump: u8,
+        bitmap_lower_bump: u8,
+        bitmap_upper_bump: u8,
         tick_lower: i32,
         tick_upper: i32,
-        // amount_0_desired: u64,
-        // amount_1_desired: u64,
+        amount_0_desired: u64,
+        amount_1_desired: u64,
         // amount_0_min: u64,
         // amount_1_min: u64,
         // deadline: u64
@@ -71,13 +76,25 @@ pub mod non_fungible_position_manager {
 
         let seeds = [&[ctx.accounts.position_manager_state.load()?.bump] as &[u8]];
 
-        let sqrt_price_x32 = ctx.accounts.pool_state.sqrt_price_x32;
         let sqrt_ratio_a_x32 = tick_math::get_sqrt_ratio_at_tick(tick_lower)?;
         let sqrt_ratio_b_x32 = tick_math::get_sqrt_ratio_at_tick(tick_upper)?;
+        let liquidity = liquidity_amounts::get_liquidity_for_amounts(
+            ctx.accounts.pool_state.sqrt_price_x32,
+            sqrt_ratio_a_x32,
+            sqrt_ratio_b_x32,
+            amount_0_desired,
+            amount_1_desired
+        );
 
         let mint_accounts = MintContext {
-            minter: ctx.accounts.position_manager_state.to_account_info(),
+            minter: ctx.accounts.minter.to_account_info(),
+            recipient: ctx.accounts.position_manager_state.to_account_info(),
             pool_state: ctx.accounts.pool_state.to_account_info(),
+            position_state: ctx.accounts.core_position_state.to_account_info(),
+            tick_lower_state: ctx.accounts.tick_lower_state.to_account_info(),
+            tick_upper_state: ctx.accounts.tick_upper_state.to_account_info(),
+            bitmap_lower: ctx.accounts.bitmap_lower.to_account_info(),
+            bitmap_upper: ctx.accounts.bitmap_upper.to_account_info(),
             system_program: ctx.accounts.system_program.to_account_info()
         };
         cyclos_core::cpi::mint(
@@ -86,19 +103,18 @@ pub mod non_fungible_position_manager {
                 mint_accounts,
                 &[&seeds[..]]
             ),
-            10
+            core_position_bump,
+            tick_lower_bump,
+            tick_upper_bump,
+            bitmap_lower_bump,
+            bitmap_upper_bump,
+            tick_lower,
+            tick_upper,
+            liquidity
         )?;
 
         // Generate NFT metadata
-        let metadata_infos: &[AccountInfo] = &[
-            ctx.accounts.metadata_account.to_account_info().clone(),
-            ctx.accounts.nft_mint.to_account_info().clone(),
-            ctx.accounts.minter.to_account_info().clone(), // payer
-            ctx.accounts.position_manager_state.to_account_info().clone(), // mint and update authority
-            ctx.accounts.system_program.to_account_info().clone(),
-            ctx.accounts.rent.to_account_info().clone(),
-        ];
-        let create_metadata_ix = create_metadata_accounts(
+        let create_metadata_ix = create_metadata_accounts_cpi_ix(
             ctx.accounts.metadata_program.key(),
             ctx.accounts.metadata_account.key(),
             ctx.accounts.nft_mint.key(),
@@ -117,10 +133,16 @@ pub mod non_fungible_position_manager {
             true,
             false
         );
-
         solana_program::program::invoke_signed(
             &create_metadata_ix,
-            metadata_infos,
+            &[
+                ctx.accounts.metadata_account.to_account_info().clone(),
+                ctx.accounts.nft_mint.to_account_info().clone(),
+                ctx.accounts.minter.to_account_info().clone(), // payer
+                ctx.accounts.position_manager_state.to_account_info().clone(), // mint and update authority
+                ctx.accounts.system_program.to_account_info().clone(),
+                ctx.accounts.rent.to_account_info().clone(),
+            ],
             &[&seeds[..]]
         )?;
 
@@ -264,4 +286,45 @@ pub mod non_fungible_position_manager {
 
     //     todo!()
     // }
+}
+
+pub fn create_metadata_accounts_cpi_ix(
+    program_id: Pubkey,
+    metadata_account: Pubkey,
+    mint: Pubkey,
+    mint_authority: Pubkey,
+    payer: Pubkey,
+    update_authority: Pubkey,
+    name: String,
+    symbol: String,
+    uri: String,
+    creators: Option<Vec<Creator>>,
+    seller_fee_basis_points: u16,
+    update_authority_is_signer: bool,
+    is_mutable: bool,
+) -> Instruction {
+    Instruction {
+        program_id,
+        accounts: vec![
+            AccountMeta::new(metadata_account, false),
+            AccountMeta::new_readonly(mint, false),
+            AccountMeta::new_readonly(mint_authority, true),
+            AccountMeta::new(payer, true),
+            AccountMeta::new_readonly(update_authority, update_authority_is_signer),
+            AccountMeta::new_readonly(solana_program::system_program::id(), false),
+            AccountMeta::new_readonly(sysvar::rent::id(), false),
+        ],
+        data: MetadataInstruction::CreateMetadataAccount(CreateMetadataAccountArgs {
+            data: Data {
+                name,
+                symbol,
+                uri,
+                seller_fee_basis_points,
+                creators,
+            },
+            is_mutable,
+        })
+        .try_to_vec()
+        .unwrap(),
+    }
 }

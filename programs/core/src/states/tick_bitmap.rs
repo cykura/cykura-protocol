@@ -15,7 +15,7 @@ use bitmaps::Bits;
 use bitmaps::BitsImpl;
 
 // addr: [token0, token1, fee, 16_bits_from_left(tick)]
-#[account]
+#[account(zero_copy)]
 #[derive(Default)]
 pub struct TickBitmapState {
     pub bump: u8,

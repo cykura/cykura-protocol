@@ -30,6 +30,7 @@ pub struct Initialize<'info> {
 // )]
 pub struct MintPosition<'info> {
     /// Pays to mint the position
+    // #[account(mut)]
     pub minter: Signer<'info>,
 
     /// Receives the position NFT
@@ -60,23 +61,34 @@ pub struct MintPosition<'info> {
     #[account(mut)]
     pub metadata_account: UncheckedAccount<'info>,
 
-    // #[account(signer, owner = position_manager_state.core)]
+    /// Mint liquidity for this pool
     #[account(mut)]
-    // pub pool_state: UncheckedAccount<'info>,
     pub pool_state: Box<Account<'info, PoolState>>,
+
+    /// Core program account to store position data
+    #[account(mut)]
+    pub core_position_state: UncheckedAccount<'info>,
 
     // Validated and initialized inside core
     // TODO explore alternate way to init these, or need to pass seeds every time
     // #[account(mut)]
     // pub position_state: AccountInfo<'info>,
-    // #[account(mut)]
-    // pub tick_lower_state: AccountInfo<'info>,
-    // #[account(mut)]
-    // pub tick_upper_state: AccountInfo<'info>,
-    // #[account(mut)]
-    // pub tick_lower_bitmap: AccountInfo<'info>,
-    // #[account(mut)]
-    // pub tick_upper_bitmap: AccountInfo<'info>,
+
+    /// Account to store data for the position's lower tick
+    #[account(mut)]
+    pub tick_lower_state: UncheckedAccount<'info>,
+
+    /// Account to store data for the position's upper tick
+    #[account(mut)]
+    pub tick_upper_state: UncheckedAccount<'info>,
+
+    /// Account to mark the lower tick as initialized
+    #[account(mut)]
+    pub bitmap_lower: UncheckedAccount<'info>,
+
+    /// Account to mark the upper tick as initialized
+    #[account(mut)]
+    pub bitmap_upper: UncheckedAccount<'info>,
 
     // #[account(
     //     init,

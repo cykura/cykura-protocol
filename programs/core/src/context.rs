@@ -235,85 +235,121 @@ pub struct CollectProtocol<'info> {
 // }
 
 #[derive(Accounts)]
-// #[instruction(
-//     position_bump: u8,
-//     tick_lower_bump: u8,
-//     tick_upper_bump: u8,
-//     tick_lower: u32,
-//     tick_upper: u32
-// )]
+#[instruction(
+    position_bump: u8,
+    tick_lower_bump: u8,
+    tick_upper_bump: u8,
+    bitmap_lower_bump: u8,
+    bitmap_upper_bump: u8,
+    tick_lower: i32,
+    tick_upper: i32,
+    amount: u32
+)]
 pub struct MintContext<'info> {
+    /// Pays to mint liquidity
+    #[account(mut)]
     pub minter: Signer<'info>,
 
+    /// Liquidity is minted on behalf of recipient
+    pub recipient: UncheckedAccount<'info>,
+
+    /// Mint liquidity for this pool
     #[account(mut)]
     pub pool_state: Box<Account<'info, PoolState>>,
 
-    // #[account(
-    //     init_if_needed,
-    //     seeds = [
-    //         pool_state.token_0.key().as_ref(),
-    //         pool_state.token_1.key().as_ref(),
-    //         &pool_state.fee.to_be_bytes(),
-    //         &tick_lower.to_be_bytes(),
-    //         &tick_upper.to_be_bytes()
-    //     ],
-    //     bump = position_bump,
-    //     payer = minter
-    // )]
-    // pub position_state: Box<Account<'info, PositionState>>,
+    #[account(
+        init_if_needed,
+        seeds = [
+            pool_state.token_0.key().as_ref(),
+            pool_state.token_1.key().as_ref(),
+            &pool_state.fee.to_be_bytes(),
+            &recipient.key().as_ref(),
+            &tick_lower.to_be_bytes(),
+            &tick_upper.to_be_bytes()
+        ],
+        bump = position_bump,
+        payer = minter
+    )]
+    pub position_state: Loader<'info, PositionState>,
 
-    // #[account(
-    //     init_if_needed,
-    //     seeds = [
-    //         pool_state.token_0.key().as_ref(),
-    //         pool_state.token_1.key().as_ref(),
-    //         &pool_state.fee.to_be_bytes(),
-    //         &tick_lower.to_be_bytes()
-    //     ],
-    //     bump = tick_lower_bump,
-    //     payer = minter
-    // )]
-    // pub tick_lower_state: Box<Account<'info, TickState>>,
+    #[account(
+        init_if_needed,
+        seeds = [
+            pool_state.token_0.key().as_ref(),
+            pool_state.token_1.key().as_ref(),
+            &pool_state.fee.to_be_bytes(),
+            &tick_lower.to_be_bytes()
+        ],
+        bump = tick_lower_bump,
+        payer = minter
+    )]
+    pub tick_lower_state: Loader<'info, TickState>,
 
-    // // How to save variables if it was just initialized?
-    // #[account(
-    //     init_if_needed,
-    //     seeds = [
-    //         pool_state.token_0.key().as_ref(),
-    //         pool_state.token_1.key().as_ref(),
-    //         &pool_state.fee.to_be_bytes(),
-    //         &tick_upper.to_be_bytes()
-    //     ],
-    //     bump = tick_upper_bump,
-    //     payer = minter
-    // )]
-    // pub tick_upper_state: Box<Account<'info, TickState>>,
-    // pub tick_lower_bitmap: Box<Account<'info, TickBitmapState>>,
-    // pub tick_upper_bitmap: Box<Account<'info, TickBitmapState>>,
+    #[account(
+        init_if_needed,
+        seeds = [
+            pool_state.token_0.key().as_ref(),
+            pool_state.token_1.key().as_ref(),
+            &pool_state.fee.to_be_bytes(),
+            &tick_upper.to_be_bytes()
+        ],
+        bump = tick_upper_bump,
+        payer = minter
+    )]
+    pub tick_upper_state: Loader<'info, TickState>,
 
-    // #[account(mut)]
-    // pub token_account_0: Box<Account<'info, TokenAccount>>,
+    #[account(
+        init_if_needed,
+        seeds = [
+            pool_state.token_0.key().as_ref(),
+            pool_state.token_1.key().as_ref(),
+            &pool_state.fee.to_be_bytes(),
+            &(tick_lower >> 8 as i16).to_be_bytes()
+        ],
+        bump = bitmap_lower_bump,
+        payer = minter
+    )]
+    pub bitmap_lower: Loader<'info, TickBitmapState>,
 
-    // #[account(mut)]
-    // pub token_account_1: Box<Account<'info, TokenAccount>>,
+    #[account(
+        init_if_needed,
+        seeds = [
+            pool_state.token_0.key().as_ref(),
+            pool_state.token_1.key().as_ref(),
+            &pool_state.fee.to_be_bytes(),
+            &(tick_upper >> 8 as i16).to_be_bytes()
+        ],
+        bump = bitmap_upper_bump,
+        payer = minter
+    )]
+    pub bitmap_upper: Loader<'info, TickBitmapState>,
 
-    // #[account(
-    //     mut,
-    //     associated_token::mint = pool_state.token_0,
-    //     associated_token::authority = pool_state,
-    // )]
-    // pub vault_0: Box<Account<'info, TokenAccount>>,
+    // // pub tick_lower_bitmap: Box<Account<'info, TickBitmapState>>,
+    // // pub tick_upper_bitmap: Box<Account<'info, TickBitmapState>>,
 
-    // #[account(
-    //     mut,
-    //     associated_token::mint = pool_state.token_1,
-    //     associated_token::authority = pool_state,
-    // )]
-    // pub vault_1: Box<Account<'info, TokenAccount>>,
+    // // #[account(mut)]
+    // // pub token_account_0: Box<Account<'info, TokenAccount>>,
 
-    // pub token_program: Program<'info, Token>,
+    // // #[account(mut)]
+    // // pub token_account_1: Box<Account<'info, TokenAccount>>,
 
-    // // pub callback_handler: Program<'info, NonFungiblePositionManager>,
+    // // #[account(
+    // //     mut,
+    // //     associated_token::mint = pool_state.token_0,
+    // //     associated_token::authority = pool_state,
+    // // )]
+    // // pub vault_0: Box<Account<'info, TokenAccount>>,
+
+    // // #[account(
+    // //     mut,
+    // //     associated_token::mint = pool_state.token_1,
+    // //     associated_token::authority = pool_state,
+    // // )]
+    // // pub vault_1: Box<Account<'info, TokenAccount>>,
+
+    // // pub token_program: Program<'info, Token>,
+
+    // // // pub callback_handler: Program<'info, NonFungiblePositionManager>,
     pub system_program: Program<'info, System>,
 }
 
