@@ -1183,6 +1183,36 @@ describe('cyclos-core', async () => {
       )
     })
 
+    describe('#init_tick_account', () => {
+      it('creates new tick accounts for lower and upper ticks', async () => {
+        await coreProgram.rpc.initTickAccount(tickLowerStateBump, tickLower, {
+          accounts: {
+            signer: owner,
+            poolState,
+            tickState: tickLowerState,
+            systemProgram: SystemProgram.programId,
+          }
+        })
+
+        await coreProgram.rpc.initTickAccount(tickUpperStateBump, tickUpper, {
+          accounts: {
+            signer: owner,
+            poolState,
+            tickState: tickUpperState,
+            systemProgram: SystemProgram.programId,
+          }
+        })
+
+        const tickStateLowerData = await coreProgram.account.tickState.fetch(tickLowerState)
+        assert.equal(tickStateLowerData.bump, tickLowerStateBump)
+        assert.equal(tickStateLowerData.tick, tickLower)
+
+        const tickStateUpperData = await coreProgram.account.tickState.fetch(tickUpperState)
+        assert.equal(tickStateUpperData.bump, tickUpperStateBump)
+        assert.equal(tickStateUpperData.tick, tickUpper)
+      })
+    })
+
     describe('#mint', () => {
       it('creates a new position wrapped in an NFT', async () => {
 

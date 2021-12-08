@@ -26,6 +26,8 @@ declare_id!("37kn8WUzihQoAnhYxueA2BnqCA7VRnrVvYoHy1hQ6Veu");
 
 #[program]
 pub mod cyclos_core {
+    use std::ops::{Deref, DerefMut};
+
     use super::*;
 
     // ---------------------------------------------------------------------
@@ -348,14 +350,34 @@ pub mod cyclos_core {
         Ok(())
     }
 
+    /// ---------------------------------------------------------------------
+    /// Account init instructions
+    ///
+    /// Separate instructions to save compute units
+
+    /// Initializes a program account for a price tick
+    ///
+    /// # Arguments
+    ///
+    /// * `ctx` - Contains accounts to initialize an empty tick account
+    /// * `tick_account_bump` - Bump to validate tick account PDA
+    /// * `tick` - The tick for which the account is created
+    ///
+    pub fn init_tick_account(ctx: Context<InitTickAccount>, tick_account_bump: u8, tick: i32) -> ProgramResult {
+        let mut tick_account = ctx.accounts.tick_state.load_init()?;
+        tick_account.bump = tick_account_bump;
+        tick_account.tick = tick;
+        Ok(())
+    }
+
     // ---------------------------------------------------------------------
-    // 3. Position instructions
+    // Position instructions
 
     /// Adds liquidity for the given pool/recipient/tickLower/tickUpper position
     ///
     /// The caller of this method receives a callback in the form of #mintCallback
     /// in which they must pay any token_0 or token_1 owed for the liquidity. The
-    /// amount of token_0/token_1 due depends on tickLower, tickUpper, the amount of
+    /// amounbump: tick_account_bump token_0/token_1 due depends on tickLower, tickUpper, the amount of
     /// liquidity, and the current price.
     ///
     /// # Arguments

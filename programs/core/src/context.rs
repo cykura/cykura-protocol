@@ -235,6 +235,34 @@ pub struct CollectProtocol<'info> {
 // }
 
 #[derive(Accounts)]
+#[instruction(tick_account_bump: u8, tick: i32)]
+pub struct InitTickAccount<'info> {
+    /// Pays to create tick account
+    #[account(mut)]
+    pub signer: Signer<'info>,
+
+    /// Create a tick account for this pool
+    pub pool_state: Box<Account<'info, PoolState>>,
+
+    /// The tick account to be initialized
+    #[account(
+        init,
+        seeds = [
+            pool_state.token_0.key().as_ref(),
+            pool_state.token_1.key().as_ref(),
+            &pool_state.fee.to_be_bytes(),
+            &tick.to_be_bytes()
+        ],
+        bump = tick_account_bump,
+        payer = signer
+    )]
+    pub tick_state: Loader<'info, TickState>,
+
+    /// Program to initialize the tick account
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
 #[instruction(
     position_bump: u8,
     tick_lower_bump: u8,
