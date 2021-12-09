@@ -8,11 +8,11 @@ use cyclos_core::libraries::tick_math;
 use anchor_lang::{prelude::*, solana_program::{instruction::Instruction, sysvar}};
 use error::ErrorCode;
 use libraries::liquidity_amounts;
-use spl_token_metadata::{state::{MAX_METADATA_LEN, Creator, MAX_CREATOR_LEN, Data}, instruction::MetadataInstruction};
+use metaplex_token_metadata::instruction::{create_metadata_accounts, CreateMetadataAccountArgs};
+use metaplex_token_metadata::{state::{Creator, Data}, instruction::MetadataInstruction};
 use anchor_lang::solana_program::{self, system_instruction};
 use anchor_spl::token;
 use spl_token::instruction::AuthorityType;
-use spl_token_metadata::instruction::{create_metadata_accounts, CreateMetadataAccountArgs};
 
 declare_id!("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS");
 
@@ -23,7 +23,9 @@ pub const BASE_URI: &str = "https://api.cyclos.io/mint=";
 
 #[program]
 pub mod non_fungible_position_manager {
-    use cyclos_core::cpi::accounts::MintContext;
+    use std::convert::TryFrom;
+
+    use cyclos_core::{cpi::accounts::MintContext, states::tick::TickState};
 
     use super::*;
 
@@ -46,35 +48,33 @@ pub mod non_fungible_position_manager {
     }
 
     /// Creates a new position wrapped in a NFT
-    /// Position manager acts as a proxy, owning all positions created on core.
-    /// LPs in turn claim ownership through ownership of NFTs
     ///
     /// # Arguments
     ///
-    /// * `ctx` - Holds pool and position accounts
-    /// * `tick_lower`, `tick_upper` - Tick range for the position
-    /// * `amount_0_desired`, `amount_1_desired` - Desired amounts of token_0 and token_1 to be added
-    /// * `amount_0_min`, `amount_1_min`: - Mint fails if amounts added are below minimum levels
-    /// * `deadline` - Mint fails if instruction is executed past the deadline
+    /// * `ctx` - Holds pool, tick, bitmap, position and token accounts
+    /// * `amount_0_desired` - Desired amount of token_0 to be spent
+    /// * `amount_1_desired` - Desired amount of token_1 to be spent
+    /// * `amount_0_min` - The minimum amount of token_0 to spend, which serves as a slippage check
+    /// * `amount_1_min` - The minimum amount of token_1 to spend, which serves as a slippage check
+    /// * `deadline` - The time by which the transaction must be included to effect the change
     ///
+    #[access_control(check_deadline(deadline))]
     pub fn mint(
         ctx: Context<MintPosition>,
-        core_position_bump: u8,
-        tick_lower_bump: u8,
-        tick_upper_bump: u8,
-        bitmap_lower_bump: u8,
-        bitmap_upper_bump: u8,
-        tick_lower: i32,
-        tick_upper: i32,
         amount_0_desired: u64,
         amount_1_desired: u64,
-        // amount_0_min: u64,
-        // amount_1_min: u64,
-        // deadline: u64
+        amount_0_min: u64,
+        amount_1_min: u64,
+        deadline: i64
     ) -> ProgramResult {
-        // require!(Clock::get()?.slot <= deadline, ErrorCode::OldTransaction);
-
-        let seeds = [&[ctx.accounts.position_manager_state.load()?.bump] as &[u8]];
+        let tick_lower = Loader::<TickState>::try_from(
+            &cyclos_core::id(),
+            &ctx.accounts.tick_lower_state.to_account_info()
+        )?.load()?.tick;
+        let tick_upper = Loader::<TickState>::try_from(
+            &cyclos_core::id(),
+            &ctx.accounts.tick_upper_state.to_account_info()
+        )?.load()?.tick;
 
         let sqrt_ratio_a_x32 = tick_math::get_sqrt_ratio_at_tick(tick_lower)?;
         let sqrt_ratio_b_x32 = tick_math::get_sqrt_ratio_at_tick(tick_upper)?;
@@ -86,6 +86,7 @@ pub mod non_fungible_position_manager {
             amount_1_desired
         );
 
+        let seeds = [&[ctx.accounts.position_manager_state.load()?.bump] as &[u8]];
         let mint_accounts = MintContext {
             minter: ctx.accounts.minter.to_account_info(),
             recipient: ctx.accounts.position_manager_state.to_account_info(),
@@ -103,18 +104,11 @@ pub mod non_fungible_position_manager {
                 mint_accounts,
                 &[&seeds[..]]
             ),
-            core_position_bump,
-            tick_lower_bump,
-            tick_upper_bump,
-            bitmap_lower_bump,
-            bitmap_upper_bump,
-            tick_lower,
-            tick_upper,
             liquidity
         )?;
 
         // Generate NFT metadata
-        let create_metadata_ix = create_metadata_accounts_cpi_ix(
+        let create_metadata_ix = create_metadata_accounts(
             ctx.accounts.metadata_program.key(),
             ctx.accounts.metadata_account.key(),
             ctx.accounts.nft_mint.key(),
@@ -288,43 +282,13 @@ pub mod non_fungible_position_manager {
     // }
 }
 
-pub fn create_metadata_accounts_cpi_ix(
-    program_id: Pubkey,
-    metadata_account: Pubkey,
-    mint: Pubkey,
-    mint_authority: Pubkey,
-    payer: Pubkey,
-    update_authority: Pubkey,
-    name: String,
-    symbol: String,
-    uri: String,
-    creators: Option<Vec<Creator>>,
-    seller_fee_basis_points: u16,
-    update_authority_is_signer: bool,
-    is_mutable: bool,
-) -> Instruction {
-    Instruction {
-        program_id,
-        accounts: vec![
-            AccountMeta::new(metadata_account, false),
-            AccountMeta::new_readonly(mint, false),
-            AccountMeta::new_readonly(mint_authority, true),
-            AccountMeta::new(payer, true),
-            AccountMeta::new_readonly(update_authority, update_authority_is_signer),
-            AccountMeta::new_readonly(solana_program::system_program::id(), false),
-            AccountMeta::new_readonly(sysvar::rent::id(), false),
-        ],
-        data: MetadataInstruction::CreateMetadataAccount(CreateMetadataAccountArgs {
-            data: Data {
-                name,
-                symbol,
-                uri,
-                seller_fee_basis_points,
-                creators,
-            },
-            is_mutable,
-        })
-        .try_to_vec()
-        .unwrap(),
-    }
+/// Checks whether the transaction time has not crossed the deadline
+///
+/// # Arguments
+///
+/// * `deadline` - The deadline specified by a user
+///
+pub fn check_deadline(deadline: i64) -> ProgramResult {
+    require!(Clock::get()?.unix_timestamp <= deadline, ErrorCode::TransactionTooOld);
+    Ok(())
 }

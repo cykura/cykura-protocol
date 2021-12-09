@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 use anchor_spl::{associated_token::AssociatedToken, token::{self, Mint, Token, TokenAccount}};
-use cyclos_core::states::pool::PoolState;
+use cyclos_core::states::{pool::PoolState};
 use crate::states::non_fungible_position::NonFungiblePositionState;
 use crate::states::position_manager::PositionManagerState;
 
@@ -77,10 +77,14 @@ pub struct MintPosition<'info> {
     /// Account to store data for the position's lower tick
     #[account(mut)]
     pub tick_lower_state: UncheckedAccount<'info>,
+    // pub tick_lower_state: Loader<'info, TickState>,
+    // pub tick_lower_state: Box<Account<'info, TickState>>,
 
     /// Account to store data for the position's upper tick
     #[account(mut)]
     pub tick_upper_state: UncheckedAccount<'info>,
+    // pub tick_upper_state: Loader<'info, TickState>,
+    // pub tick_upper_state: Box<Account<'info, TickState>>,
 
     /// Account to mark the lower tick as initialized
     #[account(mut)]
@@ -124,7 +128,7 @@ pub struct MintPosition<'info> {
     pub rent: Sysvar<'info, Rent>,
 
     /// Program to create NFT metadata
-    #[account(address = spl_token_metadata::ID)]
+    #[account(address = metaplex_token_metadata::ID)]
     pub metadata_program: UncheckedAccount<'info>,
 
     /// Program to create the position manager state account

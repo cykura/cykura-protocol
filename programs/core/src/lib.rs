@@ -427,19 +427,10 @@ pub mod cyclos_core {
     ///
     /// * `ctx` - Holds the recipient's address and program accounts for
     /// pool, position and ticks.
-    /// * `tick_lower` - The lower tick of the position in which to add liquidity
-    /// * `tick_upper` - The upper tick of the position in which to add liquidity
     /// * `amount` - The amount of liquidity to mint
     ///
     pub fn mint(
         ctx: Context<MintContext>,
-        position_bump: u8,
-        tick_lower_bump: u8,
-        tick_upper_bump: u8,
-        bitmap_lower_bump: u8,
-        bitmap_upper_bump: u8,
-        tick_lower: i32,
-        tick_upper: i32,
         amount: u32
     ) -> ProgramResult {
         msg!("inside core#mint");

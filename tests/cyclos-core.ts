@@ -1127,6 +1127,8 @@ describe('cyclos-core', async () => {
 
     const amount0Desired = new BN(1_000_000)
     const amount1Desired = new BN(1_000_000)
+    const amount0Minimum = amount0Desired.subn(100_000)
+    const amount1Minimum = amount1Desired.subn(100_000)
 
     let tickLowerState: web3.PublicKey
     let tickLowerStateBump: number
@@ -1410,18 +1412,50 @@ describe('cyclos-core', async () => {
     })
 
     describe('#mint', () => {
+      it('fails if past deadline', async () => {
+        // connection.slot
+        const deadline = new BN(Date.now() / 1000 - 10_000)
+
+        await expect(mgrProgram.rpc.mint(
+          amount0Desired,
+          amount1Desired,
+          amount0Minimum,
+          amount1Minimum,
+          deadline, {
+            accounts: {
+              minter: owner,
+              recipient: owner,
+              positionManagerState: posMgrState,
+              nftMint: nftMintKeypair.publicKey,
+              nftAccount: positionNftAccount,
+              poolState,
+              corePositionState,
+              tickLowerState,
+              tickUpperState,
+              bitmapLower,
+              bitmapUpper,
+
+              metadataAccount,
+              coreProgram: coreProgram.programId,
+              systemProgram: SystemProgram.programId,
+              rent: web3.SYSVAR_RENT_PUBKEY,
+              tokenProgram: TOKEN_PROGRAM_ID,
+              metadataProgram: metaplex.programs.metadata.MetadataProgram.PUBKEY,
+              associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID
+            },
+          signers: [nftMintKeypair],
+        })).to.be.rejectedWith('Transaction too old')
+      })
+
       it('creates a new position wrapped in an NFT', async () => {
+        const deadline = new BN(Date.now() / 1000 + 5_000)
 
         await mgrProgram.rpc.mint(
-          corePositionBump,
-          tickLowerStateBump,
-          tickUpperStateBump,
-          bitmapLowerBump,
-          bitmapUpperBump,
-          tickLower,
-          tickUpper,
           amount0Desired,
-          amount1Desired, {
+          amount1Desired,
+          amount0Minimum,
+          amount1Minimum,
+          deadline, {
             accounts: {
               minter: owner,
               recipient: owner,

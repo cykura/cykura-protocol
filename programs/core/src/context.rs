@@ -336,13 +336,6 @@ pub struct InitPositionAccount<'info> {
 
 #[derive(Accounts)]
 #[instruction(
-    position_bump: u8,
-    tick_lower_bump: u8,
-    tick_upper_bump: u8,
-    bitmap_lower_bump: u8,
-    bitmap_upper_bump: u8,
-    tick_lower: i32,
-    tick_upper: i32,
     amount: u32
 )]
 pub struct MintContext<'info> {
@@ -357,78 +350,75 @@ pub struct MintContext<'info> {
     #[account(mut)]
     pub pool_state: Box<Account<'info, PoolState>>,
 
+    /// The lower tick boundary of the position
     #[account(
-        init_if_needed,
+        mut,
+        seeds = [
+            pool_state.token_0.key().as_ref(),
+            pool_state.token_1.key().as_ref(),
+            &pool_state.fee.to_be_bytes(),
+            &tick_lower_state.load()?.tick.to_be_bytes()
+        ],
+        bump = tick_lower_state.load()?.bump,
+    )]
+    pub tick_lower_state: Loader<'info, TickState>,
+
+    /// The upper tick boundary of the position
+    #[account(
+        mut,
+        seeds = [
+            pool_state.token_0.key().as_ref(),
+            pool_state.token_1.key().as_ref(),
+            &pool_state.fee.to_be_bytes(),
+            &tick_upper_state.load()?.tick.to_be_bytes()
+        ],
+        bump = tick_upper_state.load()?.bump,
+    )]
+    pub tick_upper_state: Loader<'info, TickState>,
+
+    /// The bitmap storing initialization state of the lower tick
+    #[account(
+        mut,
+        seeds = [
+            BITMAP_SEED.as_bytes(),
+            pool_state.token_0.key().as_ref(),
+            pool_state.token_1.key().as_ref(),
+            &pool_state.fee.to_be_bytes(),
+            &bitmap_lower.load()?.word_pos.to_be_bytes(),
+        ],
+        bump = bitmap_lower.load()?.bump,
+    )]
+    pub bitmap_lower: Loader<'info, TickBitmapState>,
+
+    /// The bitmap storing initialization state of the upper tick
+    #[account(
+        mut,
+        seeds = [
+            BITMAP_SEED.as_bytes(),
+            pool_state.token_0.key().as_ref(),
+            pool_state.token_1.key().as_ref(),
+            &pool_state.fee.to_be_bytes(),
+            &bitmap_upper.load()?.word_pos.to_be_bytes(),
+        ],
+        bump = bitmap_upper.load()?.bump,
+    )]
+    pub bitmap_upper: Loader<'info, TickBitmapState>,
+
+    /// The position into which liquidity is minted
+    #[account(
+        mut,
         seeds = [
             POSITION_SEED.as_bytes(),
             pool_state.token_0.key().as_ref(),
             pool_state.token_1.key().as_ref(),
             &pool_state.fee.to_be_bytes(),
             &recipient.key().as_ref(),
-            &tick_lower.to_be_bytes(),
-            &tick_upper.to_be_bytes()
+            &tick_lower_state.load()?.tick.to_be_bytes(),
+            &tick_upper_state.load()?.tick.to_be_bytes(),
         ],
-        bump = position_bump,
-        payer = minter
+        bump = position_state.load()?.bump,
     )]
     pub position_state: Loader<'info, PositionState>,
-
-    #[account(
-        init_if_needed,
-        seeds = [
-            pool_state.token_0.key().as_ref(),
-            pool_state.token_1.key().as_ref(),
-            &pool_state.fee.to_be_bytes(),
-            &tick_lower.to_be_bytes()
-        ],
-        bump = tick_lower_bump,
-        payer = minter
-    )]
-    pub tick_lower_state: Loader<'info, TickState>,
-
-    #[account(
-        init_if_needed,
-        seeds = [
-            pool_state.token_0.key().as_ref(),
-            pool_state.token_1.key().as_ref(),
-            &pool_state.fee.to_be_bytes(),
-            &tick_upper.to_be_bytes()
-        ],
-        bump = tick_upper_bump,
-        payer = minter
-    )]
-    pub tick_upper_state: Loader<'info, TickState>,
-
-    #[account(
-        init_if_needed,
-        seeds = [
-            BITMAP_SEED.as_bytes(),
-            pool_state.token_0.key().as_ref(),
-            pool_state.token_1.key().as_ref(),
-            &pool_state.fee.to_be_bytes(),
-            &((tick_lower >> 8) as i16).to_be_bytes()
-        ],
-        bump = bitmap_lower_bump,
-        payer = minter
-    )]
-    pub bitmap_lower: Loader<'info, TickBitmapState>,
-
-    #[account(
-        init_if_needed,
-        seeds = [
-            BITMAP_SEED.as_bytes(),
-            pool_state.token_0.key().as_ref(),
-            pool_state.token_1.key().as_ref(),
-            &pool_state.fee.to_be_bytes(),
-            &((tick_upper >> 8) as i16).to_be_bytes()
-        ],
-        bump = bitmap_upper_bump,
-        payer = minter
-    )]
-    pub bitmap_upper: Loader<'info, TickBitmapState>,
-
-    // // pub tick_lower_bitmap: Box<Account<'info, TickBitmapState>>,
-    // // pub tick_upper_bitmap: Box<Account<'info, TickBitmapState>>,
 
     // // #[account(mut)]
     // // pub token_account_0: Box<Account<'info, TokenAccount>>,
