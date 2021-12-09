@@ -103,9 +103,8 @@ pub struct CreateAndInitPool<'info> {
         ],
         bump = pool_state_bump,
         payer = pool_creator,
-        space = 8 + size_of::<PoolState>()
     )]
-    pub pool_state: Box<Account<'info, PoolState>>,
+    pub pool_state: Loader<'info, PoolState>,
 
     /// Initialize an account to store oracle observations
     #[account(
@@ -158,7 +157,7 @@ pub struct IncreaseObservationCardinalityNext<'info> {
 
     /// Increase observation slots for this pool
     #[account(mut)]
-    pub pool_state: Box<Account<'info, PoolState>>,
+    pub pool_state: Loader<'info, PoolState>,
 
     /// To create new program accounts
     pub system_program: Program<'info, System>,
@@ -175,7 +174,7 @@ pub struct SetFeeProtocol<'info> {
 
     /// Set protocol fee for this pool
     #[account(mut)]
-    pub pool_state: Box<Account<'info, PoolState>>,
+    pub pool_state: Loader<'info, PoolState>,
 }
 
 #[derive(Accounts)]
@@ -189,12 +188,12 @@ pub struct CollectProtocol<'info> {
 
     /// Pool state stores accumulated protocol fee amount
     #[account(mut)]
-    pub pool_state: Box<Account<'info, PoolState>>,
+    pub pool_state: Loader<'info, PoolState>,
 
     /// The address that holds pool tokens for token_0
     #[account(
         mut,
-        associated_token::mint = pool_state.token_0.key(),
+        associated_token::mint = pool_state.load()?.token_0.key(),
         associated_token::authority = pool_state,
     )]
     pub vault_0: Box<Account<'info, TokenAccount>>,
@@ -202,7 +201,7 @@ pub struct CollectProtocol<'info> {
     /// The address that holds pool tokens for token_1
     #[account(
         mut,
-        associated_token::mint = pool_state.token_1.key(),
+        associated_token::mint = pool_state.load()?.token_1.key(),
         associated_token::authority = pool_state,
     )]
     pub vault_1: Box<Account<'info, TokenAccount>>,
@@ -242,15 +241,15 @@ pub struct InitTickAccount<'info> {
     pub signer: Signer<'info>,
 
     /// Create a tick account for this pool
-    pub pool_state: Box<Account<'info, PoolState>>,
+    pub pool_state: Loader<'info, PoolState>,
 
     /// The tick account to be initialized
     #[account(
         init,
         seeds = [
-            pool_state.token_0.key().as_ref(),
-            pool_state.token_1.key().as_ref(),
-            &pool_state.fee.to_be_bytes(),
+            pool_state.load()?.token_0.key().as_ref(),
+            pool_state.load()?.token_1.key().as_ref(),
+            &pool_state.load()?.fee.to_be_bytes(),
             &tick.to_be_bytes()
         ],
         bump = tick_account_bump,
@@ -270,16 +269,16 @@ pub struct InitBitmapAccount<'info> {
     pub signer: Signer<'info>,
 
     /// Create a new bitmap account for this pool
-    pub pool_state: Box<Account<'info, PoolState>>,
+    pub pool_state: Loader<'info, PoolState>,
 
     /// The bitmap account to be initialized
     #[account(
         init,
         seeds = [
             BITMAP_SEED.as_bytes(),
-            pool_state.token_0.key().as_ref(),
-            pool_state.token_1.key().as_ref(),
-            &pool_state.fee.to_be_bytes(),
+            pool_state.load()?.token_0.key().as_ref(),
+            pool_state.load()?.token_1.key().as_ref(),
+            &pool_state.load()?.fee.to_be_bytes(),
             &((tick >> 8) as i16).to_be_bytes()
         ],
         bump = bitmap_account_bump,
@@ -302,7 +301,7 @@ pub struct InitPositionAccount<'info> {
     pub recipient: UncheckedAccount<'info>,
 
     /// Create a position account for this pool
-    pub pool_state: Box<Account<'info, PoolState>>,
+    pub pool_state: Loader<'info, PoolState>,
 
     /// The lower tick boundary of the position
     pub tick_lower_state: Loader<'info, TickState>,
@@ -318,9 +317,9 @@ pub struct InitPositionAccount<'info> {
         init,
         seeds = [
             POSITION_SEED.as_bytes(),
-            pool_state.token_0.key().as_ref(),
-            pool_state.token_1.key().as_ref(),
-            &pool_state.fee.to_be_bytes(),
+            pool_state.load()?.token_0.key().as_ref(),
+            pool_state.load()?.token_1.key().as_ref(),
+            &pool_state.load()?.fee.to_be_bytes(),
             recipient.key().as_ref(),
             &tick_lower_state.load()?.tick.to_be_bytes(),
             &tick_upper_state.load()?.tick.to_be_bytes(),
@@ -348,15 +347,15 @@ pub struct MintContext<'info> {
 
     /// Mint liquidity for this pool
     #[account(mut)]
-    pub pool_state: Box<Account<'info, PoolState>>,
+    pub pool_state: Loader<'info, PoolState>,
 
     /// The lower tick boundary of the position
     #[account(
         mut,
         seeds = [
-            pool_state.token_0.key().as_ref(),
-            pool_state.token_1.key().as_ref(),
-            &pool_state.fee.to_be_bytes(),
+            pool_state.load()?.token_0.key().as_ref(),
+            pool_state.load()?.token_1.key().as_ref(),
+            &pool_state.load()?.fee.to_be_bytes(),
             &tick_lower_state.load()?.tick.to_be_bytes()
         ],
         bump = tick_lower_state.load()?.bump,
@@ -367,9 +366,9 @@ pub struct MintContext<'info> {
     #[account(
         mut,
         seeds = [
-            pool_state.token_0.key().as_ref(),
-            pool_state.token_1.key().as_ref(),
-            &pool_state.fee.to_be_bytes(),
+            pool_state.load()?.token_0.key().as_ref(),
+            pool_state.load()?.token_1.key().as_ref(),
+            &pool_state.load()?.fee.to_be_bytes(),
             &tick_upper_state.load()?.tick.to_be_bytes()
         ],
         bump = tick_upper_state.load()?.bump,
@@ -381,9 +380,9 @@ pub struct MintContext<'info> {
         mut,
         seeds = [
             BITMAP_SEED.as_bytes(),
-            pool_state.token_0.key().as_ref(),
-            pool_state.token_1.key().as_ref(),
-            &pool_state.fee.to_be_bytes(),
+            pool_state.load()?.token_0.key().as_ref(),
+            pool_state.load()?.token_1.key().as_ref(),
+            &pool_state.load()?.fee.to_be_bytes(),
             &bitmap_lower.load()?.word_pos.to_be_bytes(),
         ],
         bump = bitmap_lower.load()?.bump,
@@ -395,9 +394,9 @@ pub struct MintContext<'info> {
         mut,
         seeds = [
             BITMAP_SEED.as_bytes(),
-            pool_state.token_0.key().as_ref(),
-            pool_state.token_1.key().as_ref(),
-            &pool_state.fee.to_be_bytes(),
+            pool_state.load()?.token_0.key().as_ref(),
+            pool_state.load()?.token_1.key().as_ref(),
+            &pool_state.load()?.fee.to_be_bytes(),
             &bitmap_upper.load()?.word_pos.to_be_bytes(),
         ],
         bump = bitmap_upper.load()?.bump,
@@ -409,9 +408,9 @@ pub struct MintContext<'info> {
         mut,
         seeds = [
             POSITION_SEED.as_bytes(),
-            pool_state.token_0.key().as_ref(),
-            pool_state.token_1.key().as_ref(),
-            &pool_state.fee.to_be_bytes(),
+            pool_state.load()?.token_0.key().as_ref(),
+            pool_state.load()?.token_1.key().as_ref(),
+            &pool_state.load()?.fee.to_be_bytes(),
             &recipient.key().as_ref(),
             &tick_lower_state.load()?.tick.to_be_bytes(),
             &tick_upper_state.load()?.tick.to_be_bytes(),
@@ -420,29 +419,34 @@ pub struct MintContext<'info> {
     )]
     pub position_state: Loader<'info, PositionState>,
 
-    // // #[account(mut)]
-    // // pub token_account_0: Box<Account<'info, TokenAccount>>,
+    /// The token account spending token_0 to mint the position
+    #[account(mut)]
+    pub token_account_0: Box<Account<'info, TokenAccount>>,
 
-    // // #[account(mut)]
-    // // pub token_account_1: Box<Account<'info, TokenAccount>>,
+    /// The token account spending token_1 to mint the position
+    #[account(mut)]
+    pub token_account_1: Box<Account<'info, TokenAccount>>,
 
-    // // #[account(
-    // //     mut,
-    // //     associated_token::mint = pool_state.token_0,
-    // //     associated_token::authority = pool_state,
-    // // )]
-    // // pub vault_0: Box<Account<'info, TokenAccount>>,
+    /// The address that holds pool tokens for token_0
+    #[account(
+        mut,
+        associated_token::mint = pool_state.load()?.token_0.key(),
+        associated_token::authority = pool_state,
+    )]
+    pub vault_0: Box<Account<'info, TokenAccount>>,
 
-    // // #[account(
-    // //     mut,
-    // //     associated_token::mint = pool_state.token_1,
-    // //     associated_token::authority = pool_state,
-    // // )]
-    // // pub vault_1: Box<Account<'info, TokenAccount>>,
+    /// The address that holds pool tokens for token_1
+    #[account(
+        mut,
+        associated_token::mint = pool_state.load()?.token_1.key(),
+        associated_token::authority = pool_state,
+    )]
+    pub vault_1: Box<Account<'info, TokenAccount>>,
 
-    // // pub token_program: Program<'info, Token>,
+    /// The SPL program to perform token transfers
+    pub token_program: Program<'info, Token>,
 
     // // // pub callback_handler: Program<'info, NonFungiblePositionManager>,
-    pub system_program: Program<'info, System>,
+    // pub system_program: Program<'info, System>,
 }
 

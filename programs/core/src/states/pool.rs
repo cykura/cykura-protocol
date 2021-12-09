@@ -4,7 +4,8 @@ use anchor_lang::prelude::*;
 ///
 /// PDA of `[token_0, token_1, fee]`
 ///
-#[account]
+#[account(zero_copy)]
+#[derive(Default)]
 pub struct PoolState {
     /// Bump to identify PDA
     pub bump: u8,

@@ -53,6 +53,10 @@ describe('cyclos-core', async () => {
   let initialObservationState: web3.PublicKey
   let initialObservationBump: number
 
+  // These accounts will spend tokens to mint the position
+  let minterWallet0: web3.PublicKey
+  let minterWallet1: web3.PublicKey
+
   it('Create token mints', async () => {
     const transferSolTx = new web3.Transaction().add(
       web3.SystemProgram.transfer({
@@ -89,6 +93,13 @@ describe('cyclos-core', async () => {
       token0 = token1
       token1 = temp
     }
+  })
+
+  it('creates token accounts for position minter and airdrops to them', async () => {
+    minterWallet0 = await token0.createAssociatedTokenAccount(owner)
+    minterWallet1 = await token1.createAssociatedTokenAccount(owner)
+    await token0.mintTo(minterWallet0, mintAuthority, [], 1_000_000)
+    await token1.mintTo(minterWallet1, mintAuthority, [], 1_000_000)
   })
 
   it('derive pool address', async () => {
@@ -978,13 +989,13 @@ describe('cyclos-core', async () => {
   })
 
   const protocolFeeRecipient = new Keypair()
-  let recipientWallet0: web3.PublicKey
-  let recipientWallet1: web3.PublicKey
+  let feeRecipientWallet0: web3.PublicKey
+  let feeRecipientWallet1: web3.PublicKey
 
   describe('#collect_protocol', () => {
     it('creates token accounts for recipient', async () => {
-      recipientWallet0 = await token0.createAssociatedTokenAccount(protocolFeeRecipient.publicKey)
-      recipientWallet1 = await token1.createAssociatedTokenAccount(protocolFeeRecipient.publicKey)
+      feeRecipientWallet0 = await token0.createAssociatedTokenAccount(protocolFeeRecipient.publicKey)
+      feeRecipientWallet1 = await token1.createAssociatedTokenAccount(protocolFeeRecipient.publicKey)
     })
 
     it('fails if caller is not owner', async () => {
@@ -995,8 +1006,8 @@ describe('cyclos-core', async () => {
           poolState,
           vault0,
           vault1,
-          recipientWallet0,
-          recipientWallet1,
+          recipientWallet0: feeRecipientWallet0,
+          recipientWallet1: feeRecipientWallet1,
           tokenProgram: TOKEN_PROGRAM_ID,
         }
       })).to.be.rejectedWith(Error)
@@ -1010,8 +1021,8 @@ describe('cyclos-core', async () => {
           poolState,
           vault0: new Keypair().publicKey,
           vault1,
-          recipientWallet0,
-          recipientWallet1,
+          recipientWallet0: feeRecipientWallet0,
+          recipientWallet1: feeRecipientWallet1,
           tokenProgram: TOKEN_PROGRAM_ID,
         }
       })).to.be.rejectedWith(Error)
@@ -1025,8 +1036,8 @@ describe('cyclos-core', async () => {
           poolState,
           vault0,
           vault1: new Keypair().publicKey,
-          recipientWallet0,
-          recipientWallet1,
+          recipientWallet0: feeRecipientWallet0,
+          recipientWallet1: feeRecipientWallet1,
           tokenProgram: TOKEN_PROGRAM_ID,
         }
       })).to.be.rejectedWith(Error)
@@ -1051,8 +1062,8 @@ describe('cyclos-core', async () => {
             poolState,
             vault0,
             vault1,
-            recipientWallet0,
-            recipientWallet1,
+            recipientWallet0: feeRecipientWallet0,
+            recipientWallet1: feeRecipientWallet1,
             tokenProgram: TOKEN_PROGRAM_ID,
           }
         })
@@ -1063,8 +1074,8 @@ describe('cyclos-core', async () => {
       assert(poolStateData.protocolFeesToken0.eqn(0))
       assert(poolStateData.protocolFeesToken1.eqn(0))
 
-      const recipientWallet0Info = await token0.getAccountInfo(recipientWallet0)
-      const recipientWallet1Info = await token1.getAccountInfo(recipientWallet1)
+      const recipientWallet0Info = await token0.getAccountInfo(feeRecipientWallet0)
+      const recipientWallet1Info = await token1.getAccountInfo(feeRecipientWallet1)
       assert(recipientWallet0Info.amount.eqn(0))
       assert(recipientWallet1Info.amount.eqn(0))
     })
@@ -1434,7 +1445,10 @@ describe('cyclos-core', async () => {
               tickUpperState,
               bitmapLower,
               bitmapUpper,
-
+              tokenAccount0: minterWallet0,
+              tokenAccount1: minterWallet1,
+              vault0,
+              vault1,
               metadataAccount,
               coreProgram: coreProgram.programId,
               systemProgram: SystemProgram.programId,
@@ -1468,7 +1482,10 @@ describe('cyclos-core', async () => {
               tickUpperState,
               bitmapLower,
               bitmapUpper,
-
+              tokenAccount0: minterWallet0,
+              tokenAccount1: minterWallet1,
+              vault0,
+              vault1,
               metadataAccount,
               coreProgram: coreProgram.programId,
               systemProgram: SystemProgram.programId,

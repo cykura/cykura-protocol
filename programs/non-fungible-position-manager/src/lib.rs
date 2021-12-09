@@ -4,6 +4,7 @@ pub mod error;
 pub mod states;
 use states::position_manager;
 use crate::context::*;
+use cyclos_core::{cpi::accounts::MintContext, states::tick::TickState};
 use cyclos_core::libraries::tick_math;
 use anchor_lang::{prelude::*, solana_program::{instruction::Instruction, sysvar}};
 use error::ErrorCode;
@@ -23,9 +24,8 @@ pub const BASE_URI: &str = "https://api.cyclos.io/mint=";
 
 #[program]
 pub mod non_fungible_position_manager {
-    use std::convert::TryFrom;
 
-    use cyclos_core::{cpi::accounts::MintContext, states::tick::TickState};
+    use cyclos_core::states::pool::PoolState;
 
     use super::*;
 
@@ -67,6 +67,10 @@ pub mod non_fungible_position_manager {
         amount_1_min: u64,
         deadline: i64
     ) -> ProgramResult {
+        let sqrt_price_x32 = Loader::<PoolState>::try_from(
+            &cyclos_core::id(),
+            &ctx.accounts.pool_state.to_account_info()
+        )?.load()?.sqrt_price_x32;
         let tick_lower = Loader::<TickState>::try_from(
             &cyclos_core::id(),
             &ctx.accounts.tick_lower_state.to_account_info()
@@ -79,7 +83,7 @@ pub mod non_fungible_position_manager {
         let sqrt_ratio_a_x32 = tick_math::get_sqrt_ratio_at_tick(tick_lower)?;
         let sqrt_ratio_b_x32 = tick_math::get_sqrt_ratio_at_tick(tick_upper)?;
         let liquidity = liquidity_amounts::get_liquidity_for_amounts(
-            ctx.accounts.pool_state.sqrt_price_x32,
+            sqrt_price_x32,
             sqrt_ratio_a_x32,
             sqrt_ratio_b_x32,
             amount_0_desired,
@@ -96,7 +100,12 @@ pub mod non_fungible_position_manager {
             tick_upper_state: ctx.accounts.tick_upper_state.to_account_info(),
             bitmap_lower: ctx.accounts.bitmap_lower.to_account_info(),
             bitmap_upper: ctx.accounts.bitmap_upper.to_account_info(),
-            system_program: ctx.accounts.system_program.to_account_info()
+            token_account_0: ctx.accounts.token_account_0.to_account_info(),
+            token_account_1: ctx.accounts.token_account_1.to_account_info(),
+            vault_0: ctx.accounts.vault_0.to_account_info(),
+            vault_1: ctx.accounts.vault_1.to_account_info(),
+            token_program: ctx.accounts.token_program.to_account_info(),
+            // system_program: ctx.accounts.system_program.to_account_info()
         };
         cyclos_core::cpi::mint(
             CpiContext::new_with_signer(

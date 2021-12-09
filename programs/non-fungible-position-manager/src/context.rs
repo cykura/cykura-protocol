@@ -30,7 +30,7 @@ pub struct Initialize<'info> {
 // )]
 pub struct MintPosition<'info> {
     /// Pays to mint the position
-    // #[account(mut)]
+    #[account(mut)]
     pub minter: Signer<'info>,
 
     /// Receives the position NFT
@@ -63,28 +63,19 @@ pub struct MintPosition<'info> {
 
     /// Mint liquidity for this pool
     #[account(mut)]
-    pub pool_state: Box<Account<'info, PoolState>>,
+    pub pool_state: UncheckedAccount<'info>,
 
     /// Core program account to store position data
     #[account(mut)]
     pub core_position_state: UncheckedAccount<'info>,
 
-    // Validated and initialized inside core
-    // TODO explore alternate way to init these, or need to pass seeds every time
-    // #[account(mut)]
-    // pub position_state: AccountInfo<'info>,
-
     /// Account to store data for the position's lower tick
     #[account(mut)]
     pub tick_lower_state: UncheckedAccount<'info>,
-    // pub tick_lower_state: Loader<'info, TickState>,
-    // pub tick_lower_state: Box<Account<'info, TickState>>,
 
     /// Account to store data for the position's upper tick
     #[account(mut)]
     pub tick_upper_state: UncheckedAccount<'info>,
-    // pub tick_upper_state: Loader<'info, TickState>,
-    // pub tick_upper_state: Box<Account<'info, TickState>>,
 
     /// Account to mark the lower tick as initialized
     #[account(mut)]
@@ -102,30 +93,27 @@ pub struct MintPosition<'info> {
     // )]
     // pub non_fungible_position_state: Box<Account<'info, NonFungiblePositionState>>,
 
-    // // Skip validation, performed during transfer
-    // #[account(mut)]
-    // pub token_account_0: Box<Account<'info, TokenAccount>>,
-    // #[account(mut)]
-    // pub token_account_1: Box<Account<'info, TokenAccount>>,
+    /// The token account spending token_0 to mint the position
+    #[account(mut)]
+    pub token_account_0: Box<Account<'info, TokenAccount>>,
 
-    // #[account(
-    //     mut,
-    //     associated_token::mint = pool_state.token_0,
-    //     associated_token::authority = pool_state,
-    // )]
-    // pub vault_0: Box<Account<'info, TokenAccount>>,
+    /// The token account spending token_1 to mint the position
+    #[account(mut)]
+    pub token_account_1: Box<Account<'info, TokenAccount>>,
 
-    // #[account(
-    //     mut,
-    //     associated_token::mint = pool_state.token_1,
-    //     associated_token::authority = pool_state,
-    // )]
-    // pub vault_1: Box<Account<'info, TokenAccount>>,
+    /// The token account owned by core to hold pool tokens for token_0
+    #[account(mut)]
+    pub vault_0: UncheckedAccount<'info>,
 
-    pub core_program: Program<'info, cyclos_core::program::CyclosCore>,
+    /// The token account owned by core to hold pool tokens for token_1
+    #[account(mut)]
+    pub vault_1: UncheckedAccount<'info>,
 
     /// Sysvar for token mint and ATA creation
     pub rent: Sysvar<'info, Rent>,
+
+    /// Liquidity is minted on the core program
+    pub core_program: Program<'info, cyclos_core::program::CyclosCore>,
 
     /// Program to create NFT metadata
     #[account(address = metaplex_token_metadata::ID)]
