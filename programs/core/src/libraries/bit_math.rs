@@ -55,32 +55,38 @@ pub fn least_significant_bit(mut x: u64) -> u8 {
     assert!(x > 0);
 
     let mut lsb: u8 = 63;
-    if x & 0xffffffff > 0 { // u32::MAX
+    // u32::MAX
+    if x & 0xffffffff > 0 {
         lsb -= 32;
     } else {
         x >>= 32;
     }
-    if x & 0xffff > 0 { // u16::MAX
+    // u16::MAX
+    if x & 0xffff > 0 {
         lsb -= 16;
     } else {
         x >>= 16;
     }
-    if x & 0xff > 0 { // u8::MAX
+    // u8::MAX
+    if x & 0xff > 0 {
         lsb -= 8;
     } else {
         x >>= 8;
     }
-    if x & 0xf > 0 { // u4::MAX
+    // u4::MAX
+    if x & 0xf > 0 {
         lsb -= 4;
     } else {
         x >>= 4;
     }
-    if x & 0x3 > 0 { // u2::MAX
+    // u2::MAX
+    if x & 0x3 > 0 {
         lsb -= 2;
     } else {
         x >>= 2;
     }
-    if x & 0x1 > 0 { // u1::MAX
+    // u1::MAX
+    if x & 0x1 > 0 {
         lsb -= 1;
     }
 
@@ -90,20 +96,89 @@ pub fn least_significant_bit(mut x: u64) -> u8 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    mod most_significant_bit {
+        use super::*;
 
-    #[test]
-    fn test_msb_at_powers_of_two() {
-        for i in 0..63 {
-            assert_eq!(most_significant_bit(u64::pow(2, i)), i as u8);
-            // entire 0..u64::MAX range takes too much time to test
+        #[test]
+        fn test_msb_at_powers_of_two() {
+            // Entire 0..u64::MAX range takes too much time so est only at powers of 2
+            for i in 0..63 {
+                assert_eq!(most_significant_bit(u64::pow(2, i)), i as u8);
+            }
+        }
+
+        #[test]
+        #[should_panic]
+        fn test_msb_for_0() {
+            most_significant_bit(0);
+        }
+
+        #[test]
+        fn test_msb_for_1() {
+            assert_eq!(most_significant_bit(1), 0);
+        }
+
+        #[test]
+        fn test_msb_for_2() {
+            assert_eq!(most_significant_bit(2), 1);
+        }
+
+        #[test]
+        fn test_msb_for_max() {
+            assert_eq!(most_significant_bit(u64::MAX - 1), 63);
+        }
+
+        #[test]
+        fn within_limits_for_powers_of_two() {
+            // Entire 0..u64::MAX range takes too much time so est only at powers of 2
+            for i in 0..63 {
+                let input = u64::pow(2, i);
+                let msb = most_significant_bit(input);
+                assert!(input >= u64::pow(2, msb.into()));
+            }
         }
     }
 
-    #[test]
-    fn test_lsb_at_powers_of_two() {
-        for i in 0..63 {
-            assert_eq!(least_significant_bit(u64::pow(2, i)), i as u8);
-            // entire 0..u64::MAX range takes too much time to test
+    mod least_significant_bit {
+        use super::*;
+
+        #[test]
+        fn test_lsb_at_powers_of_two() {
+            // Entire 0..u64::MAX range takes too much time so est only at powers of 2
+            for i in 0..63 {
+                assert_eq!(least_significant_bit(u64::pow(2, i)), i as u8);
+            }
+        }
+
+        #[test]
+        #[should_panic]
+        fn test_for_0() {
+            least_significant_bit(0);
+        }
+
+        #[test]
+        fn test_for_1() {
+            assert_eq!(least_significant_bit(1), 0);
+        }
+
+        #[test]
+        fn test_for_2() {
+            assert_eq!(least_significant_bit(2), 1);
+        }
+
+        #[test]
+        fn test_for_max() {
+            assert_eq!(least_significant_bit(u64::MAX - 1), 1);
+        }
+
+        #[test]
+        fn within_limits_for_powers_of_two() {
+            // Entire 0..u64::MAX range takes too much time so est only at powers of 2
+            for i in 0..63 {
+                let input = u64::pow(2, i);
+                let lsb = least_significant_bit(input);
+                assert!(input & u64::pow(2, lsb.into()) != 0);
+            }
         }
     }
 }

@@ -1,15 +1,13 @@
+///! Helper functions to calculate tick from √P and vice versa
+///! Performs power and log calculations in a gas efficient manner
+///!
+///! # Resources
+///!
+///! * https://medium.com/coinmonks/math-in-solidity-part-5-exponent-and-logarithm-9aef8515136e
+///! * https://liaoph.com/logarithm-in-solidity/
+///!
 use anchor_lang::require;
-
 use crate::error::ErrorCode;
-
-/// Helper functions to calculate tick from √P and vice versa
-/// Performs power and log calculations in a gas efficient manner
-///
-/// # Resources
-///
-/// * https://medium.com/coinmonks/math-in-solidity-part-5-exponent-and-logarithm-9aef8515136e
-/// * https://liaoph.com/logarithm-in-solidity/
-///
 
 pub const MIN_TICK: i32 = -221818;
 pub const MAX_TICK: i32 = -MIN_TICK;
@@ -300,4 +298,3 @@ mod tests {
         get_tick_at_sqrt_ratio(MAX_SQRT_RATIO).unwrap();
     }
 }
-
