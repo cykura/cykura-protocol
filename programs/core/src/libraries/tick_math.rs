@@ -1,3 +1,4 @@
+use crate::error::ErrorCode;
 ///! Helper functions to calculate tick from √P and vice versa
 ///! Performs power and log calculations in a gas efficient manner
 ///!
@@ -7,7 +8,6 @@
 ///! * https://liaoph.com/logarithm-in-solidity/
 ///!
 use anchor_lang::require;
-use crate::error::ErrorCode;
 
 pub const MIN_TICK: i32 = -221818;
 pub const MAX_TICK: i32 = -MIN_TICK;
@@ -40,39 +40,73 @@ pub fn get_sqrt_ratio_at_tick(tick: i32) -> Result<u64, ErrorCode> {
         0x10000000000000000
     };
     // i = 1
-    if abs_tick & 0x2 != 0 { ratio = (ratio * 0xfff97272373d4000) >> 64 };
+    if abs_tick & 0x2 != 0 {
+        ratio = (ratio * 0xfff97272373d4000) >> 64
+    };
     // i = 2
-    if abs_tick & 0x4 != 0 { ratio = (ratio * 0xfff2e50f5f657000) >> 64 };
+    if abs_tick & 0x4 != 0 {
+        ratio = (ratio * 0xfff2e50f5f657000) >> 64
+    };
     // i = 3
-    if abs_tick & 0x8 != 0 { ratio = (ratio * 0xffe5caca7e10f000) >> 64 };
+    if abs_tick & 0x8 != 0 {
+        ratio = (ratio * 0xffe5caca7e10f000) >> 64
+    };
     // i = 4
-    if abs_tick & 0x10 != 0 { ratio = (ratio * 0xffcb9843d60f7000) >> 64 };
+    if abs_tick & 0x10 != 0 {
+        ratio = (ratio * 0xffcb9843d60f7000) >> 64
+    };
     // i = 5
-    if abs_tick & 0x20 != 0 { ratio = (ratio * 0xff973b41fa98e800) >> 64 };
+    if abs_tick & 0x20 != 0 {
+        ratio = (ratio * 0xff973b41fa98e800) >> 64
+    };
     // i = 6
-    if abs_tick & 0x40 != 0 { ratio = (ratio * 0xff2ea16466c9b000) >> 64 };
+    if abs_tick & 0x40 != 0 {
+        ratio = (ratio * 0xff2ea16466c9b000) >> 64
+    };
     // i = 7
-    if abs_tick & 0x80 != 0 { ratio = (ratio * 0xfe5dee046a9a3800) >> 64 };
+    if abs_tick & 0x80 != 0 {
+        ratio = (ratio * 0xfe5dee046a9a3800) >> 64
+    };
     // i = 8
-    if abs_tick & 0x100 != 0 { ratio = (ratio * 0xfcbe86c7900bb000) >> 64 };
+    if abs_tick & 0x100 != 0 {
+        ratio = (ratio * 0xfcbe86c7900bb000) >> 64
+    };
     // i = 9
-    if abs_tick & 0x200 != 0 { ratio = (ratio * 0xf987a7253ac65800) >> 64 };
+    if abs_tick & 0x200 != 0 {
+        ratio = (ratio * 0xf987a7253ac65800) >> 64
+    };
     // i = 10
-    if abs_tick & 0x400 != 0 { ratio = (ratio * 0xf3392b0822bb6000) >> 64 };
+    if abs_tick & 0x400 != 0 {
+        ratio = (ratio * 0xf3392b0822bb6000) >> 64
+    };
     // i = 11
-    if abs_tick & 0x800 != 0 { ratio = (ratio * 0xe7159475a2caf000) >> 64 };
+    if abs_tick & 0x800 != 0 {
+        ratio = (ratio * 0xe7159475a2caf000) >> 64
+    };
     // i = 12
-    if abs_tick & 0x1000 != 0 { ratio = (ratio * 0xd097f3bdfd2f2000) >> 64 };
+    if abs_tick & 0x1000 != 0 {
+        ratio = (ratio * 0xd097f3bdfd2f2000) >> 64
+    };
     // i = 13
-    if abs_tick & 0x2000 != 0 { ratio = (ratio * 0xa9f746462d9f8000) >> 64 };
+    if abs_tick & 0x2000 != 0 {
+        ratio = (ratio * 0xa9f746462d9f8000) >> 64
+    };
     // i = 14
-    if abs_tick & 0x4000 != 0 { ratio = (ratio * 0x70d869a156f31c00) >> 64 };
+    if abs_tick & 0x4000 != 0 {
+        ratio = (ratio * 0x70d869a156f31c00) >> 64
+    };
     // i = 15
-    if abs_tick & 0x8000 != 0 { ratio = (ratio * 0x31be135f97ed3200) >> 64 };
+    if abs_tick & 0x8000 != 0 {
+        ratio = (ratio * 0x31be135f97ed3200) >> 64
+    };
     // i = 16
-    if abs_tick & 0x10000 != 0 { ratio = (ratio * 0x9aa508b5b85a500) >> 64 };
+    if abs_tick & 0x10000 != 0 {
+        ratio = (ratio * 0x9aa508b5b85a500) >> 64
+    };
     // i = 17
-    if abs_tick & 0x20000 != 0 { ratio = (ratio * 0x5d6af8dedc582c) >> 64 };
+    if abs_tick & 0x20000 != 0 {
+        ratio = (ratio * 0x5d6af8dedc582c) >> 64
+    };
 
     // Divide to obtain 1.0001^(2^(i - 1)) * 2^32 in numerator
     if tick > 0 {
@@ -80,7 +114,7 @@ pub fn get_sqrt_ratio_at_tick(tick: i32) -> Result<u64, ErrorCode> {
     }
 
     // Rounding up and convert to U32.32
-    let sqrt_price_x32 = ((ratio >> 32) as u64) + (((ratio % (1 << 32) != 0) as u64));
+    let sqrt_price_x32 = ((ratio >> 32) as u64) + ((ratio % (1 << 32) != 0) as u64);
 
     Ok(sqrt_price_x32)
 }
@@ -96,7 +130,10 @@ pub fn get_sqrt_ratio_at_tick(tick: i32) -> Result<u64, ErrorCode> {
 ///
 pub fn get_tick_at_sqrt_ratio(sqrt_price_x32: u64) -> Result<i32, ErrorCode> {
     // second inequality must be < because the price can never reach the price at the max tick
-    require!(sqrt_price_x32 >= MIN_SQRT_RATIO && sqrt_price_x32 < MAX_SQRT_RATIO, ErrorCode::R);
+    require!(
+        sqrt_price_x32 >= MIN_SQRT_RATIO && sqrt_price_x32 < MAX_SQRT_RATIO,
+        ErrorCode::R
+    );
 
     let mut r = sqrt_price_x32;
     let mut msb = 0; // in [1, 64)
@@ -143,72 +180,72 @@ pub fn get_tick_at_sqrt_ratio(sqrt_price_x32: u64) -> Result<i32, ErrorCode> {
         sqrt_price_x32 << (31 - msb)
     };
 
-    r = (r*r) >> 31; // r^2 as U33.31
+    r = (r * r) >> 31; // r^2 as U33.31
     f = (r >> 32) as u8; // MSB of r^2 (0 or 1)
     log_2_x16 |= (f as i64) << 15; // Add f at 1st fractional place
     r >>= f; // Divide r by 2 if MSB of f is non-zero
 
-    r = (r*r) >> 31;
+    r = (r * r) >> 31;
     f = (r >> 32) as u8;
     log_2_x16 |= (f as i64) << 14;
     r >>= f;
 
-    r = (r*r) >> 31;
+    r = (r * r) >> 31;
     f = (r >> 32) as u8;
     log_2_x16 |= (f as i64) << 13;
     r >>= f;
 
-    r = (r*r) >> 31;
+    r = (r * r) >> 31;
     f = (r >> 32) as u8;
     log_2_x16 |= (f as i64) << 12;
     r >>= f;
 
-    r = (r*r) >> 31;
+    r = (r * r) >> 31;
     f = (r >> 32) as u8;
     log_2_x16 |= (f as i64) << 11;
     r >>= f;
 
-    r = (r*r) >> 31;
+    r = (r * r) >> 31;
     f = (r >> 32) as u8;
     log_2_x16 |= (f as i64) << 10;
     r >>= f;
 
-    r = (r*r) >> 31;
+    r = (r * r) >> 31;
     f = (r >> 32) as u8;
     log_2_x16 |= (f as i64) << 9;
     r >>= f;
 
-    r = (r*r) >> 31;
+    r = (r * r) >> 31;
     f = (r >> 32) as u8;
     log_2_x16 |= (f as i64) << 8;
     r >>= f;
 
-    r = (r*r) >> 31;
+    r = (r * r) >> 31;
     f = (r >> 32) as u8;
     log_2_x16 |= (f as i64) << 7;
     r >>= f;
 
-    r = (r*r) >> 31;
+    r = (r * r) >> 31;
     f = (r >> 32) as u8;
     log_2_x16 |= (f as i64) << 6;
     r >>= f;
 
-    r = (r*r) >> 31;
+    r = (r * r) >> 31;
     f = (r >> 32) as u8;
     log_2_x16 |= (f as i64) << 5;
     r >>= f;
 
-    r = (r*r) >> 31;
+    r = (r * r) >> 31;
     f = (r >> 32) as u8;
     log_2_x16 |= (f as i64) << 4;
     r >>= f;
 
-    r = (r*r) >> 31;
+    r = (r * r) >> 31;
     f = (r >> 32) as u8;
     log_2_x16 |= (f as i64) << 3;
     r >>= f;
 
-    r = (r*r) >> 31;
+    r = (r * r) >> 31;
     f = (r >> 32) as u8;
     log_2_x16 |= (f as i64) << 2;
 
@@ -237,64 +274,149 @@ pub fn get_tick_at_sqrt_ratio(sqrt_price_x32: u64) -> Result<i32, ErrorCode> {
 mod tests {
     use super::*;
 
-    #[test]
-    fn sqrt_price_error_under_1_bps() {
-        for tick in MIN_TICK..=MAX_TICK {
-            let sqrt_price_x32 = get_sqrt_ratio_at_tick(tick).unwrap();
-            let sqrt_price = (sqrt_price_x32 as f64) / (4294967296.0);
-            let float_price = f64::powf(1.0001, (tick as f64) / 2.0);
+    mod price_at_tick {
+        use super::*;
 
-            // Error should be under 0.01%
-            let deviation = (sqrt_price - float_price) / float_price;
-            assert!(deviation.abs() < 0.0001);
-        }
-    }
+        #[test]
+        fn sqrt_price_error_under_1_bps() {
+            for tick in MIN_TICK..=MAX_TICK {
+                let sqrt_price_x32 = get_sqrt_ratio_at_tick(tick).unwrap();
+                let sqrt_price = (sqrt_price_x32 as f64) / (4294967296.0);
+                let float_price = f64::powf(1.0001, (tick as f64) / 2.0);
 
-    #[test]
-    fn sqrt_price_increases_with_tick() {
-        let mut prev_price_x32: u64 = 0;
-        for tick in MIN_TICK..=MAX_TICK {
-            let sqrt_price_x32 = get_sqrt_ratio_at_tick(tick).unwrap();
-            // P should increase with tick
-            if prev_price_x32 != 0 {
-                assert!(sqrt_price_x32 > prev_price_x32);
+                // Error should be under 0.01%
+                let deviation = (sqrt_price - float_price) / float_price;
+                assert!(deviation.abs() < 0.0001);
             }
-            prev_price_x32 = sqrt_price_x32;
+        }
+
+        #[test]
+        fn sqrt_price_increases_with_tick() {
+            let mut prev_price_x32: u64 = 0;
+            for tick in MIN_TICK..=MAX_TICK {
+                let sqrt_price_x32 = get_sqrt_ratio_at_tick(tick).unwrap();
+                // P should increase with tick
+                if prev_price_x32 != 0 {
+                    assert!(sqrt_price_x32 > prev_price_x32);
+                }
+                prev_price_x32 = sqrt_price_x32;
+            }
+        }
+
+        #[test]
+        fn retrieve_original_tick() {
+            for tick in MIN_TICK..=MAX_TICK {
+                let sqrt_price_x32 = get_sqrt_ratio_at_tick(tick).unwrap();
+
+                // Original tick should be obtained by operating on √P
+                let obtained_tick = get_tick_at_sqrt_ratio(sqrt_price_x32).unwrap();
+                assert_eq!(
+                    tick, obtained_tick,
+                    "Tick {}, obtained tick {}",
+                    tick, obtained_tick
+                );
+            }
+        }
+
+        #[test]
+        #[should_panic]
+        fn less_than_min_tick() {
+            get_sqrt_ratio_at_tick(MIN_TICK - 1).unwrap();
+        }
+
+        #[test]
+        #[should_panic]
+        fn greater_than_min_tick() {
+            get_sqrt_ratio_at_tick(MAX_TICK + 1).unwrap();
+        }
+
+        #[test]
+        fn min_tick() {
+            // fails 65537 != 65536
+            todo!()
+            // assert_eq!(get_sqrt_ratio_at_tick(MIN_TICK).unwrap(), MIN_SQRT_RATIO);
+        }
+
+        #[test]
+        fn min_tick_plus_1() {
+            assert_eq!(get_sqrt_ratio_at_tick(MIN_TICK + 1).unwrap(), 65540);
+        }
+
+        #[test]
+        fn max_tick() {
+            // fails 281472331703918 != 281474976710656
+            todo!()
+            // assert_eq!(get_sqrt_ratio_at_tick(MAX_TICK).unwrap(), MAX_SQRT_RATIO);
+        }
+
+        #[test]
+        fn max_tick_minus_1() {
+            assert_eq!(
+                get_sqrt_ratio_at_tick(MAX_TICK - 1).unwrap(),
+                281458259142766
+            );
         }
     }
 
-    #[test]
-    fn retrieve_original_tick() {
-        for tick in MIN_TICK..=MAX_TICK {
-            let sqrt_price_x32 = get_sqrt_ratio_at_tick(tick).unwrap();
+    mod get_tick_at_price {
+        use super::*;
 
-            // Original tick should be obtained by operating on √P
-            let obtained_tick = get_tick_at_sqrt_ratio(sqrt_price_x32).unwrap();
-            assert_eq!(tick, obtained_tick, "Tick {}, obtained tick {}", tick, obtained_tick);
+        #[test]
+        fn price_within_two_consequtive_ticks() {
+            todo!()
         }
-    }
 
-    #[test]
-    #[should_panic]
-    fn less_than_min_tick() {
-        get_sqrt_ratio_at_tick(MIN_TICK - 1).unwrap();
-    }
+        #[test]
+        fn retrieve_original_price() {
+            todo!()
+            // for price in MIN_SQRT_RATIO..=MAX_SQRT_RATIO {
+            //     let tick = get_tick_at_sqrt_ratio(price).unwrap();
 
-    #[test]
-    #[should_panic]
-    fn greater_than_min_tick() {
-        get_sqrt_ratio_at_tick(MAX_TICK + 1).unwrap();
-    }
+            //     // Original tick should be obtained by operating on √P
+            //     let obtained_price = get_sqrt_ratio_at_tick(tick).unwrap();
+            //     assert_eq!(
+            //         tick, obtained_tick,
+            //         "Tick {}, obtained tick {}",
+            //         tick, obtained_tick
+            //     );
+            // }
+        }
 
-    #[test]
-    #[should_panic]
-    fn less_than_min_sqrt_ratio() {
-        get_tick_at_sqrt_ratio(MIN_SQRT_RATIO - 1).unwrap();
-    }
+        #[test]
+        #[should_panic]
+        fn less_than_min_sqrt_ratio() {
+            get_tick_at_sqrt_ratio(MIN_SQRT_RATIO - 1).unwrap();
+        }
 
-    #[test]
-    #[should_panic]
-    fn greater_than_or_equal_to_max_sqrt_ratio() {
-        get_tick_at_sqrt_ratio(MAX_SQRT_RATIO).unwrap();
+        #[test]
+        #[should_panic]
+        fn greater_than_or_equal_to_max_sqrt_ratio() {
+            get_tick_at_sqrt_ratio(MAX_SQRT_RATIO).unwrap();
+        }
+
+        #[test]
+        fn min_tick() {
+            // fails -221819 != -221818
+            todo!()
+            // assert_eq!(get_tick_at_sqrt_ratio(MIN_SQRT_RATIO).unwrap(), MIN_TICK);
+        }
+
+        #[test]
+        fn min_tick_plus_1() {
+            assert_eq!(get_tick_at_sqrt_ratio(MIN_SQRT_RATIO + 1).unwrap(), -221818);
+        }
+
+        #[test]
+        fn max_tick() {
+            assert_eq!(
+                get_tick_at_sqrt_ratio(MAX_SQRT_RATIO - 1).unwrap(),
+                MAX_TICK
+            );
+        }
+
+        #[test]
+        fn max_tick_minus_1() {
+            assert_eq!(get_tick_at_sqrt_ratio(MAX_SQRT_RATIO - 1).unwrap(), 221818);
+        }
     }
 }
