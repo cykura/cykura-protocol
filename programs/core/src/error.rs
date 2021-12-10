@@ -45,6 +45,12 @@ pub enum ErrorCode {
     #[msg("NP")]
     NP,
 
+    // states/tick.rs
+
+    // liquidity_gross_after must be less than max_liquidity
+    #[msg("LO")]
+    LO,
+
     // libraries/tick_math.rs
 
     // second inequality must be < because the price can never reach the price at the max tick

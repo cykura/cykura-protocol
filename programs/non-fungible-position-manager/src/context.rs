@@ -109,6 +109,14 @@ pub struct MintPosition<'info> {
     #[account(mut)]
     pub vault_1: UncheckedAccount<'info>,
 
+    /// The latest observation state
+    #[account(mut)]
+    pub latest_observation_state: UncheckedAccount<'info>,
+
+    /// The next observation state
+    #[account(mut)]
+    pub next_observation_state: UncheckedAccount<'info>,
+
     /// Sysvar for token mint and ATA creation
     pub rent: Sysvar<'info, Rent>,
 

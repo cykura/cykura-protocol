@@ -1434,6 +1434,38 @@ describe('cyclos-core', async () => {
       })
     })
 
+    let latestObservationState: web3.PublicKey
+    let nextObservationState: web3.PublicKey
+
+    it('generate observation PDAs', async () => {
+      const {
+        observationIndex,
+        observationCardinalityNext
+      } = await coreProgram.account.poolState.fetch(poolState)
+
+      latestObservationState = (await PublicKey.findProgramAddress(
+        [
+          OBSERVATION_SEED,
+          token0.publicKey.toBuffer(),
+          token1.publicKey.toBuffer(),
+          u32ToSeed(fee),
+          u16ToSeed(observationIndex)
+        ],
+        coreProgram.programId
+      ))[0]
+
+      nextObservationState = (await PublicKey.findProgramAddress(
+        [
+          OBSERVATION_SEED,
+          token0.publicKey.toBuffer(),
+          token1.publicKey.toBuffer(),
+          u32ToSeed(fee),
+          u16ToSeed((observationIndex + 1) % observationCardinalityNext)
+        ],
+        coreProgram.programId
+      ))[0]
+    })
+
     describe('#mint', () => {
       it('fails if past deadline', async () => {
         // connection.slot
@@ -1461,6 +1493,8 @@ describe('cyclos-core', async () => {
               tokenAccount1: minterWallet1,
               vault0,
               vault1,
+              latestObservationState,
+              nextObservationState,
               metadataAccount,
               coreProgram: coreProgram.programId,
               systemProgram: SystemProgram.programId,
@@ -1498,6 +1532,8 @@ describe('cyclos-core', async () => {
               tokenAccount1: minterWallet1,
               vault0,
               vault1,
+              latestObservationState,
+              nextObservationState,
               metadataAccount,
               coreProgram: coreProgram.programId,
               systemProgram: SystemProgram.programId,

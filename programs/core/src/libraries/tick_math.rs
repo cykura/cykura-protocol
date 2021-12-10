@@ -12,8 +12,8 @@ use crate::error::ErrorCode;
 pub const MIN_TICK: i32 = -221818;
 pub const MAX_TICK: i32 = -MIN_TICK;
 
-pub const MIN_SQRT_RATIO: u64 = 65536; // 2^32
-pub const MAX_SQRT_RATIO: u64 = 281474976710656; // 2^48
+pub const MIN_SQRT_RATIO: u64 = 65536; // 2^16 * 2^-32 = 2^-16
+pub const MAX_SQRT_RATIO: u64 = 281474976710656; // 2^48 * 2^-32 = 2^16
 
 /// Calculates 1.0001^(tick/2) as a U32.32 number representing
 /// the square root of the ratio of the two assets (token_1/token_0)

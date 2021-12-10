@@ -20,6 +20,7 @@ use states::tick_bitmap::*;
 use std::cell::Ref;
 use std::cell::RefMut;
 use std::convert::TryInto;
+use std::ops::Deref;
 use crate::states::oracle::ObservationState;
 use std::mem::size_of;
 use std::convert::TryFrom;
@@ -448,11 +449,9 @@ pub mod cyclos_core {
         amount: u32
     ) -> ProgramResult {
         let mut pool_state = ctx.accounts.pool_state.load_mut()?;
-        msg!("inside core#mint");
         require!(pool_state.unlocked, ErrorCode::LOK);
         pool_state.unlocked = false;
 
-        msg!("locked");
 
         assert!(amount > 0);
 
@@ -466,6 +465,14 @@ pub mod cyclos_core {
         } else {
             None
         };
+        let mut latest_observation_state = ctx.accounts.latest_observation_state.load_mut()?;
+
+        let smallest_multiple = (latest_observation_state.block_timestamp / 14 + 1) * 14;
+        let mut next_observation_state = if oracle::_block_timestamp() >= smallest_multiple {
+            Some(ctx.accounts.next_observation_state.load_mut()?)
+        } else {
+            None
+        };
 
         _modify_position(
             pool_state.deref(),
@@ -474,6 +481,8 @@ pub mod cyclos_core {
             tick_upper_state,
             bitmap_lower,
             bitmap_upper,
+            latest_observation_state,
+            next_observation_state,
             i32::try_from(amount).unwrap(),
             // pool_state.tick,
             // pool_state.fee_growth_global_0_x32,
@@ -815,12 +824,10 @@ pub fn _modify_position(
     mut tick_upper_state: RefMut<TickState>,
     mut bitmap_lower: RefMut<TickBitmapState>,
     mut bitmap_upper: Option<RefMut<TickBitmapState>>,
+    mut latest_observation_state: RefMut<ObservationState>,
+    mut next_observation_state: Option<RefMut<ObservationState>>,
     liquidity_delta: i32,
-    // tick: i32,
-    // fee_growth_global_0_x32: u64,
-    // fee_growth_global_1_x32: u64,
-) -> Result<(i64, i64), ErrorCode> {
-    msg!("inside modify_position()");
+) -> Result<(i64, i64), ProgramError> {
     position_state.bump = 45;
     check_ticks(tick_lower_state.tick, tick_upper_state.tick)?;
 
@@ -831,10 +838,9 @@ pub fn _modify_position(
         tick_upper_state,
         bitmap_lower,
         bitmap_upper,
+        latest_observation_state,
+        next_observation_state,
         liquidity_delta,
-        // tick,
-        // fee_growth_global_0_x32,
-        // fee_growth_global_1_x32
     )?;
 
     // let mut amount_0 = 0_i64;
@@ -919,39 +925,56 @@ pub fn _update_position<'info>(
     mut tick_upper_state: RefMut<TickState>,
     mut bitmap_lower: RefMut<TickBitmapState>,
     mut bitmap_upper: Option<RefMut<TickBitmapState>>,
+    mut latest_observation_state: RefMut<ObservationState>,
+    mut next_observation_state: Option<RefMut<ObservationState>>,
     liquidity_delta: i32,
-) -> Result<(), ErrorCode> {
+) -> ProgramResult {
     let mut flipped_lower = false;
     let mut flipped_upper = false;
 
     // update the ticks if liquidity delta is non-zero
     if liquidity_delta != 0 {
-        // let max_liquidity_per_tick =
-        //     tick_spacing_to_max_liquidity_per_tick(pool_state.tick_spacing as i32);
+        let time = oracle::_block_timestamp();
+        let (tick_cumulative, seconds_per_liquidity_cumulative_x32) = ObservationState::observe_latest(
+            *latest_observation_state.deref(),
+            time,
+            pool_state.tick,
+            pool_state.liquidity
+        );
 
-        // // Update tick state and find if tick is flipped
-        // flipped_lower = tick_lower_state.update(
-        //     pool_state.tick,
-        //     liquidity_delta,
-        //     pool_state.fee_growth_global_0,
-        //     pool_state.fee_growth_global_1,
-        //     false,
-        //     max_liquidity_per_tick,
-        // );
+        let max_liquidity_per_tick =
+            tick_spacing_to_max_liquidity_per_tick(pool_state.tick_spacing as i32);
+
+        // Update tick state and find if tick is flipped
+        flipped_lower = tick_lower_state.update(
+            pool_state.tick,
+            liquidity_delta,
+            pool_state.fee_growth_global_0_x32,
+            pool_state.fee_growth_global_1_x32,
+            seconds_per_liquidity_cumulative_x32,
+            tick_cumulative,
+            time,
+            false,
+            max_liquidity_per_tick,
+        )?;
         // flipped_upper = tick_upper_state.update(
         //     pool_state.tick,
         //     liquidity_delta,
-        //     pool_state.fee_growth_global_0,
-        //     pool_state.fee_growth_global_1,
+        //     pool_state.fee_growth_global_0_x32,
+        //     pool_state.fee_growth_global_1_x32,
+        //     seconds_per_liquidity_cumulative_x32,
+        //     tick_cumulative,
+        //     time,
         //     true,
         //     max_liquidity_per_tick,
-        // );
+        // )?;
 
-        // if flipped_lower {
-        //     let (_, bit_pos) =
-        //         get_word_and_bit_pos(tick_lower_state.tick / (pool_state.tick_spacing as i32));
-        //     tick_lower_bitmap.flip_tick(bit_pos);
-        // }
+        if flipped_lower {
+            // bitmap_lower.flip_tick()
+            // let (_, bit_pos) =
+            //     get_word_and_bit_pos(tick_lower_state.tick / (pool_state.tick_spacing as i32));
+            // tick_lower_bitmap.flip_tick(bit_pos);
+        }
         // if flipped_upper {
         //     let (_, bit_pos) =
         //         get_word_and_bit_pos(tick_upper_state.tick / (pool_state.tick_spacing as i32));

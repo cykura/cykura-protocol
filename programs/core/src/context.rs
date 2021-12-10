@@ -422,12 +422,37 @@ pub struct MintContext<'info> {
     )]
     pub position_state: Loader<'info, PositionState>,
 
-    // #[account(
-    //     mut,
-    //     seeds = [],
-    //     bump = last_observation.load()?.bump
-    // )]
-    // pub last_observation: Loader<'info, ObservationState>,
+    /// The latest observation state. If current timestamp is less than the smallest multiple
+    /// of 14 greater than the last timestamp, the next observation is written here.
+    #[account(
+        mut,
+        seeds = [
+            &OBSERVATION_SEED.as_bytes(),
+            pool_state.load()?.token_0.key().as_ref(),
+            pool_state.load()?.token_1.key().as_ref(),
+            &pool_state.load()?.fee.to_be_bytes(),
+            &pool_state.load()?.observation_index.to_be_bytes(),
+        ],
+        bump = latest_observation_state.load()?.bump
+    )]
+    pub latest_observation_state: Loader<'info, ObservationState>,
+
+    /// The next observation state. If current timestamp is greater than or equal to than the smallest multiple
+    /// of 14 greater than the last timestamp, the next observation is written here.
+    #[account(
+        mut,
+        seeds = [
+            &OBSERVATION_SEED.as_bytes(),
+            pool_state.load()?.token_0.key().as_ref(),
+            pool_state.load()?.token_1.key().as_ref(),
+            &pool_state.load()?.fee.to_be_bytes(),
+            &((pool_state.load()?.observation_index + 1)
+                % pool_state.load()?.observation_cardinality_next
+            ).to_be_bytes(),
+        ],
+        bump = next_observation_state.load()?.bump
+    )]
+    pub next_observation_state: Loader<'info, ObservationState>,
 
     /// The token account spending token_0 to mint the position
     #[account(mut)]

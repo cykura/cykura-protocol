@@ -102,6 +102,8 @@ pub mod non_fungible_position_manager {
             bitmap_upper: ctx.accounts.bitmap_upper.to_account_info(),
             token_account_0: ctx.accounts.token_account_0.to_account_info(),
             token_account_1: ctx.accounts.token_account_1.to_account_info(),
+            latest_observation_state: ctx.accounts.latest_observation_state.to_account_info(),
+            next_observation_state: ctx.accounts.next_observation_state.to_account_info(),
             vault_0: ctx.accounts.vault_0.to_account_info(),
             vault_1: ctx.accounts.vault_1.to_account_info(),
             token_program: ctx.accounts.token_program.to_account_info(),

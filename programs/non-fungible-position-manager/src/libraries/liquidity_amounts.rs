@@ -13,7 +13,7 @@ use std::convert::TryFrom;
 /// # Arguments
 ///
 /// * `sqrt_ratio_a_x32` - A sqrt price representing the first tick boundary
-/// * `sqrt_ratio_b_x32` - A sqrt price representing the second tick boundary
+/// * `sqrt_ratwsolio_b_x32` - A sqrt price representing the second tick boundary
 /// * `amount_0` - The amount_0 being sent in
 ///
 pub fn get_liquidity_for_amount_0(
@@ -185,3 +185,14 @@ pub fn get_amounts_for_liquidity(
 }
 
 // TODO tests
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn get_amounts() {
+        let gg = get_amounts_for_liquidity(4294967296, 4337916969, 4380866642, u32::MAX);
+        println!("{:?}", gg);
+    }
+}

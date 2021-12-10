@@ -15,7 +15,7 @@
 
 /// Returns data about a specific observation index
 ///
-/// PDA of `[token_0, token_1, fee, index]`
+/// PDA of `[OBSERVATION_SEED, token_0, token_1, fee, index]`
 ///
 use anchor_lang::prelude::*;
 
