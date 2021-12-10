@@ -80,6 +80,7 @@ pub struct SetOwner<'info> {
 #[instruction(pool_state_bump: u8, observation_state_bump: u8)]
 pub struct CreateAndInitPool<'info> {
     /// Address paying to create the pool. Can be anyone
+    #[account(mut)]
     pub pool_creator: Signer<'info>,
 
     /// Desired token pair for the pool
@@ -117,9 +118,8 @@ pub struct CreateAndInitPool<'info> {
         ],
         bump = observation_state_bump,
         payer = pool_creator,
-        space = 8 + size_of::<ObservationState>()
     )]
-    pub initial_observation_state: Box<Account<'info, ObservationState>>,
+    pub initial_observation_state: Loader<'info, ObservationState>,
 
     /// The address that holds pool tokens for token_0
     #[account(
@@ -418,6 +418,13 @@ pub struct MintContext<'info> {
         bump = position_state.load()?.bump,
     )]
     pub position_state: Loader<'info, PositionState>,
+
+    // #[account(
+    //     mut,
+    //     seeds = [],
+    //     bump = last_observation.load()?.bump
+    // )]
+    // pub last_observation: Loader<'info, ObservationState>,
 
     /// The token account spending token_0 to mint the position
     #[account(mut)]

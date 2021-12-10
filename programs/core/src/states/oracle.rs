@@ -19,7 +19,8 @@
 ///
 use anchor_lang::prelude::*;
 
-#[account]
+#[account(zero_copy)]
+#[derive(Default)]
 pub struct ObservationState {
     /// Bump to identify PDA
     pub bump: u8,
@@ -31,13 +32,68 @@ pub struct ObservationState {
     pub block_timestamp: u32,
 
     /// The tick multiplied by seconds elapsed for the life of the pool as of the observation timestamp
-    pub tick_cumulative: u64,
+    pub tick_cumulative: i64,
 
     /// The seconds per in range liquidity for the life of the pool as of the observation timestamp
     pub seconds_per_liquidity_cumulative_x32: u64,
 
     /// Whether the observation has been initialized and the values are safe to use
     pub initialized: bool,
+}
+
+impl ObservationState {
+    /// Transforms a previous observation into a new observation, given the passage of time
+    /// and the current tick and liquidity values
+    ///
+    /// # Arguments
+    ///
+    /// * `last` - Must be chronologically equal to or greater than last.blockTimestamp,
+    /// safe for 0 or 1 overflows.
+    /// * `block_timestamp` - The timestamp of the new observation
+    /// * `tick` - The active tick at the time of the new observation
+    /// * `liquidity` - The total in-range liquidity at the time of the new observation
+    ///
+    pub fn transform(
+        last: ObservationState,
+        block_timestamp: u32,
+        tick: i32,
+        liquidity: u32,
+    ) -> ObservationState {
+        let delta = block_timestamp - last.block_timestamp;
+        ObservationState {
+            bump: last.bump,
+            index: last.index,
+            block_timestamp,
+            tick_cumulative: last.tick_cumulative + tick as i64 * delta as i64,
+            seconds_per_liquidity_cumulative_x32: last.seconds_per_liquidity_cumulative_x32 +
+                ((delta as u64) << 32) / if liquidity > 0 {
+                    liquidity as u64
+                } else {
+                    1
+                },
+            initialized: true,
+        }
+    }
+
+    /// Makes a new observation for the current block timestamp
+    ///
+    /// # Arguments
+    ///
+    /// * `last` - The most recently written observation
+    /// * `time` - The current block timestamp
+    /// * `liquidity` - The current in-range pool liquidity
+    ///
+    pub fn observe_latest(
+        mut last: ObservationState,
+        time: u32,
+        tick: i32,
+        liquidity: u32,
+    ) -> (i64, u64) {
+        if last.block_timestamp != time {
+            last = ObservationState::transform(last, time, tick, liquidity)
+        }
+        (last.tick_cumulative, last.seconds_per_liquidity_cumulative_x32)
+    }
 }
 
 /// Returns the block timestamp truncated to 32 bits, i.e. mod 2**32

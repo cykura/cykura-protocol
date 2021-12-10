@@ -17,9 +17,12 @@ use states::tick;
 use states::position::*;
 use states::tick::*;
 use states::tick_bitmap::*;
+use std::cell::Ref;
+use std::cell::RefMut;
 use std::convert::TryInto;
 use crate::states::oracle::ObservationState;
 use std::mem::size_of;
+use std::convert::TryFrom;
 use anchor_lang::solana_program::system_instruction::create_account;
 use crate::states::oracle;
 
@@ -140,9 +143,10 @@ pub mod cyclos_core {
         pool_state.observation_cardinality = 1;
         pool_state.observation_cardinality_next = 1;
 
-        ctx.accounts.initial_observation_state.bump = observation_state_bump;
-        ctx.accounts.initial_observation_state.block_timestamp = oracle::_block_timestamp();
-        ctx.accounts.initial_observation_state.initialized = true;
+        let mut initial_observation_state = ctx.accounts.initial_observation_state.load_init()?;
+        initial_observation_state.bump = observation_state_bump;
+        initial_observation_state.block_timestamp = oracle::_block_timestamp();
+        initial_observation_state.initialized = true;
 
         // default value 0 for remaining variables
 
@@ -220,14 +224,18 @@ pub mod cyclos_core {
                 &[&observation_account_seeds[..]]
             )?;
 
-            let mut observation_state = Account::<ObservationState>::try_from_unchecked(
+            let observation_state_loader = Loader::<ObservationState>::try_from_unchecked(
+                &cyclos_core::id(),
                 &ctx.remaining_accounts[i].to_account_info()
-            ).unwrap();
+            )?;
+            let mut observation_state = observation_state_loader.load_init()?;
             // this data will not be used because the initialized boolean is still false
             observation_state.bump = observation_account_bumps[i];
             observation_state.index = pool_state.observation_cardinality_next + i as u16;
             observation_state.block_timestamp = 1;
-            observation_state.exit(ctx.program_id)?;
+
+            drop(observation_state);
+            observation_state_loader.exit(ctx.program_id)?;
 
             i += 1;
         }
@@ -439,16 +447,33 @@ pub mod cyclos_core {
         require!(pool_state.unlocked, ErrorCode::LOK);
         pool_state.unlocked = false;
 
+        msg!("locked");
+
         assert!(amount > 0);
 
-        let position_state = (ctx.accounts.position_state.load_mut()?).deref_mut();
-        let tick_lower_state = (ctx.accounts.tick_lower_state.load_mut()?).deref_mut();
-        let tick_upper_state = (ctx.accounts.tick_upper_state.load_mut()?).deref_mut();
-        let bitmap_lower = (ctx.accounts.bitmap_lower.load_mut()?).deref_mut();
-        let bitmap_upper = (ctx.accounts.bitmap_upper.load_mut()?).deref_mut();
 
-        // let tick_ref = tick_state.deref_mut();
-        // tick_ref.tick += 1;
+        let mut position_state = ctx.accounts.position_state.load_mut()?;
+        let mut tick_lower_state = ctx.accounts.tick_lower_state.load_mut()?;
+        let mut tick_upper_state = ctx.accounts.tick_upper_state.load_mut()?;
+        let mut bitmap_lower = ctx.accounts.bitmap_lower.load_mut()?;
+        let mut bitmap_upper: Option<RefMut<TickBitmapState>> = if ctx.accounts.bitmap_upper.key() != ctx.accounts.bitmap_lower.key() {
+            Some(ctx.accounts.bitmap_upper.load_mut()?)
+        } else {
+            None
+        };
+
+        _modify_position(
+            pool_state.deref(),
+            position_state,
+            tick_lower_state,
+            tick_upper_state,
+            bitmap_lower,
+            bitmap_upper,
+            i32::try_from(amount).unwrap(),
+            // pool_state.tick,
+            // pool_state.fee_growth_global_0_x32,
+            // pool_state.fee_growth_global_1_x32
+        )?;
 
         pool_state.unlocked = true;
         Ok(())
@@ -766,31 +791,46 @@ pub fn check_ticks(tick_lower: i32, tick_upper: i32) -> Result<(), ErrorCode> {
 /// # Arguments
 ///
 /// * `position_state` - Effect change to this position
-/// * `tick_lower`- Program account for the lower tick boundary of the position
-/// * `tick_upper`- Program account for the upper tick boundary of the position
-/// * `liquidity_delta` - any change in liquidity. Can be 0 to perform a poke.
+/// * `tick_lower_state`- Program account for the lower tick boundary
+/// * `tick_upper_state`- Program account for the upper tick boundary
+/// * `bitmap_lower` - Holds the initialization state of the lower tick
+/// * `bitmap_upper` - Holds the initialization state of the upper tick
+/// * `liquidity_delta` - The change in liquidity. Can be 0 to perform a poke.
+/// * `tick` - The current tick
+/// * `fee_growth_global_0_x32` - Fees in token_0 collected per unit of liquidity
+/// for the entire life of the pool.
+/// * `fee_growth_global_1_x32` - Fees in token_1 collected per unit of liquidity
+/// for the entire life of the pool.
 ///
-pub fn modify_position(
+pub fn _modify_position(
+    // pool_state: Ref<PoolState>,
     pool_state: &PoolState,
-    position_state: &mut PositionState,
-    tick_lower_state: &mut TickState,
-    tick_upper_state: &mut TickState,
-    bitmap_lower: &mut TickBitmapState,
-    bitmap_upper: &mut TickBitmapState,
+    mut position_state: RefMut<PositionState>,
+    mut tick_lower_state: RefMut<TickState>,
+    mut tick_upper_state: RefMut<TickState>,
+    mut bitmap_lower: RefMut<TickBitmapState>,
+    mut bitmap_upper: Option<RefMut<TickBitmapState>>,
     liquidity_delta: i32,
-    tick: i32,
+    // tick: i32,
+    // fee_growth_global_0_x32: u64,
+    // fee_growth_global_1_x32: u64,
 ) -> Result<(i64, i64), ErrorCode> {
+    msg!("inside modify_position()");
+    position_state.bump = 45;
     check_ticks(tick_lower_state.tick, tick_upper_state.tick)?;
 
-    // let _position = update_position(
-    //     position_state,
-    //     pool_state,
-    //     tick_lower_state,
-    //     tick_upper_state,
-    //     tick_lower_bitmap,
-    //     tick_upper_bitmap,
-    //     liquidity_delta,
-    // ).unwrap();
+    _update_position(
+        pool_state,
+        position_state,
+        tick_lower_state,
+        tick_upper_state,
+        bitmap_lower,
+        bitmap_upper,
+        liquidity_delta,
+        // tick,
+        // fee_growth_global_0_x32,
+        // fee_growth_global_1_x32
+    )?;
 
     // let mut amount_0 = 0_i64;
     // let mut amount_1 = 0_i64;
@@ -854,60 +894,65 @@ pub fn modify_position(
 ///
 /// # Arguments
 ///
+/// * `pool_state` - Current pool state
 /// * `position_state` - Effect change to this position
-/// * `tick_lower`- Program account for the lower tick boundary of the position
-/// * `tick_upper`- Program account for the upper tick boundary of the position
-/// * `liquidity_delta` - any change in liquidity. Can be 0 to perform a poke.
+/// * `tick_lower_state`- Program account for the lower tick boundary
+/// * `tick_upper_state`- Program account for the upper tick boundary
+/// * `bitmap_lower` - Holds the initialization state of the lower tick
+/// * `bitmap_upper` - Holds the initialization state of the upper tick
+/// * `liquidity_delta` - The change in liquidity. Can be 0 to perform a poke.
 /// * `tick` - The current tick
+/// * `fee_growth_global_0_x32` - Fees in token_0 collected per unit of liquidity
+/// for the entire life of the pool.
+/// * `fee_growth_global_1_x32` - Fees in token_1 collected per unit of liquidity
+/// for the entire life of the pool.
 ///
-pub fn update_position<'info>(
-    position_state: &mut PositionState,
-    tick_lower_state: &mut TickState,
-    tick_upper_state: &mut TickState,
-    bitmap_lower: &mut TickBitmapState,
-    bitmap_upper: &mut TickBitmapState,
+pub fn _update_position<'info>(
+    pool_state: &PoolState,
+    mut position_state: RefMut<PositionState>,
+    mut tick_lower_state: RefMut<TickState>,
+    mut tick_upper_state: RefMut<TickState>,
+    mut bitmap_lower: RefMut<TickBitmapState>,
+    mut bitmap_upper: Option<RefMut<TickBitmapState>>,
     liquidity_delta: i32,
-    tick: i32,
-) -> ProgramResult {
-    // let mut flipped_lower = false;
-    // let mut flipped_upper = false;
+) -> Result<(), ErrorCode> {
+    let mut flipped_lower = false;
+    let mut flipped_upper = false;
 
-    // // update the ticks if liquidity present
-    // if liquidity_delta != 0 {
-    //     let max_liquidity_per_tick =
-    //         tick_spacing_to_max_liquidity_per_tick(pool_state.tick_spacing as i32);
-    //     // Skip TWAP things for now.
+    // update the ticks if liquidity delta is non-zero
+    if liquidity_delta != 0 {
+        // let max_liquidity_per_tick =
+        //     tick_spacing_to_max_liquidity_per_tick(pool_state.tick_spacing as i32);
 
-    //     // Update tick state and find if tick is flipped
-    //     flipped_lower = tick_lower_state.update(
-    //         pool_state.tick,
-    //         liquidity_delta,
-    //         pool_state.fee_growth_global_0,
-    //         pool_state.fee_growth_global_1,
-    //         false,
-    //         max_liquidity_per_tick,
-    //     );
+        // // Update tick state and find if tick is flipped
+        // flipped_lower = tick_lower_state.update(
+        //     pool_state.tick,
+        //     liquidity_delta,
+        //     pool_state.fee_growth_global_0,
+        //     pool_state.fee_growth_global_1,
+        //     false,
+        //     max_liquidity_per_tick,
+        // );
+        // flipped_upper = tick_upper_state.update(
+        //     pool_state.tick,
+        //     liquidity_delta,
+        //     pool_state.fee_growth_global_0,
+        //     pool_state.fee_growth_global_1,
+        //     true,
+        //     max_liquidity_per_tick,
+        // );
 
-    //     flipped_upper = tick_upper_state.update(
-    //         pool_state.tick,
-    //         liquidity_delta,
-    //         pool_state.fee_growth_global_0,
-    //         pool_state.fee_growth_global_1,
-    //         true,
-    //         max_liquidity_per_tick,
-    //     );
-
-    //     if flipped_lower {
-    //         let (_, bit_pos) =
-    //             get_word_and_bit_pos(tick_lower_state.tick / (pool_state.tick_spacing as i32));
-    //         tick_lower_bitmap.flip_tick(bit_pos);
-    //     }
-    //     if flipped_upper {
-    //         let (_, bit_pos) =
-    //             get_word_and_bit_pos(tick_upper_state.tick / (pool_state.tick_spacing as i32));
-    //         tick_upper_bitmap.flip_tick(bit_pos);
-    //     }
-    // }
+        // if flipped_lower {
+        //     let (_, bit_pos) =
+        //         get_word_and_bit_pos(tick_lower_state.tick / (pool_state.tick_spacing as i32));
+        //     tick_lower_bitmap.flip_tick(bit_pos);
+        // }
+        // if flipped_upper {
+        //     let (_, bit_pos) =
+        //         get_word_and_bit_pos(tick_upper_state.tick / (pool_state.tick_spacing as i32));
+        //     tick_upper_bitmap.flip_tick(bit_pos);
+        // }
+    }
     // // Update fees for position
     // // Poke: to only update fees, liquidity_delta can be passed as 0
 
