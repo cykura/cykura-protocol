@@ -9,12 +9,15 @@ use crate::error::ErrorCode;
 use crate::states::factory::FactoryState;
 use crate::states::fee::FeeState;
 use crate::states::pool::PoolState;
-use crate::states::position::{POSITION_SEED, PositionState};
+use crate::states::position::PositionState;
 use crate::states::oracle::ObservationState;
 use crate::states::tick::TickState;
-use crate::states::tick_bitmap::{BITMAP_SEED, TickBitmapState};
+use crate::states::tick_bitmap::TickBitmapState;
 
-// use non_fungible_position_manager::program::NonFungiblePositionManager;
+/// Seed to derive program account addresses and signatures
+pub const POSITION_SEED: &str = "p";
+pub const BITMAP_SEED: &str = "b";
+pub const OBSERVATION_SEED: &str = "o";
 
 #[derive(Accounts)]
 #[instruction(bump: u8)]
@@ -111,6 +114,7 @@ pub struct CreateAndInitPool<'info> {
     #[account(
         init,
         seeds = [
+            &OBSERVATION_SEED.as_bytes(),
             token_0.key().as_ref(),
             token_1.key().as_ref(),
             &fee_state.fee.to_be_bytes(),

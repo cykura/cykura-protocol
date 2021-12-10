@@ -9,7 +9,7 @@ chai.use(chaiAsPromised)
 
 import { CyclosCore } from '../target/types/cyclos_core'
 import { NonFungiblePositionManager } from '../target/types/non_fungible_position_manager'
-import { BITMAP_SEED, i16ToSeed, MaxU64, MAX_SQRT_RATIO, MAX_TICK, MIN_SQRT_RATIO, MIN_TICK, POSITION_SEED, u16ToSeed, u32ToSeed } from './utils'
+import { BITMAP_SEED, i16ToSeed, MaxU64, MAX_SQRT_RATIO, MAX_TICK, MIN_SQRT_RATIO, MIN_TICK, OBSERVATION_SEED, POSITION_SEED, u16ToSeed, u32ToSeed } from './utils'
 const { metadata: { Metadata } } = metaplex.programs
 
 const { PublicKey, Keypair, SystemProgram } = anchor.web3
@@ -379,6 +379,7 @@ describe('cyclos-core', async () => {
     it('derive first observation slot address', async () => {
       [initialObservationState, initialObservationBump] = await PublicKey.findProgramAddress(
         [
+          OBSERVATION_SEED,
           token0.publicKey.toBuffer(),
           token1.publicKey.toBuffer(),
           u32ToSeed(fee),
@@ -619,6 +620,7 @@ describe('cyclos-core', async () => {
     it('fails if bump does not produce a PDA with observation state seeds', async () => {
       const [observationState, _] = await PublicKey.findProgramAddress(
         [
+          OBSERVATION_SEED,
           token0.publicKey.toBuffer(),
           token1.publicKey.toBuffer(),
           u32ToSeed(fee),
@@ -644,6 +646,7 @@ describe('cyclos-core', async () => {
     it('fails if bump is valid but account does not match expected address for current cardinality_next', async () => {
       const [_, observationStateBump] = await PublicKey.findProgramAddress(
         [
+          OBSERVATION_SEED,
           token0.publicKey.toBuffer(),
           token1.publicKey.toBuffer(),
           u32ToSeed(fee),
@@ -669,6 +672,7 @@ describe('cyclos-core', async () => {
     it('fails if a single address is passed with index greater than cardinality_next', async () => {
       const [observationState2, observationState2Bump] = await PublicKey.findProgramAddress(
         [
+          OBSERVATION_SEED,
           token0.publicKey.toBuffer(),
           token1.publicKey.toBuffer(),
           u32ToSeed(fee),
@@ -693,6 +697,7 @@ describe('cyclos-core', async () => {
     it('increase cardinality by one', async () => {
       const [observationState1, observationState1Bump] = await PublicKey.findProgramAddress(
         [
+          OBSERVATION_SEED,
           token0.publicKey.toBuffer(),
           token1.publicKey.toBuffer(),
           u32ToSeed(fee),
@@ -739,6 +744,7 @@ describe('cyclos-core', async () => {
     it('fails if accounts are not in ascending order of index', async () => {
       const [observationState2, observationState2Bump] = await PublicKey.findProgramAddress(
         [
+          OBSERVATION_SEED,
           token0.publicKey.toBuffer(),
           token1.publicKey.toBuffer(),
           u32ToSeed(fee),
@@ -748,6 +754,7 @@ describe('cyclos-core', async () => {
       )
       const [observationState3, observationState3Bump] = await PublicKey.findProgramAddress(
         [
+          OBSERVATION_SEED,
           token0.publicKey.toBuffer(),
           token1.publicKey.toBuffer(),
           u32ToSeed(fee),
@@ -777,6 +784,7 @@ describe('cyclos-core', async () => {
     it('fails if a stray account is present between the array of observation accounts', async () => {
       const [observationState2, observationState2Bump] = await PublicKey.findProgramAddress(
         [
+          OBSERVATION_SEED,
           token0.publicKey.toBuffer(),
           token1.publicKey.toBuffer(),
           u32ToSeed(fee),
@@ -786,6 +794,7 @@ describe('cyclos-core', async () => {
       )
       const [observationState3, observationState3Bump] = await PublicKey.findProgramAddress(
         [
+          OBSERVATION_SEED,
           token0.publicKey.toBuffer(),
           token1.publicKey.toBuffer(),
           u32ToSeed(fee),
@@ -820,6 +829,7 @@ describe('cyclos-core', async () => {
     it('fails if less than current value of cardinality_next', async () => {
       const [observationState1, observationState1Bump] = await PublicKey.findProgramAddress(
         [
+          OBSERVATION_SEED,
           token0.publicKey.toBuffer(),
           token1.publicKey.toBuffer(),
           u32ToSeed(fee),
@@ -855,6 +865,7 @@ describe('cyclos-core', async () => {
       for (let i = 2; i < 2 + MAX_OBSERVATION_INITS_PER_IX + 5; i++) {
         const [observationState, observationStateBump] = await PublicKey.findProgramAddress(
           [
+            OBSERVATION_SEED,
             token0.publicKey.toBuffer(),
             token1.publicKey.toBuffer(),
             u32ToSeed(fee),
@@ -891,6 +902,7 @@ describe('cyclos-core', async () => {
       for (let i = 0; i < MAX_OBSERVATION_INITS_PER_IX; i++) {
         const [observationState, observationStateBump] = await PublicKey.findProgramAddress(
           [
+            OBSERVATION_SEED,
             token0.publicKey.toBuffer(),
             token1.publicKey.toBuffer(),
             u32ToSeed(fee),
