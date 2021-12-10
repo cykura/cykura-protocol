@@ -10,7 +10,8 @@ use anchor_lang::prelude::*;
 ///
 /// PDA of `[]`
 ///
-#[account]
+#[account(zero_copy)]
+#[derive(Default)]
 pub struct FactoryState {
     /// Bump to identify PDA
     pub bump: u8,

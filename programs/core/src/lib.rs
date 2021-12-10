@@ -46,8 +46,9 @@ pub mod cyclos_core {
     /// * `factory_state_bump` - Bump to validate factory state address
     ///
     pub fn init_factory(ctx: Context<Initialize>, factory_state_bump: u8) -> ProgramResult {
-        ctx.accounts.factory_state.bump = factory_state_bump;
-        ctx.accounts.factory_state.owner = ctx.accounts.owner.key();
+        let mut factory_state = ctx.accounts.factory_state.load_init()?;
+        factory_state.bump = factory_state_bump;
+        factory_state.owner = ctx.accounts.owner.key();
 
         emit!(OwnerChanged {
             old_owner: Pubkey::default(),
@@ -65,7 +66,8 @@ pub mod cyclos_core {
     /// * `ctx`- Checks whether protocol owner has signed
     ///
     pub fn set_owner(ctx: Context<SetOwner>) -> ProgramResult {
-        ctx.accounts.factory_state.owner = ctx.accounts.new_owner.key();
+        let mut factory_state = ctx.accounts.factory_state.load_mut()?;
+        factory_state.owner = ctx.accounts.new_owner.key();
 
         emit!(OwnerChanged {
             old_owner: ctx.accounts.owner.key(),

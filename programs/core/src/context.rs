@@ -31,9 +31,8 @@ pub struct Initialize<'info> {
         seeds = [],
         bump = bump,
         payer = owner,
-        space = 8 + size_of::<FactoryState>()
     )]
-    pub factory_state: Box<Account<'info, FactoryState>>,
+    pub factory_state: Loader<'info, FactoryState>,
 
     /// To create a new program account
     pub system_program: Program<'info, System>,
@@ -43,12 +42,12 @@ pub struct Initialize<'info> {
 #[instruction(fee_state_bump: u8, fee: u32, tick_spacing: u16)]
 pub struct EnableFeeAmount<'info> {
     /// Valid protocol owner
-    #[account(address = factory_state.owner)]
+    #[account(address = factory_state.load()?.owner)]
     pub owner: Signer<'info>,
 
     /// Factory state stores the protocol owner address
     #[account(mut)]
-    pub factory_state: Box<Account<'info, FactoryState>>,
+    pub factory_state: Loader<'info, FactoryState>,
 
     /// Initialize an account to store new fee tier and tick spacing
     /// Fees are paid by owner
@@ -68,7 +67,7 @@ pub struct EnableFeeAmount<'info> {
 #[derive(Accounts)]
 pub struct SetOwner<'info> {
     /// Current protocol owner
-    #[account(address = factory_state.owner)]
+    #[account(address = factory_state.load()?.owner)]
     pub owner: Signer<'info>,
 
     /// Address to be designated as new protocol owner
@@ -76,7 +75,7 @@ pub struct SetOwner<'info> {
 
     /// Factory state stores the protocol owner address
     #[account(mut)]
-    pub factory_state: Box<Account<'info, FactoryState>>,
+    pub factory_state: Loader<'info, FactoryState>,
 }
 
 #[derive(Accounts)]
@@ -170,11 +169,11 @@ pub struct IncreaseObservationCardinalityNext<'info> {
 #[derive(Accounts)]
 pub struct SetFeeProtocol<'info> {
     /// Valid protocol owner
-    #[account(address = factory_state.owner)]
+    #[account(address = factory_state.load()?.owner)]
     pub owner: Signer<'info>,
 
     /// Factory state stores the protocol owner address
-    pub factory_state: Box<Account<'info, FactoryState>>,
+    pub factory_state: Loader<'info, FactoryState>,
 
     /// Set protocol fee for this pool
     #[account(mut)]
@@ -188,7 +187,7 @@ pub struct CollectProtocol<'info> {
 
     /// Factory state stores the protocol owner address
     #[account(mut)]
-    pub factory_state: Box<Account<'info, FactoryState>>,
+    pub factory_state: Loader<'info, FactoryState>,
 
     /// Pool state stores accumulated protocol fee amount
     #[account(mut)]
