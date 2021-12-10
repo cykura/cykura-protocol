@@ -58,7 +58,7 @@ pub struct EnableFeeAmount<'info> {
         payer = owner,
         space = 8 + size_of::<FeeState>()
     )]
-    pub fee_state: Box<Account<'info, FeeState>>,
+    pub fee_state: Loader<'info, FeeState>,
 
     /// To create a new program account
     pub system_program: Program<'info, System>,
@@ -94,7 +94,7 @@ pub struct CreateAndInitPool<'info> {
     pub token_1: Box<Account<'info, Mint>>,
 
     /// Stores the desired fee for the pool
-    pub fee_state: Box<Account<'info, FeeState>>,
+    pub fee_state: Loader<'info, FeeState>,
 
     /// Initialize an account to store the pool state
     #[account(
@@ -102,7 +102,7 @@ pub struct CreateAndInitPool<'info> {
         seeds = [
             token_0.key().as_ref(),
             token_1.key().as_ref(),
-            &fee_state.fee.to_be_bytes()
+            &fee_state.load()?.fee.to_be_bytes()
         ],
         bump = pool_state_bump,
         payer = pool_creator,
@@ -116,7 +116,7 @@ pub struct CreateAndInitPool<'info> {
             &OBSERVATION_SEED.as_bytes(),
             token_0.key().as_ref(),
             token_1.key().as_ref(),
-            &fee_state.fee.to_be_bytes(),
+            &fee_state.load()?.fee.to_be_bytes(),
             &0_u16.to_be_bytes(),
         ],
         bump = observation_state_bump,

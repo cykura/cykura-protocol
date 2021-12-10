@@ -100,10 +100,11 @@ pub mod cyclos_core {
         // tick spacing is capped at 16384 to prevent the situation where tick_spacing is so large that
         // tick_bitmap#next_initialized_tick_within_one_word overflows int24 container from a valid tick
         // 16384 ticks represents a >5x price change with ticks of 1 bips
+        let mut fee_state = ctx.accounts.fee_state.load_init()?;
         assert!(tick_spacing > 0 && tick_spacing < 16384);
-        ctx.accounts.fee_state.bump = fee_state_bump;
-        ctx.accounts.fee_state.fee = fee;
-        ctx.accounts.fee_state.tick_spacing = tick_spacing;
+        fee_state.bump = fee_state_bump;
+        fee_state.fee = fee;
+        fee_state.tick_spacing = tick_spacing;
 
         emit!(FeeAmountEnabled { fee, tick_spacing });
         Ok(())
@@ -132,20 +133,21 @@ pub mod cyclos_core {
         sqrt_price_x32: u64,
     ) -> ProgramResult {
         let mut pool_state = ctx.accounts.pool_state.load_init()?;
+        let mut initial_observation_state = ctx.accounts.initial_observation_state.load_init()?;
+        let fee_state = ctx.accounts.fee_state.load()?;
         let tick = tick_math::get_tick_at_sqrt_ratio(sqrt_price_x32)?;
 
         pool_state.bump = pool_state_bump;
         pool_state.token_0 = ctx.accounts.token_0.key();
         pool_state.token_1 = ctx.accounts.token_1.key();
-        pool_state.fee = ctx.accounts.fee_state.fee;
-        pool_state.tick_spacing = ctx.accounts.fee_state.tick_spacing;
+        pool_state.fee = fee_state.fee;
+        pool_state.tick_spacing = fee_state.tick_spacing;
         pool_state.sqrt_price_x32 = sqrt_price_x32;
         pool_state.tick = tick;
         pool_state.unlocked = true;
         pool_state.observation_cardinality = 1;
         pool_state.observation_cardinality_next = 1;
 
-        let mut initial_observation_state = ctx.accounts.initial_observation_state.load_init()?;
         initial_observation_state.bump = observation_state_bump;
         initial_observation_state.block_timestamp = oracle::_block_timestamp();
         initial_observation_state.initialized = true;
@@ -155,8 +157,8 @@ pub mod cyclos_core {
         emit!(PoolCreatedAndInitialized {
             token_0: ctx.accounts.token_0.key(),
             token_1: ctx.accounts.token_1.key(),
-            fee: ctx.accounts.fee_state.fee,
-            tick_spacing: ctx.accounts.fee_state.tick_spacing,
+            fee: fee_state.fee,
+            tick_spacing: fee_state.tick_spacing,
             pool_state: ctx.accounts.pool_state.key(),
             sqrt_price_x32,
             tick,

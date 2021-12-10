@@ -7,7 +7,8 @@ use anchor_lang::prelude::*;
 ///
 /// PDA of `[fee]`
 ///
-#[account]
+#[account(zero_copy)]
+#[derive(Default)]
 pub struct FeeState {
     /// Bump to identify PDA
     pub bump: u8,
