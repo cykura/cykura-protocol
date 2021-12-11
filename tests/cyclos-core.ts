@@ -573,7 +573,7 @@ describe('cyclos-core', async () => {
       assert((poolStateData.token1).equals(token1.publicKey))
       assert.equal(poolStateData.fee, fee)
       assert.equal(poolStateData.tickSpacing, tickSpacing)
-      assert.equal(poolStateData.liquidity, 0)
+      assert(poolStateData.liquidity.eqn(0))
       assert((poolStateData.sqrtPriceX32).eq(initialPriceX32))
       assert.equal(poolStateData.tick, initialTick)
       assert.equal(poolStateData.observationIndex, 0)

@@ -15,6 +15,6 @@ pub fn encode_price_sqrt_x32(reserve_1: u64, reserve_0: u64) -> u64 {
 
 /// Obtain liquidity from virtual reserves of token_1 and token_0
 ///
-pub fn encode_liquidity(reserve_1: u64, reserve_0: u64) -> u32 {
-    (reserve_1 as f64 * reserve_0 as f64).sqrt().round() as u32
+pub fn encode_liquidity(reserve_1: u64, reserve_0: u64) -> u64 {
+    (reserve_1 as f64 * reserve_0 as f64).sqrt().round() as u64
 }

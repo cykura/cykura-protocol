@@ -1,7 +1,9 @@
-/// Helper functions to find price changes for change in token
-/// supply and vice versa
+///! Helper functions to find price changes for change in token
+///! supply and vice versa
+
 extern crate muldiv;
-use super::{fixed_point_x32, unsafe_math};
+use super::unsafe_math::UnsafeMathTrait;
+use super::fixed_point_x32;
 use muldiv::MulDiv;
 
 /// Gets the next sqrt price √P' given a delta of token_0
@@ -39,7 +41,7 @@ use muldiv::MulDiv;
 ///
 pub fn get_next_sqrt_price_from_amount_0_rounding_up(
     sqrt_p_x32: u64,
-    liquidity: u32,
+    liquidity: u64,
     amount: u64,
     add: bool,
 ) -> u64 {
@@ -48,32 +50,43 @@ pub fn get_next_sqrt_price_from_amount_0_rounding_up(
     if amount == 0 {
         return sqrt_p_x32;
     };
-    let numerator_1 = (liquidity as u64) << fixed_point_x32::RESOLUTION; // U32.32
+    let numerator_1 = (liquidity as u128) << fixed_point_x32::RESOLUTION; // U32.32
 
     if add {
         // Used native overflow check instead of the `a * b / b == a` Solidity method
         // https://stackoverflow.com/q/70143451/7721443
 
         if let Some(product) = amount.checked_mul(sqrt_p_x32) {
-            let denominator = numerator_1 + product;
+            let denominator = numerator_1 + product as u128;
             if denominator >= numerator_1 {
-                return numerator_1.mul_div_ceil(sqrt_p_x32, denominator).unwrap();
+                return numerator_1
+                    .mul_div_ceil(sqrt_p_x32 as u128, denominator)
+                    .unwrap() as u64;
             };
         }
         // Alternate form if overflow - `√P' = L / (L/√P + Δx)`
-        unsafe_math::div_rounding_up(
+
+        // let a: u128 = 5;
+        // u128::div_rounding_up(a, 6 as u128);
+
+        // div_rounding_up(5 as u128, 5 as u128);
+        u128::div_rounding_up(
             numerator_1,
-            (numerator_1 / sqrt_p_x32).checked_add(amount).unwrap(),
-        )
+            (numerator_1 / sqrt_p_x32 as u128)
+                .checked_add(amount as u128)
+                .unwrap(),
+        ) as u64
     } else {
         // if the product overflows, we know the denominator underflows
         // in addition, we must check that the denominator does not underflow
         // assert!(product / amount == sqrt_p_x32 && numerator_1 > product);
-        let product = amount.checked_mul(sqrt_p_x32).unwrap();
+        let product = amount.checked_mul(sqrt_p_x32).unwrap() as u128;
         assert!(numerator_1 > product);
 
         let denominator = numerator_1 - product;
-        numerator_1.mul_div_ceil(sqrt_p_x32, denominator).unwrap()
+        numerator_1
+            .mul_div_ceil(sqrt_p_x32 as u128, denominator)
+            .unwrap() as u64
     }
 }
 
@@ -100,7 +113,7 @@ pub fn get_next_sqrt_price_from_amount_0_rounding_up(
 ///
 pub fn get_next_sqrt_price_from_amount_1_rounding_down(
     sqrt_p_x32: u64,
-    liquidity: u32,
+    liquidity: u64,
     amount: u64,
     add: bool,
 ) -> u64 {
@@ -111,7 +124,7 @@ pub fn get_next_sqrt_price_from_amount_1_rounding_down(
         // quotient - `Δy / L` as U32.32
         let quotient = if amount <= (u32::MAX as u64) {
             // u32::MAX or below so that amount x 2^32 does not overflow
-            (amount << fixed_point_x32::RESOLUTION) / (liquidity as u64)
+            (amount << fixed_point_x32::RESOLUTION) / liquidity
         } else {
             amount
                 .mul_div_floor(fixed_point_x32::Q32, liquidity as u64)
@@ -121,10 +134,10 @@ pub fn get_next_sqrt_price_from_amount_1_rounding_down(
         sqrt_p_x32.checked_add(quotient).unwrap()
     } else {
         let quotient = if amount <= (u32::MAX as u64) {
-            unsafe_math::div_rounding_up(amount << fixed_point_x32::RESOLUTION, liquidity as u64)
+            u64::div_rounding_up(amount << fixed_point_x32::RESOLUTION, liquidity)
         } else {
             amount
-                .mul_div_ceil(fixed_point_x32::Q32, liquidity as u64)
+                .mul_div_ceil(fixed_point_x32::Q32, liquidity)
                 .unwrap()
         };
 
@@ -133,7 +146,7 @@ pub fn get_next_sqrt_price_from_amount_1_rounding_down(
     }
 }
 
-/// Gets the next sqrt price given an input amount of token0 or token1
+/// Gets the next sqrt price given an input amount of token_0 or token_1
 /// Throws if price or liquidity are 0, or if the next price is out of bounds
 ///
 /// # Arguments
@@ -145,7 +158,7 @@ pub fn get_next_sqrt_price_from_amount_1_rounding_down(
 ///
 pub fn get_next_sqrt_price_from_input(
     sqrt_p_x32: u64,
-    liquidity: u32,
+    liquidity: u64,
     amount_in: u64,
     zero_for_one: bool,
 ) -> u64 {
@@ -173,7 +186,7 @@ pub fn get_next_sqrt_price_from_input(
 ///
 pub fn get_next_sqrt_price_from_output(
     sqrt_p_x32: u64,
-    liquidity: u32,
+    liquidity: u64,
     amount_out: u64,
     zero_for_one: bool,
 ) -> u64 {
@@ -204,7 +217,7 @@ pub fn get_next_sqrt_price_from_output(
 pub fn get_amount_0_delta_unsigned(
     mut sqrt_ratio_a_x32: u64,
     mut sqrt_ratio_b_x32: u64,
-    liquidity: u32,
+    liquidity: u64,
     round_up: bool,
 ) -> u64 {
     // sqrt_ratio_a_x32 should hold the smaller value
@@ -212,23 +225,24 @@ pub fn get_amount_0_delta_unsigned(
         std::mem::swap(&mut sqrt_ratio_a_x32, &mut sqrt_ratio_b_x32);
     };
 
-    let numerator_1 = (liquidity as u64) << fixed_point_x32::RESOLUTION;
-    let numerator_2 = sqrt_ratio_b_x32 - sqrt_ratio_a_x32;
+    let numerator_1 = (liquidity as u128) << fixed_point_x32::RESOLUTION;
+    let numerator_2 = (sqrt_ratio_b_x32 - sqrt_ratio_a_x32) as u128;
 
     assert!(sqrt_ratio_a_x32 > 0);
 
     if round_up {
-        unsafe_math::div_rounding_up(
+        u128::div_rounding_up(
             numerator_1
-                .mul_div_ceil(numerator_2, sqrt_ratio_b_x32)
+                .mul_div_ceil(numerator_2, sqrt_ratio_b_x32 as u128)
                 .unwrap(),
-            sqrt_ratio_a_x32,
-        )
+            sqrt_ratio_a_x32 as u128,
+        ) as u64
     } else {
-        numerator_1
-            .mul_div_floor(numerator_2, sqrt_ratio_b_x32)
+        (numerator_1
+            .mul_div_floor(numerator_2, sqrt_ratio_b_x32 as u128)
             .unwrap()
-            / sqrt_ratio_a_x32
+            / (sqrt_ratio_a_x32 as u128)
+        ) as u64
     }
 }
 
@@ -248,7 +262,7 @@ pub fn get_amount_0_delta_unsigned(
 pub fn get_amount_1_delta_unsigned(
     mut sqrt_ratio_a_x32: u64,
     mut sqrt_ratio_b_x32: u64,
-    liquidity: u32,
+    liquidity: u64,
     round_up: bool,
 ) -> u64 {
     // sqrt_ratio_a_x32 should hold the smaller value
@@ -257,9 +271,9 @@ pub fn get_amount_1_delta_unsigned(
     };
 
     if round_up {
-        (liquidity as u64).mul_div_ceil(sqrt_ratio_b_x32 - sqrt_ratio_a_x32, fixed_point_x32::Q32)
+        liquidity.mul_div_ceil(sqrt_ratio_b_x32 - sqrt_ratio_a_x32, fixed_point_x32::Q32)
     } else {
-        (liquidity as u64).mul_div_floor(sqrt_ratio_b_x32 - sqrt_ratio_a_x32, fixed_point_x32::Q32)
+        liquidity.mul_div_floor(sqrt_ratio_b_x32 - sqrt_ratio_a_x32, fixed_point_x32::Q32)
     }
     .unwrap()
 }
@@ -276,18 +290,18 @@ pub fn get_amount_1_delta_unsigned(
 pub fn get_amount_0_delta_signed(
     sqrt_ratio_a_x32: u64,
     sqrt_ratio_b_x32: u64,
-    liquidity: i32,
+    liquidity: i64,
 ) -> i64 {
     if liquidity < 0 {
         -(get_amount_0_delta_unsigned(
             sqrt_ratio_a_x32,
             sqrt_ratio_b_x32,
-            liquidity.abs() as u32,
+            liquidity.abs() as u64,
             false,
         ) as i64)
     } else {
         // TODO check overflow, since i64::MAX < u64::MAX
-        get_amount_0_delta_unsigned(sqrt_ratio_a_x32, sqrt_ratio_b_x32, liquidity as u32, true)
+        get_amount_0_delta_unsigned(sqrt_ratio_a_x32, sqrt_ratio_b_x32, liquidity as u64, true)
             as i64
     }
 }
@@ -304,18 +318,18 @@ pub fn get_amount_0_delta_signed(
 pub fn get_amount_1_delta_signed(
     sqrt_ratio_a_x32: u64,
     sqrt_ratio_b_x32: u64,
-    liquidity: i32,
+    liquidity: i64,
 ) -> i64 {
     if liquidity < 0 {
         -(get_amount_1_delta_unsigned(
             sqrt_ratio_a_x32,
             sqrt_ratio_b_x32,
-            liquidity.abs() as u32,
+            liquidity.abs() as u64,
             false,
         ) as i64)
     } else {
         // TODO check overflow, since i64::MAX < u64::MAX
-        get_amount_1_delta_unsigned(sqrt_ratio_a_x32, sqrt_ratio_b_x32, liquidity as u32, true)
+        get_amount_1_delta_unsigned(sqrt_ratio_a_x32, sqrt_ratio_b_x32, liquidity as u64, true)
             as i64
     }
 }
@@ -347,7 +361,7 @@ mod sqrt_math {
         #[should_panic]
         fn fails_if_input_amount_overflows_the_price() {
             let sqrt_p_x32 = u64::MAX;
-            let liquidity: u32 = 1024;
+            let liquidity: u64 = 1024;
             let amount_in: u64 = 1024;
 
             // sqrt_p_x32.checked_add() should fail
@@ -370,7 +384,7 @@ mod sqrt_math {
         fn returns_input_price_if_amount_in_is_zero_and_zero_for_one_is_true() {
             let sqrt_p_x32 = 1 * fixed_point_x32::Q32;
             assert_eq!(
-                get_next_sqrt_price_from_input(sqrt_p_x32, u32::pow(10, 8), 0, true),
+                get_next_sqrt_price_from_input(sqrt_p_x32, u64::pow(10, 8), 0, true),
                 sqrt_p_x32
             );
         }
@@ -379,7 +393,7 @@ mod sqrt_math {
         fn returns_input_price_if_amount_in_is_zero_and_zero_for_one_is_false() {
             let sqrt_p_x32 = 1 * fixed_point_x32::Q32;
             assert_eq!(
-                get_next_sqrt_price_from_input(sqrt_p_x32, u32::pow(10, 8), 0, false),
+                get_next_sqrt_price_from_input(sqrt_p_x32, u64::pow(10, 8), 0, false),
                 sqrt_p_x32
             );
         }
@@ -387,9 +401,9 @@ mod sqrt_math {
         #[test]
         fn returns_the_minimum_price_for_max_inputs() {
             let sqrt_p_x32 = u64::MAX - 1;
-            let liquidity = u32::MAX;
+            let liquidity = u32::MAX as u64;
             let max_amount_no_overflow =
-                u64::MAX - (((liquidity as u64) << fixed_point_x32::RESOLUTION) / sqrt_p_x32);
+                u64::MAX - ((liquidity << fixed_point_x32::RESOLUTION) / sqrt_p_x32);
 
             assert_eq!(
                 get_next_sqrt_price_from_input(sqrt_p_x32, liquidity, max_amount_no_overflow, true),
@@ -401,7 +415,7 @@ mod sqrt_math {
         fn input_amount_of_01_token_1() {
             // price of token 0 wrt token 1 increases as token_1 supply increases
             let sqrt_p_x32 = 1 * fixed_point_x32::Q32;
-            let liquidity = u32::pow(10, 8);
+            let liquidity = u64::pow(10, 8);
             let amount_0_in = u64::pow(10, 7); // 10^7 / 10^8 = 0.1
             assert_eq!(
                 get_next_sqrt_price_from_input(sqrt_p_x32, liquidity, amount_0_in, false),
@@ -414,7 +428,7 @@ mod sqrt_math {
         fn input_amount_of_01_token_0() {
             // price of token_0 wrt token_1 decreases as token_0 supply increases
             let sqrt_p_x32 = 1 * fixed_point_x32::Q32;
-            let liquidity = u32::pow(10, 8);
+            let liquidity = u64::pow(10, 8);
             let amount_0_in = u64::pow(10, 7); // 10^7 / 10^8 = 0.1
             assert_eq!(
                 get_next_sqrt_price_from_input(sqrt_p_x32, liquidity, amount_0_in, true),
@@ -426,7 +440,7 @@ mod sqrt_math {
         #[test]
         fn amount_in_is_greater_than_u32_max_and_zero_for_one_is_true() {
             let sqrt_p_x32 = 1 * fixed_point_x32::Q32;
-            let liquidity = u32::pow(10, 8);
+            let liquidity = u64::pow(10, 8);
             let amount_0_in = u64::pow(10, 12); // 10^12 / 10^8 = 10^4
             assert_eq!(
                 get_next_sqrt_price_from_input(sqrt_p_x32, liquidity, amount_0_in, true),
@@ -537,7 +551,7 @@ mod sqrt_math {
         fn returns_input_price_if_amount_in_is_zero_and_zero_for_one_is_true() {
             let sqrt_p_x32 = encode_price_sqrt_x32(1, 1); // 4294967296
             assert_eq!(
-                get_next_sqrt_price_from_output(sqrt_p_x32, u32::pow(10, 8), 0, true),
+                get_next_sqrt_price_from_output(sqrt_p_x32, u64::pow(10, 8), 0, true),
                 sqrt_p_x32
             );
         }
@@ -549,7 +563,7 @@ mod sqrt_math {
         fn returns_input_price_if_amount_in_is_zero_and_zero_for_one_is_false() {
             let sqrt_p_x32 = encode_price_sqrt_x32(1, 1); // 4294967296
             assert_eq!(
-                get_next_sqrt_price_from_output(sqrt_p_x32, u32::pow(10, 8), 0, false),
+                get_next_sqrt_price_from_output(sqrt_p_x32, u64::pow(10, 8), 0, false),
                 sqrt_p_x32
             );
         }
@@ -653,7 +667,7 @@ mod sqrt_math {
             let amount_0 = get_amount_0_delta_unsigned(
                 encode_price_sqrt_x32(100, 100), // 2^32
                 encode_price_sqrt_x32(121, 100), // 1.1 * 2^32 = 4724464026
-                u32::pow(10, 8),
+                u64::pow(10, 8),
                 true,
             );
             // Δx = L * (1 / √P_lower - 1 / √P_upper)
@@ -663,7 +677,7 @@ mod sqrt_math {
             let amount_0_rounded_down = get_amount_0_delta_unsigned(
                 encode_price_sqrt_x32(1, 1),
                 encode_price_sqrt_x32(121, 100),
-                u32::pow(10, 8),
+                u64::pow(10, 8),
                 false,
             );
             assert_eq!(amount_0_rounded_down, amount_0 - 1); // floor(10^8 / 11)
@@ -682,7 +696,7 @@ mod sqrt_math {
             let amount_0_up = get_amount_0_delta_unsigned(
                 encode_price_sqrt_x32(u64::pow(2, 50), 1), // 2^55
                 encode_price_sqrt_x32(u64::pow(2, 48), 1), // 2^53
-                u32::pow(10, 8),
+                u64::pow(10, 8),
                 true,
             );
             // Δx = L * (1 / √P_lower - 1 / √P_upper) = 10^8 (1/2^24 - 1/2^25) = 2.98
@@ -691,7 +705,7 @@ mod sqrt_math {
             let amount_0_down = get_amount_0_delta_unsigned(
                 encode_price_sqrt_x32(u64::pow(2, 50), 1), //encodePriceSqrt(BigNumber.from(2).pow(90), 1)
                 encode_price_sqrt_x32(u64::pow(2, 48), 1), //encodePriceSqrt(BigNumber.from(2).pow(96), 1)
-                u32::pow(10, 8),
+                u64::pow(10, 8),
                 false,
             );
 
@@ -740,7 +754,7 @@ mod sqrt_math {
             let amount_1 = get_amount_1_delta_unsigned(
                 encode_price_sqrt_x32(100, 100), // 2^32
                 encode_price_sqrt_x32(121, 100), // 1.1 * 2^32 = 4724464026
-                u32::pow(10, 8),
+                u64::pow(10, 8),
                 true,
             );
             // Δy = L * (√P_upper - √P_lower)
@@ -750,7 +764,7 @@ mod sqrt_math {
             let amount_1_rounded_down = get_amount_1_delta_unsigned(
                 encode_price_sqrt_x32(1, 1),
                 encode_price_sqrt_x32(121, 100),
-                u32::pow(10, 8),
+                u64::pow(10, 8),
                 false,
             );
             assert_eq!(amount_1_rounded_down, u64::pow(10, 7)); // floor
@@ -766,21 +780,13 @@ mod sqrt_math {
         fn sqrt_p_by_sqrt_q_overflows() {
             // Δx = L * (1 / √P_lower - 1 / √P_upper) = L (√P_upper - √P_lower)/(√P_upper * √P_lower)
             // √P_upper * √P_lower should be handled without loss of precision
-            let amount_0_up = get_amount_0_delta_unsigned(
-                u64::MAX,
-                u64::MAX - 1,
-                u32::pow(10, 8),
-                true,
-            );
+            let amount_0_up =
+                get_amount_0_delta_unsigned(u64::MAX, u64::MAX - 1, u64::pow(10, 8), true);
             // Δx = L * (1 / √P_lower - 1 / √P_upper) = 10^8 (1/2^32 - 1/(2^32 - 1) = 0...
             assert_eq!(amount_0_up, 1); // ceil
 
-            let amount_0_down = get_amount_0_delta_unsigned(
-                u64::MAX,
-                u64::MAX - 1,
-                u32::pow(10, 8),
-                false,
-            );
+            let amount_0_down =
+                get_amount_0_delta_unsigned(u64::MAX, u64::MAX - 1, u64::pow(10, 8), false);
 
             assert_eq!(amount_0_down, 0); // floor
         }

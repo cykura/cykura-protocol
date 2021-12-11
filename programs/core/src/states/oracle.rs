@@ -13,12 +13,12 @@
 /// by passing 0 as the index seed.
 ///
 
+use anchor_lang::prelude::*;
+
 /// Returns data about a specific observation index
 ///
 /// PDA of `[OBSERVATION_SEED, token_0, token_1, fee, index]`
 ///
-use anchor_lang::prelude::*;
-
 #[account(zero_copy)]
 #[derive(Default)]
 pub struct ObservationState {
@@ -57,7 +57,7 @@ impl ObservationState {
         last: ObservationState,
         block_timestamp: u32,
         tick: i32,
-        liquidity: u32,
+        liquidity: u64,
     ) -> ObservationState {
         let delta = block_timestamp - last.block_timestamp;
         ObservationState {
@@ -67,7 +67,7 @@ impl ObservationState {
             tick_cumulative: last.tick_cumulative + tick as i64 * delta as i64,
             seconds_per_liquidity_cumulative_x32: last.seconds_per_liquidity_cumulative_x32 +
                 ((delta as u64) << 32) / if liquidity > 0 {
-                    liquidity as u64
+                    liquidity
                 } else {
                     1
                 },
@@ -87,7 +87,7 @@ impl ObservationState {
         mut last: ObservationState,
         time: u32,
         tick: i32,
-        liquidity: u32,
+        liquidity: u64,
     ) -> (i64, u64) {
         if last.block_timestamp != time {
             last = ObservationState::transform(last, time, tick, liquidity)

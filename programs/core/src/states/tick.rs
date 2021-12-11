@@ -18,10 +18,10 @@ pub struct TickState {
     pub tick: i32,
 
     /// The total position liquidity that references this tick
-    pub liquidity_net: i32,
+    pub liquidity_net: i64,
 
     /// Amount of net liquidity added (subtracted) when tick is crossed from left to right (right to left)
-    pub liquidity_gross: u32,
+    pub liquidity_gross: u64,
 
     /// Fee growth per unit of liquidity on the _other_ side of this tick (relative to the current tick)
     /// only has relative meaning, not absolute — the value depends on when the tick is initialized
@@ -113,14 +113,14 @@ impl TickState {
     pub fn update(
         &mut self,
         tick_current: i32,
-        liquidity_delta: i32,
+        liquidity_delta: i64,
         fee_growth_global_0_x32: u64,
         fee_growth_global_1_x32: u64,
         seconds_per_liquidity_cumulative_x32: u64,
         tick_cumulative: i64,
         time: u32,
         upper: bool,
-        max_liquidity: u32,
+        max_liquidity: u64,
     ) -> Result<bool, ProgramError> {
         let liquidity_gross_before = self.liquidity_gross;
         let liquidity_gross_after =
@@ -194,15 +194,14 @@ impl TickState {
 /// * `tick_spacing` - The amount of required tick separation, realized in multiples of `tick_sacing`
 /// e.g., a tickSpacing of 3 requires ticks to be initialized every 3rd tick i.e., ..., -6, -3, 0, 3, 6, ...
 ///
-pub fn tick_spacing_to_max_liquidity_per_tick(tick_spacing: i32) -> u32 {
+pub fn tick_spacing_to_max_liquidity_per_tick(tick_spacing: i32) -> u64 {
     // Find min and max values permitted by tick spacing
     let min_tick = (tick_math::MIN_TICK / tick_spacing) * tick_spacing;
     let max_tick = (tick_math::MAX_TICK / tick_spacing) * tick_spacing;
-    let num_ticks = ((max_tick - min_tick) / tick_spacing) as u32 + 1;
+    let num_ticks = ((max_tick - min_tick) / tick_spacing) as u64 + 1;
 
-    u32::MAX / num_ticks
+    u64::MAX / num_ticks
 }
-
 
 #[cfg(test)]
 mod test {

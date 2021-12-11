@@ -18,7 +18,7 @@ pub struct PositionState {
     pub bump: u8,
 
     /// The amount of liquidity owned by this position
-    pub liquidity: u32,
+    pub liquidity: u64,
 
     /// The token_0 fee growth per unit of liquidity as of the last update to liquidity or fees owed
     pub fee_growth_inside_0_last_x32: u64,
@@ -47,7 +47,7 @@ impl PositionState {
     ///
     pub fn update(
         &mut self,
-        liquidity_delta: i32,
+        liquidity_delta: i64,
         fee_growth_inside_0_x32: u64,
         fee_growth_inside_1_x32: u64,
     ) -> Result<(), ErrorCode> {

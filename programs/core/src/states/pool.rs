@@ -22,7 +22,7 @@ pub struct PoolState {
 
     /// The currently in range liquidity available to the pool.
     /// This value has no relationship to the total liquidity across all ticks.
-    pub liquidity: u32,
+    pub liquidity: u64,
 
     /// The current price of the pool as a sqrt(token_1/token_0) Q64.96 value
     pub sqrt_price_x32: u64,

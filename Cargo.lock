@@ -484,6 +484,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "ethnum"
+version = "1.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "887dc6b1e1f9ef25ac52649e19ce610a2520b4c55b48429030782b6c8a70e78a"
+
+[[package]]
 name = "feature-probe"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -718,8 +724,10 @@ dependencies = [
 [[package]]
 name = "muldiv"
 version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b5136edda114182728ccdedb9f5eda882781f35fa6e80cc360af12a8932507f3"
+source = "git+https://github.com/zkwarlock/rust-muldiv?branch=128-bit#c4dcccad085fdc8c071f6fd4972d9bc9e5fbb5fe"
+dependencies = [
+ "ethnum",
+]
 
 [[package]]
 name = "non-fungible-position-manager"

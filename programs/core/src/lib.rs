@@ -446,7 +446,7 @@ pub mod cyclos_core {
     ///
     pub fn mint(
         ctx: Context<MintContext>,
-        amount: u32
+        amount: u64
     ) -> ProgramResult {
         let mut pool_state = ctx.accounts.pool_state.load_mut()?;
         require!(pool_state.unlocked, ErrorCode::LOK);
@@ -483,7 +483,7 @@ pub mod cyclos_core {
             bitmap_upper,
             latest_observation_state,
             next_observation_state,
-            i32::try_from(amount).unwrap(),
+            i64::try_from(amount).unwrap(),
             // pool_state.tick,
             // pool_state.fee_growth_global_0_x32,
             // pool_state.fee_growth_global_1_x32
@@ -817,7 +817,6 @@ pub fn check_ticks(tick_lower: i32, tick_upper: i32) -> Result<(), ErrorCode> {
 /// for the entire life of the pool.
 ///
 pub fn _modify_position(
-    // pool_state: Ref<PoolState>,
     pool_state: &PoolState,
     mut position_state: RefMut<PositionState>,
     mut tick_lower_state: RefMut<TickState>,
@@ -826,7 +825,7 @@ pub fn _modify_position(
     mut bitmap_upper: Option<RefMut<TickBitmapState>>,
     mut latest_observation_state: RefMut<ObservationState>,
     mut next_observation_state: Option<RefMut<ObservationState>>,
-    liquidity_delta: i32,
+    liquidity_delta: i64,
 ) -> Result<(i64, i64), ProgramError> {
     position_state.bump = 45;
     check_ticks(tick_lower_state.tick, tick_upper_state.tick)?;
@@ -927,7 +926,7 @@ pub fn _update_position<'info>(
     mut bitmap_upper: Option<RefMut<TickBitmapState>>,
     mut latest_observation_state: RefMut<ObservationState>,
     mut next_observation_state: Option<RefMut<ObservationState>>,
-    liquidity_delta: i32,
+    liquidity_delta: i64,
 ) -> ProgramResult {
     let mut flipped_lower = false;
     let mut flipped_upper = false;

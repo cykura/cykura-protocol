@@ -1,4 +1,4 @@
-// Helper library to find result of a swap within a single tick range, i.e. a single tick
+// // Helper library to find result of a swap within a single tick range, i.e. a single tick
 
 use super::sqrt_price_math;
 use muldiv::MulDiv;
@@ -36,7 +36,7 @@ pub struct SwapStep {
 pub fn compute_swap_step(
     sqrt_ratio_current_x32: u64,
     sqrt_ratio_target_x32: u64,
-    liquidity: u32,
+    liquidity: u64,
     amount_remaining: i64,
     fee_pips: u32,
 ) -> SwapStep {
@@ -182,7 +182,7 @@ mod swap_math {
         let sqrt_p_x32 = encode_price_sqrt_x32(1, 1); // 4294967296
         let sqrt_p_x32_target = encode_price_sqrt_x32(101, 100); // 4316388712
 
-        let liquidity = 2 * u32::pow(10, 8);
+        let liquidity = 2 * u64::pow(10, 8);
         let amount = i64::pow(10, 8);
         let fee = 600;
         let zero_for_one = false;
@@ -229,7 +229,7 @@ mod swap_math {
         let sqrt_p_x32 = encode_price_sqrt_x32(1, 1); // 4294967296
         let sqrt_p_x32_target = encode_price_sqrt_x32(101, 100); // 4316388712
 
-        let liquidity = 2 * u32::pow(10, 8);
+        let liquidity = 2 * u32::pow(10, 8) as u64;
 
         // amount of token_0 that must come out
         let amount = -i64::pow(10, 8); // negative for exact output swap
@@ -280,7 +280,7 @@ mod swap_math {
     fn exact_amount_in_that_is_fully_spent_in_one_for_zero() {
         let sqrt_p_x32 = encode_price_sqrt_x32(1, 1); // 4294967296
         let sqrt_p_x32_target = encode_price_sqrt_x32(1000, 100); // 13581879131
-        let liquidity = 2 * u32::pow(10, 8);
+        let liquidity = 2 * u32::pow(10, 8) as u64;
         // amount of token_1 that must go in
         let amount = i64::pow(10, 8); // positive for exact input swap
         let fee = 600;
@@ -329,7 +329,7 @@ mod swap_math {
     fn exact_amount_out_that_is_fully_received_in_one_for_zero() {
         let sqrt_p_x32 = encode_price_sqrt_x32(1, 1); // 4294967296
         let sqrt_p_x32_target = encode_price_sqrt_x32(1000, 100); // 13581879131
-        let liquidity = 2 * u32::pow(10, 8);
+        let liquidity = 2 * u32::pow(10, 8) as u64;
         // amount of token_0 that must go out
         let amount = -i64::pow(10, 8);
         let fee = 600;
@@ -371,7 +371,7 @@ mod swap_math {
     fn amount_out_is_capped_at_the_desired_amount_out() {
         let sqrt_p_x32 = encode_price_sqrt_x32(1, 1); // 4294967296
         let sqrt_p_x32_target = encode_price_sqrt_x32(100, 110); // 4095090639
-        let liquidity = 2 * u32::pow(10, 8);
+        let liquidity = 2 * u32::pow(10, 8) as u64;
         let amount = -1; // token_1 out
         let fee = 1;
 
@@ -440,7 +440,7 @@ mod swap_math {
         } = compute_swap_step(
             100,
             100_000,
-            u32::MAX,
+            u32::MAX as u64,
             1, // Δy
             1,
         );
