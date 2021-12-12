@@ -386,7 +386,7 @@ pub struct MintContext<'info> {
             pool_state.load()?.token_0.key().as_ref(),
             pool_state.load()?.token_1.key().as_ref(),
             &pool_state.load()?.fee.to_be_bytes(),
-            &bitmap_lower.load()?.word_pos.to_be_bytes(),
+            &((tick_lower_state.load()?.tick >> 8) as i16).to_be_bytes()
         ],
         bump = bitmap_lower.load()?.bump,
     )]
@@ -400,7 +400,7 @@ pub struct MintContext<'info> {
             pool_state.load()?.token_0.key().as_ref(),
             pool_state.load()?.token_1.key().as_ref(),
             &pool_state.load()?.fee.to_be_bytes(),
-            &bitmap_upper.load()?.word_pos.to_be_bytes(),
+            &((tick_upper_state.load()?.tick >> 8) as i16).to_be_bytes()
         ],
         bump = bitmap_upper.load()?.bump,
     )]

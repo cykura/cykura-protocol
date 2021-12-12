@@ -126,39 +126,35 @@ impl TickState {
         let liquidity_gross_after =
             liquidity_math::add_delta(liquidity_gross_before, liquidity_delta)?;
 
-        msg!("liquidity gross after {}, max liquidity {}", liquidity_gross_after, max_liquidity);
-
         require!(liquidity_gross_after <= max_liquidity, ErrorCode::LO);
 
-        // // Either liquidity_gross_after becomes 0 (uninitialized) XOR liquidity_gross_before
-        // // was zero (initialized)
-        // let flipped = (liquidity_gross_after == 0) != (liquidity_gross_before == 0);
+        // Either liquidity_gross_after becomes 0 (uninitialized) XOR liquidity_gross_before
+        // was zero (initialized)
+        let flipped = (liquidity_gross_after == 0) != (liquidity_gross_before == 0);
 
-        // if liquidity_gross_before == 0 {
-        //     // by convention, we assume that all growth before a tick was initialized happened _below_ the tick
-        //     if self.tick < tick_current {
-        //         self.fee_growth_outside_0_x32 = fee_growth_global_0_x32;
-        //         self.fee_growth_outside_1_x32 = fee_growth_global_1_x32;
-        //         self.seconds_per_liquidity_outside_x32 = seconds_per_liquidity_cumulative_x32;
-        //         self.tick_cumulative_outside = tick_cumulative;
-        //         self.seconds_outside = time;
-        //     }
-        // }
+        if liquidity_gross_before == 0 {
+            // by convention, we assume that all growth before a tick was initialized happened _below_ the tick
+            if self.tick < tick_current {
+                self.fee_growth_outside_0_x32 = fee_growth_global_0_x32;
+                self.fee_growth_outside_1_x32 = fee_growth_global_1_x32;
+                self.seconds_per_liquidity_outside_x32 = seconds_per_liquidity_cumulative_x32;
+                self.tick_cumulative_outside = tick_cumulative;
+                self.seconds_outside = time;
+            }
+        }
 
-        // self.liquidity_gross = liquidity_gross_after;
+        self.liquidity_gross = liquidity_gross_after;
 
-        // // when the lower (upper) tick is crossed left to right (right to left),
-        // // liquidity must be added (removed)
-        // self.liquidity_net = if upper {
-        //     self.liquidity_net.checked_sub(liquidity_delta)
-        // } else {
-        //     self.liquidity_net.checked_add(liquidity_delta)
-        // }
-        // .unwrap();
+        // when the lower (upper) tick is crossed left to right (right to left),
+        // liquidity must be added (removed)
+        self.liquidity_net = if upper {
+            self.liquidity_net.checked_sub(liquidity_delta)
+        } else {
+            self.liquidity_net.checked_add(liquidity_delta)
+        }
+        .unwrap();
 
-        // Ok(flipped)
-
-        Ok(true)
+        Ok(flipped)
     }
 
     // Clear stored data

@@ -66,57 +66,62 @@ pub struct TickBitmapState {
 //     (word_pos, bit_pos)
 // }
 
-// impl BitmapState {
-//     pub fn decode_bitmap(&self) -> Bitmap<256> {
-//         Bitmap::<256>::from_value(self.bitmap)
-//     }
+impl TickBitmapState {
+    // pub fn decode_bitmap(&self) -> Bitmap<256> {
+    //     Bitmap::<256>::from_value(self.bitmap)
+    // }
 
-//     /// Flip tick at a given index in [0, 255]
-//     pub fn flip_tick(&mut self, bit_pos: u8) {
-//         let bitmap = self.decode_bitmap();
-//         let mask = Bitmap::<256>::from(if bit_pos < 128 {
-//             [1 << bit_pos, 0]
-//         } else {
-//             [0, 1 << (bit_pos - 128)]
-//         });
-//         self.bitmap = *bitmap.bitxor(mask).as_value();
-//     }
+    ///  Flips the initialized state for a given tick from false to true, or vice versa
+    ///
+    /// # Arguments
+    ///
+    /// * `self` - The bitmap state corresponding to the tick's word position
+    /// * `bit_pos` - The rightmost 8 bits of the tick
+    ///
+    pub fn flip_tick(&mut self, bit_pos: u8) {
+        if bit_pos < 128 {
+            self.word[0] ^= 1 << (bit_pos)
+        } else {
+            self.word[1] ^= 1 << (bit_pos - 127)
+        }
+        // self.word[(bit_pos > 127) as usize] ^= 1 << (bit_pos - 127 * ((bit_pos > 127) as u8));
+    }
 
-//     // Get next initialized tick in given word
-//     // Look to the left if less than or equal (lte) is true, else look at right
-//     // Modification: use right bits instead of entire tick. Left bits are used
-//     // to find PDA
-//     // Use simple looping for now
-//     // TODO explore mask to remove looping
-//     // TODO externally find bit_pos using tick: i32, and impose tick % tick_spacing condition
-//     // Returns bit position of next tick, and whether it is initialized
-//     pub fn next_initialized_tick_within_one_word(
-//         &self,
-//         current_bit_pos: u8,
-//         lte: bool,
-//     ) -> (u8, bool) {
-//         let bitmap = self.decode_bitmap();
+    // Get next initialized tick in given word
+    // Look to the left if less than or equal (lte) is true, else look at right
+    // Modification: use right bits instead of entire tick. Left bits are used
+    // to find PDA
+    // Use simple looping for now
+    // TODO explore mask to remove looping
+    // TODO externally find bit_pos using tick: i32, and impose tick % tick_spacing condition
+    // Returns bit position of next tick, and whether it is initialized
+    // pub fn next_initialized_tick_within_one_word(
+    //     &self,
+    //     current_bit_pos: u8,
+    //     lte: bool,
+    // ) -> (u8, bool) {
+    //     let bitmap = self.decode_bitmap();
 
-//         if lte {
-//             // check to the left
-//             for i in current_bit_pos..=0 {
-//                 let tick = bitmap.get(i as usize);
-//                 if tick == true {
-//                     return (i, true);
-//                 }
-//             }
-//             (0, false)
-//         } else {
-//             for i in (current_bit_pos + 1)..(bitmap.len() as u8) {
-//                 let tick = bitmap.get(i as usize);
-//                 if tick == true {
-//                     return (i, true);
-//                 }
-//             }
-//             (bitmap.len() as u8 - 1, false)
-//         }
-//     }
-// }
+    //     if lte {
+    //         // check to the left
+    //         for i in current_bit_pos..=0 {
+    //             let tick = bitmap.get(i as usize);
+    //             if tick == true {
+    //                 return (i, true);
+    //             }
+    //         }
+    //         (0, false)
+    //     } else {
+    //         for i in (current_bit_pos + 1)..(bitmap.len() as u8) {
+    //             let tick = bitmap.get(i as usize);
+    //             if tick == true {
+    //                 return (i, true);
+    //             }
+    //         }
+    //         (bitmap.len() as u8 - 1, false)
+    //     }
+    // }
+}
 
 // #[cfg(test)]
 // mod tests {
