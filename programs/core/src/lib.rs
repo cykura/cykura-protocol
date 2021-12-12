@@ -8,7 +8,8 @@ use anchor_lang::solana_program;
 use anchor_lang::AccountsClose;
 use anchor_spl::{associated_token, token};
 use context::*;
-use libraries::sqrt_price_math::{get_amount_0_delta_signed, get_amount_1_delta_signed};
+use libraries::liquidity_math;
+use libraries::sqrt_price_math;
 use crate::error::ErrorCode;
 use states::factory::*;
 use states::fee::*;
@@ -20,19 +21,17 @@ use states::tick_bitmap::*;
 use std::cell::Ref;
 use std::cell::RefMut;
 use std::convert::TryInto;
-use std::ops::Deref;
 use crate::states::oracle::ObservationState;
 use std::mem::size_of;
 use std::convert::TryFrom;
 use anchor_lang::solana_program::system_instruction::create_account;
 use crate::states::oracle;
+use std::ops::{Deref, DerefMut};
 
 declare_id!("37kn8WUzihQoAnhYxueA2BnqCA7VRnrVvYoHy1hQ6Veu");
 
 #[program]
 pub mod cyclos_core {
-    use std::ops::{Deref, DerefMut};
-
     use super::*;
 
     // ---------------------------------------------------------------------
@@ -455,34 +454,16 @@ pub mod cyclos_core {
         assert!(amount > 0);
 
         let mut position_state = ctx.accounts.position_state.load_mut()?;
-        // let mut tick_lower_state = ctx.accounts.tick_lower_state.load_mut()?;
-        // let mut tick_upper_state = ctx.accounts.tick_upper_state.load_mut()?;
-        let mut bitmap_lower = ctx.accounts.bitmap_lower.load_mut()?;
-        let mut bitmap_upper: Option<RefMut<TickBitmapState>> = if ctx.accounts.bitmap_upper.key() != ctx.accounts.bitmap_lower.key() {
-            Some(ctx.accounts.bitmap_upper.load_mut()?)
-        } else {
-            None
-        };
-        let mut latest_observation_state = ctx.accounts.latest_observation_state.load_mut()?;
-
-        let smallest_multiple = (latest_observation_state.block_timestamp / 14 + 1) * 14;
-        let mut next_observation_state = if oracle::_block_timestamp() >= smallest_multiple {
-            Some(ctx.accounts.next_observation_state.load_mut()?)
-        } else {
-            None
-        };
-
-        // ctx.accounts.tick_lower_state.close(ctx.accounts.minter.to_account_info())?;
 
         _modify_position(
-            pool_state.deref(),
+            pool_state.deref_mut(),
             position_state,
             &ctx.accounts.tick_lower_state,
             &ctx.accounts.tick_upper_state,
-            bitmap_lower,
-            bitmap_upper,
-            latest_observation_state,
-            next_observation_state,
+            &ctx.accounts.bitmap_lower,
+            &ctx.accounts.bitmap_upper,
+            &ctx.accounts.latest_observation_state,
+            &ctx.accounts.next_observation_state,
             ctx.accounts.minter.to_account_info(),
             i64::try_from(amount).unwrap(),
         )?;
@@ -797,6 +778,8 @@ pub fn check_ticks(tick_lower: i32, tick_upper: i32) -> Result<(), ErrorCode> {
 
 /// Credit or debit liquidity to a position, and find the amount of token_0 and token_1
 /// required to produce this change.
+/// Returns amount of token_0 and token_1 owed to the pool, negative if the pool should
+/// pay the recipient.
 ///
 /// # Arguments
 ///
@@ -812,88 +795,95 @@ pub fn check_ticks(tick_lower: i32, tick_upper: i32) -> Result<(), ErrorCode> {
 /// * `liquidity_delta` - The change in liquidity. Can be 0 to perform a poke.
 ///
 pub fn _modify_position<'info>(
-    pool_state: &PoolState,
+    pool_state: &mut PoolState,
     mut position_state: RefMut<PositionState>,
     tick_lower_state: &Loader<'info, TickState>,
     tick_upper_state: &Loader<'info, TickState>,
-    mut bitmap_lower: RefMut<TickBitmapState>,
-    mut bitmap_upper: Option<RefMut<TickBitmapState>>,
-    mut latest_observation_state: RefMut<ObservationState>,
-    mut next_observation_state: Option<RefMut<ObservationState>>,
+    bitmap_lower: &Loader<'info, TickBitmapState>,
+    bitmap_upper: &Loader<'info, TickBitmapState>,
+    latest_observation_state: &Loader<'info, ObservationState>,
+    next_observation_state: &Loader<'info, ObservationState>,
     lamport_destination: AccountInfo<'info>,
     liquidity_delta: i64,
 ) -> Result<(i64, i64), ProgramError> {
     position_state.bump = 45;
     check_ticks(tick_lower_state.load()?.tick, tick_upper_state.load()?.tick)?;
 
+    let latest_observation = latest_observation_state.load_mut()?;
+
     _update_position(
-        pool_state,
+        pool_state.deref(),
         position_state,
         tick_lower_state,
         tick_upper_state,
         bitmap_lower,
         bitmap_upper,
-        latest_observation_state,
+        latest_observation.deref(),
         lamport_destination,
         liquidity_delta,
     )?;
 
-    // let mut amount_0 = 0_i64;
-    // let mut amount_1 = 0_i64;
+    let mut amount_0 = 0;
+    let mut amount_1 = 0;
 
-    // if liquidity_delta != 0 {
-    //     // current tick is below the range
-    //     if pool_state.tick < tick_lower_state.tick {
-    //         amount_0 = get_amount_0_delta_signed(
-    //             get_sqrt_price_at_tick(tick_lower_state.tick),
-    //             get_sqrt_price_at_tick(tick_upper_state.tick),
-    //             liquidity_delta,
-    //         );
-    //         // Δtoken_1 will be 0 if current tick is below range
-    //     }
-    //     // current tick is within the range
-    //     else if pool_state.tick < tick_upper_state.tick {
-    //         // skipped oracle entry for now
+    let tick_lower = tick_lower_state.load()?.tick;
+    let tick_upper = tick_upper_state.load()?.tick;
 
-    //         // Both Δtoken_0 and Δtoken_1 will be needed in current price
-    //         amount_0 = get_amount_0_delta_signed(
-    //             pool_state.sqrt_price,
-    //             get_sqrt_price_at_tick(tick_upper_state.tick),
-    //             liquidity_delta,
-    //         );
-    //         amount_1 = get_amount_1_delta_signed(
-    //             get_sqrt_price_at_tick(tick_lower_state.tick),
-    //             pool_state.sqrt_price,
-    //             liquidity_delta,
-    //         );
+    if liquidity_delta != 0 {
+        if pool_state.tick < tick_lower {
+            // current tick is below the passed range; liquidity can only become in range by crossing from left to
+            // right, when we'll need _more_ token_0 (it's becoming more valuable) so user must provide it
+            amount_0 = sqrt_price_math::get_amount_0_delta_signed(
+                tick_math::get_sqrt_ratio_at_tick(tick_lower)?,
+                tick_math::get_sqrt_ratio_at_tick(tick_upper)?,
+                liquidity_delta,
+            );
+        }
+        else if pool_state.tick < tick_upper {
+            // current tick is inside the passed range
 
-    //         // Add or subtract Δliquidity to pool state
-    //         pool_state.liquidity = if liquidity_delta.is_positive() {
-    //             pool_state
-    //                 .liquidity
-    //                 .checked_add(liquidity_delta.abs() as u32)
-    //                 .unwrap()
-    //         } else {
-    //             pool_state
-    //                 .liquidity
-    //                 .checked_sub(liquidity_delta.abs() as u32)
-    //                 .unwrap()
-    //         };
-    //     }
-    //     // current tick is above the range
-    //     else {
-    //         amount_1 = get_amount_1_delta_signed(
-    //             get_sqrt_price_at_tick(tick_lower_state.tick),
-    //             get_sqrt_price_at_tick(tick_upper_state.tick),
-    //             liquidity_delta,
-    //         );
-    //         // Δtoken_0 will be 0 if current tick is below range
-    //     }
-    // }
+            // write oracle observation
+            let timestamp = oracle::_block_timestamp();
+            let next_observation_start = (latest_observation.block_timestamp / 14 + 1) * 14;
+            let mut next_observation = if timestamp >= next_observation_start {
+                next_observation_state.load_mut()?
+            } else {
+                latest_observation
+            };
+            pool_state.observation_cardinality_next = next_observation.update(
+                timestamp,
+                pool_state.tick,
+                pool_state.liquidity,
+                pool_state.observation_cardinality,
+                pool_state.observation_cardinality_next
+            );
+            pool_state.observation_index = next_observation.index;
 
-    // (amount_0, amount_1)
+            // Both Δtoken_0 and Δtoken_1 will be needed in current price
+            amount_0 = sqrt_price_math::get_amount_0_delta_signed(
+                pool_state.sqrt_price_x32,
+                tick_math::get_sqrt_ratio_at_tick(tick_upper)?,
+                liquidity_delta,
+            );
+            amount_1 = sqrt_price_math::get_amount_1_delta_signed(
+                tick_math::get_sqrt_ratio_at_tick(tick_lower)?,
+                pool_state.sqrt_price_x32,
+                liquidity_delta,
+            );
 
-    Ok((0, 0))
+            pool_state.liquidity = liquidity_math::add_delta(pool_state.liquidity, liquidity_delta)?;
+        }
+        // current tick is above the range
+        else {
+            amount_1 = sqrt_price_math::get_amount_1_delta_signed(
+                tick_math::get_sqrt_ratio_at_tick(tick_lower)?,
+                tick_math::get_sqrt_ratio_at_tick(tick_upper)?,
+                liquidity_delta,
+            );
+        }
+    }
+
+    Ok((amount_0, amount_1))
 }
 
 /// Updates a position with the given liquidity delta
@@ -916,9 +906,9 @@ pub fn _update_position<'info>(
     mut position_state: RefMut<PositionState>,
     tick_lower_state: &Loader<'info, TickState>,
     tick_upper_state: &Loader<'info, TickState>,
-    mut bitmap_lower: RefMut<TickBitmapState>,
-    bitmap_upper: Option<RefMut<TickBitmapState>>,
-    latest_observation_state: RefMut<ObservationState>,
+    bitmap_lower: &Loader<'info, TickBitmapState>,
+    bitmap_upper: &Loader<'info, TickBitmapState>,
+    latest_observation_state: &ObservationState,
     lamport_destination: AccountInfo<'info>,
     liquidity_delta: i64,
 ) -> ProgramResult {
@@ -931,8 +921,10 @@ pub fn _update_position<'info>(
     // update the ticks if liquidity delta is non-zero
     if liquidity_delta != 0 {
         let time = oracle::_block_timestamp();
-        let (tick_cumulative, seconds_per_liquidity_cumulative_x32) = ObservationState::observe_latest(
-            *latest_observation_state.deref(),
+        let (
+            tick_cumulative,
+            seconds_per_liquidity_cumulative_x32
+        ) = latest_observation_state.observe_latest(
             time,
             pool_state.tick,
             pool_state.liquidity
@@ -967,15 +959,15 @@ pub fn _update_position<'info>(
 
         if flipped_lower {
             let bit_pos = (tick_lower.tick % 256) as u8; // rightmost 8 bits
-            bitmap_lower.flip_tick(bit_pos);
+            bitmap_lower.load_mut()?.flip_tick(bit_pos);
         }
         if flipped_upper {
             let bit_pos = (tick_upper.tick % 256) as u8;
-            if let Some(mut bitmap_upper_state) = bitmap_upper {
-                bitmap_upper_state
+            if bitmap_lower.key() == bitmap_upper.key() {
+                bitmap_lower.load_mut()?.flip_tick(bit_pos);
             } else {
-                bitmap_lower
-            }.flip_tick(bit_pos);
+                bitmap_upper.load_mut()?.flip_tick(bit_pos);
+            }
         }
     }
     // Update fees accrued to the position

@@ -54,24 +54,61 @@ impl ObservationState {
     /// * `liquidity` - The total in-range liquidity at the time of the new observation
     ///
     pub fn transform(
-        last: ObservationState,
+        self,
         block_timestamp: u32,
         tick: i32,
         liquidity: u64,
     ) -> ObservationState {
-        let delta = block_timestamp - last.block_timestamp;
+        let delta = block_timestamp - self.block_timestamp;
         ObservationState {
-            bump: last.bump,
-            index: last.index,
+            bump: self.bump,
+            index: self.index,
             block_timestamp,
-            tick_cumulative: last.tick_cumulative + tick as i64 * delta as i64,
-            seconds_per_liquidity_cumulative_x32: last.seconds_per_liquidity_cumulative_x32 +
+            tick_cumulative: self.tick_cumulative + tick as i64 * delta as i64,
+            seconds_per_liquidity_cumulative_x32: self.seconds_per_liquidity_cumulative_x32 +
                 ((delta as u64) << 32) / if liquidity > 0 {
                     liquidity
                 } else {
                     1
                 },
             initialized: true,
+        }
+    }
+
+    /// Writes an oracle observation to the account, returning the updated cardinality.
+    /// Writable at most once per second. Index represents the most recently written element.
+    /// cardinality and index must be tracked externally.
+    /// If the index is at the end of the allowable array length (according to cardinality),
+    /// and the next cardinality is greater than the current one, cardinality may be increased.
+    /// This restriction is created to preserve ordering.
+    ///
+    /// # Arguments
+    ///
+    /// * `self` - The observation account to write in
+    /// * `block_timestamp` - The timestamp of the new observation
+    /// * `tick` - The active tick at the time of the new observation
+    /// * `liquidity` - The total in-range liquidity at the time of the new observation
+    /// * `cardinality` - The number of populated elements in the oracle array
+    /// * `cardinality_next` - The new length of the oracle array, independent of population
+    ///
+    pub fn update(
+        &mut self,
+        block_timestamp: u32,
+        tick: i32,
+        liquidity: u64,
+        cardinality: u16,
+        cardinality_next: u16
+    ) -> u16 {
+        if self.block_timestamp == block_timestamp {
+            return cardinality;
+        }
+
+        *self = self.transform(block_timestamp, tick, liquidity);
+
+        if cardinality_next > cardinality && self.index == (cardinality - 1) {
+            cardinality_next
+        } else {
+            cardinality
         }
     }
 
@@ -84,13 +121,14 @@ impl ObservationState {
     /// * `liquidity` - The current in-range pool liquidity
     ///
     pub fn observe_latest(
-        mut last: ObservationState,
+        self,
         time: u32,
         tick: i32,
         liquidity: u64,
     ) -> (i64, u64) {
-        if last.block_timestamp != time {
-            last = ObservationState::transform(last, time, tick, liquidity)
+        let mut last = self;
+        if self.block_timestamp != time {
+            last = self.transform(time, tick, liquidity)
         }
         (last.tick_cumulative, last.seconds_per_liquidity_cumulative_x32)
     }
