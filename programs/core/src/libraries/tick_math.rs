@@ -297,4 +297,17 @@ mod tests {
     fn greater_than_or_equal_to_max_sqrt_ratio() {
         get_tick_at_sqrt_ratio(MAX_SQRT_RATIO).unwrap();
     }
+
+    #[test]
+    fn ratio_of_min_tick() {
+        let tick = MIN_TICK - 1;
+        let obtained_ratio = get_tick_at_sqrt_ratio(MIN_SQRT_RATIO).unwrap();
+        assert_eq!(tick, obtained_ratio, "Tick {}, obtained ratio {}", tick, obtained_ratio);
+    }
+
+    #[test]
+    fn ratio_closest_to_max_tick() {
+        let obtained_ratio = get_tick_at_sqrt_ratio(MAX_SQRT_RATIO - 1).unwrap();
+        assert_eq!(MAX_TICK, obtained_ratio, "Tick {}, obtained ratio {}", MAX_TICK, obtained_ratio);
+    }
 }
