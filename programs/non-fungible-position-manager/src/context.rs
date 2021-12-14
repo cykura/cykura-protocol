@@ -1,7 +1,5 @@
 use crate::states::position_manager::PositionManagerState;
-use crate::{
-    non_fungible_position_manager, states::tokenized_position::TokenizedPositionState,
-};
+use crate::{non_fungible_position_manager, states::tokenized_position::TokenizedPositionState};
 use anchor_lang::prelude::*;
 use anchor_spl::{
     associated_token::AssociatedToken,
@@ -60,10 +58,6 @@ pub struct MintPosition<'info> {
         payer = minter
     )]
     pub nft_account: Box<Account<'info, TokenAccount>>,
-
-    /// Account to store metadata for NFT mint
-    #[account(mut)]
-    pub metadata_account: UncheckedAccount<'info>,
 
     /// Mint liquidity for this pool
     #[account(mut)]
@@ -128,10 +122,6 @@ pub struct MintPosition<'info> {
     /// The core program where liquidity is minted
     pub core_program: Program<'info, cyclos_core::program::CyclosCore>,
 
-    /// Program to create NFT metadata
-    #[account(address = metaplex_token_metadata::ID)]
-    pub metadata_program: UncheckedAccount<'info>,
-
     /// Program to create the position manager state account
     pub system_program: Program<'info, System>,
 
@@ -140,4 +130,42 @@ pub struct MintPosition<'info> {
 
     /// Program to create an ATA for receiving position NFT
     pub associated_token_program: Program<'info, AssociatedToken>,
+}
+
+#[derive(Accounts)]
+pub struct AddMetaplexMetadata<'info> {
+    /// Pays to generate the metadata
+    #[account(mut)]
+    pub payer: Signer<'info>,
+
+    /// Authority of the NFT mint
+    pub position_manager_state: Loader<'info, PositionManagerState>,
+
+    /// Mint address for the tokenized position
+    #[account(mut)]
+    pub nft_mint: Box<Account<'info, Mint>>,
+
+    /// Position state of the tokenized position
+    #[account(
+        seeds = [POSITION_SEED.as_bytes(), nft_mint.key().as_ref()],
+        bump = tokenized_position_state.load()?.bump
+    )]
+    pub tokenized_position_state: Loader<'info, TokenizedPositionState>,
+
+    /// To store metaplex metadata
+    #[account(mut)]
+    pub metadata_account: UncheckedAccount<'info>,
+
+    /// Sysvar for metadata account creation
+    pub rent: Sysvar<'info, Rent>,
+
+    /// Program to create NFT metadata
+    #[account(address = metaplex_token_metadata::ID)]
+    pub metadata_program: UncheckedAccount<'info>,
+
+    /// Program to update mint authority
+    pub token_program: Program<'info, Token>,
+
+    /// Program to allocate lamports to the metadata account
+    pub system_program: Program<'info, System>,
 }

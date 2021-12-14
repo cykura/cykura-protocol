@@ -24,10 +24,6 @@ use states::position_manager::{self, PositionManagerState};
 
 declare_id!("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS");
 
-pub const NFT_NAME: &str = "Uniswap Positions NFT-V1";
-pub const NFT_SYMBOL: &str = "CYS-POS";
-pub const BASE_URI: &str = "https://api.cyclos.io/mint=";
-
 #[program]
 pub mod non_fungible_position_manager {
 
@@ -158,50 +154,60 @@ pub mod non_fungible_position_manager {
             amount_0,
             amount_1
         });
-        msg!("emitted");
 
-        // Generate NFT metadata
-        // let create_metadata_ix = create_metadata_accounts(
-        //     ctx.accounts.metadata_program.key(),
-        //     ctx.accounts.metadata_account.key(),
-        //     ctx.accounts.nft_mint.key(),
-        //     ctx.accounts.position_manager_state.key(),
-        //     ctx.accounts.minter.key(),
-        //     ctx.accounts.position_manager_state.key(),
-        //     NFT_NAME.to_string(),
-        //     NFT_SYMBOL.to_string(),
-        //     format!("{}{}", BASE_URI, ctx.accounts.nft_mint.key()),
-        //     Some(vec![Creator {
-        //         address: ctx.accounts.position_manager_state.key(),
-        //         verified: true,
-        //         share: 100,
-        //     }]),
-        //     0,
-        //     true,
-        //     false
-        // );
-        // solana_program::program::invoke_signed(
-        //     &create_metadata_ix,
-        //     &[
-        //         ctx.accounts.metadata_account.to_account_info().clone(),
-        //         ctx.accounts.nft_mint.to_account_info().clone(),
-        //         ctx.accounts.minter.to_account_info().clone(), // payer
-        //         ctx.accounts.position_manager_state.to_account_info().clone(), // mint and update authority
-        //         ctx.accounts.system_program.to_account_info().clone(),
-        //         ctx.accounts.rent.to_account_info().clone(),
-        //     ],
-        //     &[&seeds[..]]
-        // )?;
+        Ok(())
+    }
 
-        // // Disable minting
-        // token::set_authority(CpiContext::new_with_signer(
-        //     ctx.accounts.token_program.to_account_info().clone(),
-        //     token::SetAuthority {
-        //         current_authority: ctx.accounts.position_manager_state.to_account_info().clone(),
-        //         account_or_mint: ctx.accounts.nft_mint.to_account_info().clone(),
-        //     },
-        //     &[&seeds[..]]
-        // ), AuthorityType::MintTokens, None)?;
+    /// Attach metaplex metadata to a tokenized position. Permissionless to call.
+    /// Optional and cosmetic in nature.
+    ///
+    /// # Arguments
+    ///
+    /// * `ctx` - Holds validated metadata account and tokenized position addresses
+    ///
+    pub fn add_metaplex_metadata(ctx: Context<AddMetaplexMetadata>) -> ProgramResult {
+        let seeds = [&[ctx.accounts.position_manager_state.load()?.bump] as &[u8]];
+        let create_metadata_ix = create_metadata_accounts(
+            ctx.accounts.metadata_program.key(),
+            ctx.accounts.metadata_account.key(),
+            ctx.accounts.nft_mint.key(),
+            ctx.accounts.position_manager_state.key(),
+            ctx.accounts.payer.key(),
+            ctx.accounts.position_manager_state.key(),
+            String::from("Cyclos Positions NFT-V1"),
+            String::from("CYS-POS"),
+            format!("https://api.cyclos.io/mint={}", ctx.accounts.nft_mint.key()),
+            Some(vec![Creator {
+                address: ctx.accounts.position_manager_state.key(),
+                verified: true,
+                share: 100,
+            }]),
+            0,
+            true,
+            false
+        );
+        solana_program::program::invoke_signed(
+            &create_metadata_ix,
+            &[
+                ctx.accounts.metadata_account.to_account_info().clone(),
+                ctx.accounts.nft_mint.to_account_info().clone(),
+                ctx.accounts.payer.to_account_info().clone(),
+                ctx.accounts.position_manager_state.to_account_info().clone(), // mint and update authority
+                ctx.accounts.system_program.to_account_info().clone(),
+                ctx.accounts.rent.to_account_info().clone(),
+            ],
+            &[&seeds[..]]
+        )?;
+
+        // Disable minting
+        token::set_authority(CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info().clone(),
+            token::SetAuthority {
+                current_authority: ctx.accounts.position_manager_state.to_account_info().clone(),
+                account_or_mint: ctx.accounts.nft_mint.to_account_info().clone(),
+            },
+            &[&seeds[..]]
+        ), AuthorityType::MintTokens, None)?;
 
         Ok(())
     }

@@ -1505,13 +1505,11 @@ describe('cyclos-core', async () => {
               vault1,
               latestObservationState,
               nextObservationState,
-              metadataAccount,
               tokenizedPositionState,
               coreProgram: coreProgram.programId,
               systemProgram: SystemProgram.programId,
               rent: web3.SYSVAR_RENT_PUBKEY,
               tokenProgram: TOKEN_PROGRAM_ID,
-              metadataProgram: metaplex.programs.metadata.MetadataProgram.PUBKEY,
               associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID
             },
           signers: [nftMintKeypair],
@@ -1559,12 +1557,10 @@ describe('cyclos-core', async () => {
                 latestObservationState,
                 nextObservationState,
                 tokenizedPositionState,
-                metadataAccount,
                 coreProgram: coreProgram.programId,
                 systemProgram: SystemProgram.programId,
                 rent: web3.SYSVAR_RENT_PUBKEY,
                 tokenProgram: TOKEN_PROGRAM_ID,
-                metadataProgram: metaplex.programs.metadata.MetadataProgram.PUBKEY,
                 associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID
               },
             signers: [nftMintKeypair],
@@ -1579,7 +1575,6 @@ describe('cyclos-core', async () => {
           new Keypair()
         )
         const nftMintInfo = await nftMint.getMintInfo()
-        // assert.isNull(nftMintInfo.mintAuthority)
         assert.equal(nftMintInfo.decimals, 0)
         const nftAccountInfo = await nftMint.getAccountInfo(positionNftAccount)
         assert(nftAccountInfo.amount.eqn(1))
@@ -1605,22 +1600,64 @@ describe('cyclos-core', async () => {
 
         const corePositionData = await coreProgram.account.positionState.fetch(corePositionState)
         console.log('Core position data', corePositionData)
+      })
+    })
 
-        // const metadata = await Metadata.load(connection, metadataAccount)
-        // assert.equal(metadata.data.mint, nftMint.publicKey.toString())
-        // assert.equal(metadata.data.updateAuthority, posMgrState.toString())
-        // assert.equal(metadata.data.data.name, 'Uniswap Positions NFT-V1')
-        // assert.equal(metadata.data.data.symbol, 'CYS-POS')
-        // assert.equal(metadata.data.data.uri, 'https://api.cyclos.io/mint=' + nftMint.publicKey.toString())
-        // assert.deepEqual(metadata.data.data.creators, [{
-        //   address: posMgrState.toString(),
-        //   // @ts-ignore
-        //   verified: 1,
-        //   share: 100,
-        // }])
-        // assert.equal(metadata.data.data.sellerFeeBasisPoints, 0)
-        // // @ts-ignore
-        // assert.equal(metadata.data.isMutable, 0)
+    describe('#add_metaplex_metadata', () => {
+      it('Add metadata to a generated position', async () => {
+        await mgrProgram.rpc.addMetaplexMetadata({
+          accounts: {
+            payer: owner,
+            positionManagerState: posMgrState,
+            nftMint: nftMintKeypair.publicKey,
+            tokenizedPositionState,
+            metadataAccount,
+            systemProgram: SystemProgram.programId,
+            rent: web3.SYSVAR_RENT_PUBKEY,
+            tokenProgram: TOKEN_PROGRAM_ID,
+            metadataProgram: metaplex.programs.metadata.MetadataProgram.PUBKEY,
+          }
+        })
+
+        const nftMint = new Token(
+          connection,
+          nftMintKeypair.publicKey,
+          TOKEN_PROGRAM_ID,
+          new Keypair()
+        )
+        const nftMintInfo = await nftMint.getMintInfo()
+        assert.isNull(nftMintInfo.mintAuthority)
+        const metadata = await Metadata.load(connection, metadataAccount)
+        assert.equal(metadata.data.mint, nftMint.publicKey.toString())
+        assert.equal(metadata.data.updateAuthority, posMgrState.toString())
+        assert.equal(metadata.data.data.name, 'Cyclos Positions NFT-V1')
+        assert.equal(metadata.data.data.symbol, 'CYS-POS')
+        assert.equal(metadata.data.data.uri, 'https://api.cyclos.io/mint=' + nftMint.publicKey.toString())
+        assert.deepEqual(metadata.data.data.creators, [{
+          address: posMgrState.toString(),
+          // @ts-ignore
+          verified: 1,
+          share: 100,
+        }])
+        assert.equal(metadata.data.data.sellerFeeBasisPoints, 0)
+        // @ts-ignore
+        assert.equal(metadata.data.isMutable, 0)
+      })
+
+      it('fails if metadata is already set', async () => {
+        await expect(mgrProgram.rpc.addMetaplexMetadata({
+          accounts: {
+            payer: owner,
+            positionManagerState: posMgrState,
+            nftMint: nftMintKeypair.publicKey,
+            tokenizedPositionState,
+            metadataAccount,
+            systemProgram: SystemProgram.programId,
+            rent: web3.SYSVAR_RENT_PUBKEY,
+            tokenProgram: TOKEN_PROGRAM_ID,
+            metadataProgram: metaplex.programs.metadata.MetadataProgram.PUBKEY,
+          }
+        })).to.be.rejectedWith(Error)
       })
     })
   })
