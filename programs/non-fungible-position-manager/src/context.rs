@@ -1,8 +1,15 @@
-use anchor_lang::prelude::*;
-use anchor_spl::{associated_token::AssociatedToken, token::{self, Mint, Token, TokenAccount}};
-use cyclos_core::states::{pool::PoolState};
-use crate::states::non_fungible_position::NonFungiblePositionState;
 use crate::states::position_manager::PositionManagerState;
+use crate::{
+    non_fungible_position_manager, states::tokenized_position::TokenizedPositionState,
+};
+use anchor_lang::prelude::*;
+use anchor_spl::{
+    associated_token::AssociatedToken,
+    token::{self, Mint, Token, TokenAccount},
+};
+use cyclos_core::states::pool::PoolState;
+
+pub const POSITION_SEED: &str = "p";
 
 #[derive(Accounts)]
 #[instruction(position_manager_state_bump: u8)]
@@ -23,11 +30,8 @@ pub struct Initialize<'info> {
     pub system_program: Program<'info, System>,
 }
 
-
 #[derive(Accounts)]
-// #[instruction(
-//     non_fungible_position_bump: u8
-// )]
+#[instruction(bump: u8)]
 pub struct MintPosition<'info> {
     /// Pays to mint the position
     #[account(mut)]
@@ -85,13 +89,14 @@ pub struct MintPosition<'info> {
     #[account(mut)]
     pub bitmap_upper: UncheckedAccount<'info>,
 
-    // #[account(
-    //     init,
-    //     seeds = [nft_mint.key().as_ref()],
-    //     bump = non_fungible_position_bump,
-    //     payer = payer
-    // )]
-    // pub non_fungible_position_state: Box<Account<'info, NonFungiblePositionState>>,
+    /// Metadata for the tokenized position
+    #[account(
+        init,
+        seeds = [POSITION_SEED.as_bytes(), nft_mint.key().as_ref()],
+        bump = bump,
+        payer = minter
+    )]
+    pub tokenized_position_state: Loader<'info, TokenizedPositionState>,
 
     /// The token account spending token_0 to mint the position
     #[account(mut)]
@@ -120,7 +125,7 @@ pub struct MintPosition<'info> {
     /// Sysvar for token mint and ATA creation
     pub rent: Sysvar<'info, Rent>,
 
-    /// Liquidity is minted on the core program
+    /// The core program where liquidity is minted
     pub core_program: Program<'info, cyclos_core::program::CyclosCore>,
 
     /// Program to create NFT metadata
@@ -136,31 +141,3 @@ pub struct MintPosition<'info> {
     /// Program to create an ATA for receiving position NFT
     pub associated_token_program: Program<'info, AssociatedToken>,
 }
-
-// #[derive(Accounts)]
-// pub struct MintCallback<'info> {
-//     pub minter: Signer<'info>,
-
-//     // Should be a PDA of core contract
-//     // Core contract (factory in v3) must be passed via a constructor
-//     #[account(signer, owner = position_manager_state.core)]
-//     pub pool_state: AccountInfo<'info>,
-
-//     #[account(
-//         seeds = [],
-//         bump = position_manager_state.bump
-//     )]
-//     pub position_manager_state: Box<Account<'info, PositionManagerState>>,
-
-//     #[account(mut)]
-//     pub token_account_0: Box<Account<'info, TokenAccount>>,
-//     #[account(mut)]
-//     pub token_account_1: Box<Account<'info, TokenAccount>>,
-//     #[account(mut)]
-//     pub vault_0: Box<Account<'info, TokenAccount>>,
-//     #[account(mut)]
-//     pub vault_1: Box<Account<'info, TokenAccount>>,
-
-//     pub token_program: Program<'info, Token>,
-// }
-

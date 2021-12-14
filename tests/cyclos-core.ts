@@ -1150,8 +1150,8 @@ describe('cyclos-core', async () => {
 
     const amount0Desired = new BN(1_000_000)
     const amount1Desired = new BN(1_000_000)
-    const amount0Minimum = amount0Desired.subn(100_000)
-    const amount1Minimum = amount1Desired.subn(100_000)
+    const amount0Minimum = new BN(0)
+    const amount1Minimum = new BN(1_000_000)
 
     let tickLowerState: web3.PublicKey
     let tickLowerStateBump: number
@@ -1163,6 +1163,8 @@ describe('cyclos-core', async () => {
     let bitmapLowerBump: number
     let bitmapUpper: web3.PublicKey
     let bitmapUpperBump: number
+    let tokenizedPositionState: web3.PublicKey
+    let tokenizedPositionBump: number
 
     it('setup position manager accounts', async () => {
       [tickLowerState, tickLowerStateBump] = await PublicKey.findProgramAddress([
@@ -1213,6 +1215,13 @@ describe('cyclos-core', async () => {
         ],
         coreProgram.programId
       );
+
+      [tokenizedPositionState, tokenizedPositionBump] = await PublicKey.findProgramAddress([
+        POSITION_SEED,
+        nftMintKeypair.publicKey.toBuffer()
+      ],
+      mgrProgram.programId
+    );
     })
 
     describe('#init_tick_account', () => {
@@ -1472,6 +1481,7 @@ describe('cyclos-core', async () => {
         const deadline = new BN(Date.now() / 1000 - 10_000)
 
         await expect(mgrProgram.rpc.mint(
+          tokenizedPositionBump,
           amount0Desired,
           amount1Desired,
           amount0Minimum,
@@ -1496,6 +1506,7 @@ describe('cyclos-core', async () => {
               latestObservationState,
               nextObservationState,
               metadataAccount,
+              tokenizedPositionState,
               coreProgram: coreProgram.programId,
               systemProgram: SystemProgram.programId,
               rent: web3.SYSVAR_RENT_PUBKEY,
@@ -1508,42 +1519,58 @@ describe('cyclos-core', async () => {
       })
 
       it('creates a new position wrapped in an NFT', async () => {
-        const deadline = new BN(Date.now() / 1000 + 5_000)
+        console.log('wallet 1', minterWallet1.toString())
+        console.log('vault 1', vault1.toString())
+        const deadline = new BN(Date.now() / 1000 + 10_000)
 
-        await mgrProgram.rpc.mint(
-          amount0Desired,
-          amount1Desired,
-          amount0Minimum,
-          amount1Minimum,
-          deadline, {
-            accounts: {
-              minter: owner,
-              recipient: owner,
-              positionManagerState: posMgrState,
-              nftMint: nftMintKeypair.publicKey,
-              nftAccount: positionNftAccount,
-              poolState,
-              corePositionState,
-              tickLowerState,
-              tickUpperState,
-              bitmapLower,
-              bitmapUpper,
-              tokenAccount0: minterWallet0,
-              tokenAccount1: minterWallet1,
-              vault0,
-              vault1,
-              latestObservationState,
-              nextObservationState,
-              metadataAccount,
-              coreProgram: coreProgram.programId,
-              systemProgram: SystemProgram.programId,
-              rent: web3.SYSVAR_RENT_PUBKEY,
-              tokenProgram: TOKEN_PROGRAM_ID,
-              metadataProgram: metaplex.programs.metadata.MetadataProgram.PUBKEY,
-              associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID
-            },
-          signers: [nftMintKeypair],
+        let listener: number
+        let [_event, _slot] = await new Promise((resolve, _reject) => {
+          listener = mgrProgram.addEventListener("IncreaseLiquidityEvent", (event, slot) => {
+            assert((event.tokenId as web3.PublicKey).equals(nftMintKeypair.publicKey))
+            assert((event.amount0 as BN).eqn(0))
+            assert((event.amount1 as BN).eq(amount1Desired))
+
+            resolve([event, slot]);
+          });
+
+          mgrProgram.rpc.mint(
+            tokenizedPositionBump,
+            amount0Desired,
+            amount1Desired,
+            amount0Minimum,
+            amount1Minimum,
+            deadline, {
+              accounts: {
+                minter: owner,
+                recipient: owner,
+                positionManagerState: posMgrState,
+                nftMint: nftMintKeypair.publicKey,
+                nftAccount: positionNftAccount,
+                poolState,
+                corePositionState,
+                tickLowerState,
+                tickUpperState,
+                bitmapLower,
+                bitmapUpper,
+                tokenAccount0: minterWallet0,
+                tokenAccount1: minterWallet1,
+                vault0,
+                vault1,
+                latestObservationState,
+                nextObservationState,
+                tokenizedPositionState,
+                metadataAccount,
+                coreProgram: coreProgram.programId,
+                systemProgram: SystemProgram.programId,
+                rent: web3.SYSVAR_RENT_PUBKEY,
+                tokenProgram: TOKEN_PROGRAM_ID,
+                metadataProgram: metaplex.programs.metadata.MetadataProgram.PUBKEY,
+                associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID
+              },
+            signers: [nftMintKeypair],
+          })
         })
+        await mgrProgram.removeEventListener(listener)
 
         const nftMint = new Token(
           connection,
@@ -1552,26 +1579,48 @@ describe('cyclos-core', async () => {
           new Keypair()
         )
         const nftMintInfo = await nftMint.getMintInfo()
-        assert.isNull(nftMintInfo.mintAuthority)
+        // assert.isNull(nftMintInfo.mintAuthority)
         assert.equal(nftMintInfo.decimals, 0)
         const nftAccountInfo = await nftMint.getAccountInfo(positionNftAccount)
         assert(nftAccountInfo.amount.eqn(1))
 
-        const metadata = await Metadata.load(connection, metadataAccount)
-        assert.equal(metadata.data.mint, nftMint.publicKey.toString())
-        assert.equal(metadata.data.updateAuthority, posMgrState.toString())
-        assert.equal(metadata.data.data.name, 'Uniswap Positions NFT-V1')
-        assert.equal(metadata.data.data.symbol, 'CYS-POS')
-        assert.equal(metadata.data.data.uri, 'https://api.cyclos.io/mint=' + nftMint.publicKey.toString())
-        assert.deepEqual(metadata.data.data.creators, [{
-          address: posMgrState.toString(),
-          // @ts-ignore
-          verified: 1,
-          share: 100,
-        }])
-        assert.equal(metadata.data.data.sellerFeeBasisPoints, 0)
-        // @ts-ignore
-        assert.equal(metadata.data.isMutable, 0)
+        const tokenizedPositionData = await mgrProgram.account.tokenizedPositionState.fetch(tokenizedPositionState)
+        console.log('Tokenized position', tokenizedPositionData)
+        assert.equal(tokenizedPositionData.bump, tokenizedPositionBump)
+        assert(tokenizedPositionData.poolId.equals(poolState))
+        assert.equal(tokenizedPositionData.tickLower, tickLower)
+        assert.equal(tokenizedPositionData.tickUpper, tickUpper)
+        assert(tokenizedPositionData.feeGrowthInside0LastX32.eqn(0))
+        assert(tokenizedPositionData.feeGrowthInside1LastX32.eqn(0))
+        assert(tokenizedPositionData.tokensOwed0.eqn(0))
+        assert(tokenizedPositionData.tokensOwed1.eqn(0))
+
+        const tickLowerData = await coreProgram.account.tickState.fetch(tickLowerState)
+        console.log('Tick lower', tickLowerData)
+        const tickUpperData = await coreProgram.account.tickState.fetch(tickUpperState)
+        console.log('Tick upper', tickUpperData)
+
+        const tickLowerBitmapData = await coreProgram.account.tickBitmapState.fetch(bitmapLower)
+        console.log('Bitmap lower', tickLowerBitmapData)
+
+        const corePositionData = await coreProgram.account.positionState.fetch(corePositionState)
+        console.log('Core position data', corePositionData)
+
+        // const metadata = await Metadata.load(connection, metadataAccount)
+        // assert.equal(metadata.data.mint, nftMint.publicKey.toString())
+        // assert.equal(metadata.data.updateAuthority, posMgrState.toString())
+        // assert.equal(metadata.data.data.name, 'Uniswap Positions NFT-V1')
+        // assert.equal(metadata.data.data.symbol, 'CYS-POS')
+        // assert.equal(metadata.data.data.uri, 'https://api.cyclos.io/mint=' + nftMint.publicKey.toString())
+        // assert.deepEqual(metadata.data.data.creators, [{
+        //   address: posMgrState.toString(),
+        //   // @ts-ignore
+        //   verified: 1,
+        //   share: 100,
+        // }])
+        // assert.equal(metadata.data.data.sellerFeeBasisPoints, 0)
+        // // @ts-ignore
+        // assert.equal(metadata.data.isMutable, 0)
       })
     })
   })

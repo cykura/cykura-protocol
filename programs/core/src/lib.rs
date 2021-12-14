@@ -27,11 +27,13 @@ use std::convert::TryFrom;
 use anchor_lang::solana_program::system_instruction::create_account;
 use crate::states::oracle;
 use std::ops::{Deref, DerefMut};
+use anchor_lang::{solana_program::instruction::Instruction, InstructionData};
 
 declare_id!("37kn8WUzihQoAnhYxueA2BnqCA7VRnrVvYoHy1hQ6Veu");
 
 #[program]
 pub mod cyclos_core {
+
     use super::*;
 
     // ---------------------------------------------------------------------
@@ -435,6 +437,48 @@ pub mod cyclos_core {
     // ---------------------------------------------------------------------
     // Position instructions
 
+    /// Callback to pay tokens for creating or adding liquidity to a position
+    ///
+    /// Callback function lies in core program instead of non_fungible_position_manager since
+    /// reentrancy is disallowed in Solana. Integrators can use a second program to handle callbacks.
+    ///
+    /// # Arguments
+    ///
+    /// * `amount_0_owed` - The amount of token_0 due to the pool for the minted liquidity
+    /// * `amount_1_owed` - The amount of token_1 due to the pool for the minted liquidity
+    ///
+    pub fn mint_callback(
+        ctx: Context<MintCallback>,
+        amount_0_owed: u64,
+        amount_1_owed: u64,
+    ) -> ProgramResult {
+        if amount_0_owed > 0 {
+            token::transfer(CpiContext::new(
+                    ctx.accounts.token_program.to_account_info(),
+                    token::Transfer {
+                        from: ctx.accounts.token_account_0.to_account_info(),
+                        to: ctx.accounts.vault_0.to_account_info(),
+                        authority: ctx.accounts.minter.to_account_info(),
+                    }
+                ),
+                amount_0_owed,
+            )?;
+        }
+        if amount_1_owed > 0 {
+            token::transfer(CpiContext::new(
+                    ctx.accounts.token_program.to_account_info(),
+                    token::Transfer {
+                        from: ctx.accounts.token_account_1.to_account_info(),
+                        to: ctx.accounts.vault_1.to_account_info(),
+                        authority: ctx.accounts.minter.to_account_info(),
+                    }
+                ),
+                amount_1_owed,
+            )?;
+        }
+        Ok(())
+    }
+
     /// Adds liquidity for the given pool/recipient/tickLower/tickUpper position
     ///
     /// # Arguments
@@ -453,11 +497,9 @@ pub mod cyclos_core {
 
         assert!(amount > 0);
 
-        let mut position_state = ctx.accounts.position_state.load_mut()?;
-
-        _modify_position(
+        let (amount_0_int, amount_1_int) = _modify_position(
             pool_state.deref_mut(),
-            position_state,
+            &ctx.accounts.position_state,
             &ctx.accounts.tick_lower_state,
             &ctx.accounts.tick_upper_state,
             &ctx.accounts.bitmap_lower,
@@ -468,7 +510,54 @@ pub mod cyclos_core {
             i64::try_from(amount).unwrap(),
         )?;
 
-        pool_state.unlocked = true;
+        let amount_0 = amount_0_int as u64;
+        let amount_1 = amount_1_int as u64;
+
+        let balance_0_before = if amount_0 > 0 {
+            ctx.accounts.token_account_0.amount
+        } else {
+            0
+        };
+        let balance_1_before = if amount_0 > 0 {
+            ctx.accounts.token_account_1.amount
+        } else {
+            0
+        };
+
+        drop(pool_state);
+
+        let mint_callback_ix = cyclos_core::instruction::MintCallback {
+            amount_0_owed: amount_0,
+            amount_1_owed: amount_1
+        };
+        let ix = Instruction::new_with_bytes(
+            ctx.accounts.callback_handler.key(),
+            &mint_callback_ix.data(),
+            ctx.accounts.to_account_metas(None),
+        );
+        solana_program::program::invoke(&ix, &ctx.accounts.to_account_infos())?;
+
+        ctx.accounts.token_account_0.reload()?;
+
+        if amount_0 > 0 {
+            require!(balance_0_before + amount_0 <= ctx.accounts.token_account_0.amount, ErrorCode::M0);
+        }
+        if amount_1 > 0 {
+            require!(balance_1_before + amount_1 <= ctx.accounts.token_account_1.amount, ErrorCode::M1);
+        }
+
+        emit!(MintEvent {
+            pool_state: ctx.accounts.pool_state.key(),
+            sender: ctx.accounts.minter.key(),
+            owner: ctx.accounts.recipient.key(),
+            tick_lower: ctx.accounts.tick_lower_state.load()?.tick,
+            tick_upper: ctx.accounts.tick_upper_state.load()?.tick,
+            amount,
+            amount_0,
+            amount_1
+        });
+
+        ctx.accounts.pool_state.load_mut()?.unlocked = true;
         Ok(())
     }
 
@@ -796,7 +885,7 @@ pub fn check_ticks(tick_lower: i32, tick_upper: i32) -> Result<(), ErrorCode> {
 ///
 pub fn _modify_position<'info>(
     pool_state: &mut PoolState,
-    mut position_state: RefMut<PositionState>,
+    position_state: &Loader<'info, PositionState>,
     tick_lower_state: &Loader<'info, TickState>,
     tick_upper_state: &Loader<'info, TickState>,
     bitmap_lower: &Loader<'info, TickBitmapState>,
@@ -806,7 +895,6 @@ pub fn _modify_position<'info>(
     lamport_destination: AccountInfo<'info>,
     liquidity_delta: i64,
 ) -> Result<(i64, i64), ProgramError> {
-    position_state.bump = 45;
     check_ticks(tick_lower_state.load()?.tick, tick_upper_state.load()?.tick)?;
 
     let latest_observation = latest_observation_state.load_mut()?;
@@ -903,7 +991,7 @@ pub fn _modify_position<'info>(
 ///
 pub fn _update_position<'info>(
     pool_state: &PoolState,
-    mut position_state: RefMut<PositionState>,
+    position_state: &Loader<'info, PositionState>,
     tick_lower_state: &Loader<'info, TickState>,
     tick_upper_state: &Loader<'info, TickState>,
     bitmap_lower: &Loader<'info, TickBitmapState>,
@@ -978,7 +1066,7 @@ pub fn _update_position<'info>(
         pool_state.fee_growth_global_0_x32,
         pool_state.fee_growth_global_1_x32,
     );
-    position_state.update(liquidity_delta, fee_growth_inside_0_x32, fee_growth_inside_1_x32)?;
+    position_state.load_mut()?.update(liquidity_delta, fee_growth_inside_0_x32, fee_growth_inside_1_x32)?;
 
     // Deallocate the tick accounts if they get un-initialized
     // A tick is un-initialized on flip if liquidity_delta is negative

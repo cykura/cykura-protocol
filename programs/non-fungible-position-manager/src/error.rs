@@ -4,4 +4,7 @@ use anchor_lang::prelude::*;
 pub enum ErrorCode {
     #[msg("Transaction too old")]
     TransactionTooOld,
+
+    #[msg("Price slippage check")]
+    PriceSlippageCheck,
 }

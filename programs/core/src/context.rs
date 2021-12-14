@@ -8,9 +8,9 @@ use std::thread::AccessError;
 use crate::error::ErrorCode;
 use crate::states::factory::FactoryState;
 use crate::states::fee::FeeState;
+use crate::states::oracle::ObservationState;
 use crate::states::pool::PoolState;
 use crate::states::position::PositionState;
-use crate::states::oracle::ObservationState;
 use crate::states::tick::TickState;
 use crate::states::tick_bitmap::TickBitmapState;
 
@@ -337,13 +337,35 @@ pub struct InitPositionAccount<'info> {
 }
 
 #[derive(Accounts)]
-#[instruction(
-    amount: u32
-)]
+#[instruction(amount: u32)]
 pub struct MintContext<'info> {
     /// Pays to mint liquidity
     #[account(mut)]
     pub minter: Signer<'info>,
+
+    /// The token account spending token_0 to mint the position
+    #[account(mut)]
+    pub token_account_0: Box<Account<'info, TokenAccount>>,
+
+    /// The token account spending token_1 to mint the position
+    #[account(mut)]
+    pub token_account_1: Box<Account<'info, TokenAccount>>,
+
+    /// The address that holds pool tokens for token_0
+    #[account(
+        mut,
+        associated_token::mint = pool_state.load()?.token_0.key(),
+        associated_token::authority = pool_state,
+    )]
+    pub vault_0: Box<Account<'info, TokenAccount>>,
+
+    /// The address that holds pool tokens for token_1
+    #[account(
+        mut,
+        associated_token::mint = pool_state.load()?.token_1.key(),
+        associated_token::authority = pool_state,
+    )]
+    pub vault_1: Box<Account<'info, TokenAccount>>,
 
     /// Liquidity is minted on behalf of recipient
     pub recipient: UncheckedAccount<'info>,
@@ -422,8 +444,7 @@ pub struct MintContext<'info> {
     )]
     pub position_state: Loader<'info, PositionState>,
 
-    /// The latest observation state. If current timestamp is less than the smallest multiple
-    /// of 14 greater than the last timestamp, the next observation is written here.
+    /// The latest observation state
     #[account(
         mut,
         seeds = [
@@ -437,8 +458,7 @@ pub struct MintContext<'info> {
     )]
     pub latest_observation_state: Loader<'info, ObservationState>,
 
-    /// The next observation state. If current timestamp is greater than or equal to than the smallest multiple
-    /// of 14 greater than the last timestamp, the next observation is written here.
+    /// The next observation state
     #[account(
         mut,
         seeds = [
@@ -454,34 +474,30 @@ pub struct MintContext<'info> {
     )]
     pub next_observation_state: Loader<'info, ObservationState>,
 
-    /// The token account spending token_0 to mint the position
-    #[account(mut)]
-    pub token_account_0: Box<Account<'info, TokenAccount>>,
-
-    /// The token account spending token_1 to mint the position
-    #[account(mut)]
-    pub token_account_1: Box<Account<'info, TokenAccount>>,
-
-    /// The address that holds pool tokens for token_0
-    #[account(
-        mut,
-        associated_token::mint = pool_state.load()?.token_0.key(),
-        associated_token::authority = pool_state,
-    )]
-    pub vault_0: Box<Account<'info, TokenAccount>>,
-
-    /// The address that holds pool tokens for token_1
-    #[account(
-        mut,
-        associated_token::mint = pool_state.load()?.token_1.key(),
-        associated_token::authority = pool_state,
-    )]
-    pub vault_1: Box<Account<'info, TokenAccount>>,
-
     /// The SPL program to perform token transfers
     pub token_program: Program<'info, Token>,
 
-    // // // pub callback_handler: Program<'info, NonFungiblePositionManager>,
-    // pub system_program: Program<'info, System>,
+    /// Program which receives mint_callback
+    pub callback_handler: UncheckedAccount<'info>,
 }
 
+#[derive(Accounts)]
+pub struct MintCallback<'info> {
+    /// Pays to mint liquidity
+    pub minter: Signer<'info>,
+
+    /// The token account spending token_0 to mint the position
+    pub token_account_0: UncheckedAccount<'info>,
+
+    /// The token account spending token_1 to mint the position
+    pub token_account_1: UncheckedAccount<'info>,
+
+    /// The address that holds pool tokens for token_0
+    pub vault_0: UncheckedAccount<'info>,
+
+    /// The address that holds pool tokens for token_1
+    pub vault_1: UncheckedAccount<'info>,
+
+    /// The SPL program to perform token transfers
+    pub token_program: UncheckedAccount<'info>,
+}

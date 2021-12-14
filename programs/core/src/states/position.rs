@@ -85,3 +85,34 @@ impl PositionState {
         Ok(())
     }
 }
+
+/// Emitted when liquidity is minted for a given position
+#[event]
+pub struct MintEvent {
+    /// The pool for which liquidity was minted
+    #[index]
+    pub pool_state: Pubkey,
+
+    /// The address that minted the liquidity
+    pub sender: Pubkey,
+
+    /// The owner of the position and recipient of any minted liquidity
+    pub owner: Pubkey,
+
+    /// The lower tick of the position
+    #[index]
+    pub tick_lower: i32,
+
+    /// The upper tick of the position
+    #[index]
+    pub tick_upper: i32,
+
+    /// The amount of liquidity minted to the position range
+    pub amount: u64,
+
+    /// How much token_0 was required for the minted liquidity
+    pub amount_0: u64,
+
+    /// How much token_1 was required for the minted liquidity
+    pub amount_1: u64,
+}
