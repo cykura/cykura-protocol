@@ -10,6 +10,9 @@ pub struct TokenizedPositionState {
     /// Bump to identify PDA
     pub bump: u8,
 
+    /// Mint address of the tokenized position
+    pub mint: Pubkey,
+
     /// The ID of the pool with which this token is connected
     pub pool_id: Pubkey,
 

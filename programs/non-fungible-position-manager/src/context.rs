@@ -169,3 +169,71 @@ pub struct AddMetaplexMetadata<'info> {
     /// Program to allocate lamports to the metadata account
     pub system_program: Program<'info, System>,
 }
+
+#[derive(Accounts)]
+pub struct IncreaseLiquidity<'info> {
+    /// Pays to mint the position
+    #[account(mut)]
+    pub payer: Signer<'info>,
+
+    /// Authority PDA for NFT mint
+    pub position_manager_state: Loader<'info, PositionManagerState>,
+
+    /// Increase liquidity for this position
+    #[account(mut)]
+    pub tokenized_position_state: Loader<'info, TokenizedPositionState>,
+
+    /// Mint liquidity for this pool
+    #[account(mut)]
+    pub pool_state: UncheckedAccount<'info>,
+
+    /// Core program account to store position data
+    #[account(mut)]
+    pub core_position_state: UncheckedAccount<'info>,
+
+    /// Account to store data for the position's lower tick
+    #[account(mut)]
+    pub tick_lower_state: UncheckedAccount<'info>,
+
+    /// Account to store data for the position's upper tick
+    #[account(mut)]
+    pub tick_upper_state: UncheckedAccount<'info>,
+
+    /// Stores init state for the lower tick
+    #[account(mut)]
+    pub bitmap_lower: UncheckedAccount<'info>,
+
+    /// Stores init state for the upper tick
+    #[account(mut)]
+    pub bitmap_upper: UncheckedAccount<'info>,
+
+    /// The payer's token account for token_0
+    #[account(mut)]
+    pub token_account_0: Box<Account<'info, TokenAccount>>,
+
+    /// The payer's token account for token_1
+    #[account(mut)]
+    pub token_account_1: Box<Account<'info, TokenAccount>>,
+
+    /// The pool's token account for token_0
+    #[account(mut)]
+    pub vault_0: UncheckedAccount<'info>,
+
+    /// The pool's token account for token_1
+    #[account(mut)]
+    pub vault_1: UncheckedAccount<'info>,
+
+    /// The latest observation state
+    #[account(mut)]
+    pub latest_observation_state: UncheckedAccount<'info>,
+
+    /// The next observation state
+    #[account(mut)]
+    pub next_observation_state: UncheckedAccount<'info>,
+
+    /// The core program where liquidity is minted
+    pub core_program: Program<'info, cyclos_core::program::CyclosCore>,
+
+    /// Program to create mint account and mint tokens
+    pub token_program: Program<'info, Token>,
+}

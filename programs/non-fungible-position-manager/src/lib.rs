@@ -21,6 +21,8 @@ use metaplex_token_metadata::{
 };
 use spl_token::instruction::AuthorityType;
 use states::position_manager::{self, PositionManagerState};
+extern crate muldiv;
+use muldiv::MulDiv;
 
 declare_id!("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS");
 
@@ -29,7 +31,7 @@ pub mod non_fungible_position_manager {
 
     use std::ops::Deref;
 
-    use cyclos_core::states::{pool::PoolState, position::PositionState};
+    use cyclos_core::{states::{pool::PoolState, position::PositionState}, libraries::fixed_point_x32};
     use states::tokenized_position::{IncreaseLiquidityEvent, TokenizedPositionState};
 
     use super::*;
@@ -129,19 +131,20 @@ pub mod non_fungible_position_manager {
         )?;
 
         // Write tokenized position metadata
-        let mut tokenized_position_state = ctx.accounts.tokenized_position_state.load_init()?;
-        tokenized_position_state.bump = bump;
-        tokenized_position_state.pool_id = ctx.accounts.pool_state.key();
-        tokenized_position_state.tick_lower = tick_lower;
-        tokenized_position_state.tick_upper = tick_upper;
-        tokenized_position_state.liquidity = liquidity;
-        tokenized_position_state.fee_growth_inside_0_last_x32 = Loader::<PositionState>::try_from(
+        let mut tokenized_position = ctx.accounts.tokenized_position_state.load_init()?;
+        tokenized_position.bump = bump;
+        tokenized_position.mint = ctx.accounts.nft_mint.key();
+        tokenized_position.pool_id = ctx.accounts.pool_state.key();
+        tokenized_position.tick_lower = tick_lower;
+        tokenized_position.tick_upper = tick_upper;
+        tokenized_position.liquidity = liquidity;
+        tokenized_position.fee_growth_inside_0_last_x32 = Loader::<PositionState>::try_from(
             &cyclos_core::id(),
             &ctx.accounts.core_position_state.to_account_info(),
         )?
         .load()?
         .fee_growth_inside_0_last_x32;
-        tokenized_position_state.fee_growth_inside_0_last_x32 = Loader::<PositionState>::try_from(
+        tokenized_position.fee_growth_inside_0_last_x32 = Loader::<PositionState>::try_from(
             &cyclos_core::id(),
             &ctx.accounts.core_position_state.to_account_info(),
         )?
@@ -212,42 +215,93 @@ pub mod non_fungible_position_manager {
         Ok(())
     }
 
-    // /// Increases liquidity in a position, with amount paid by `payer`
-    // ///
-    // /// # Arguments
-    // ///
-    // /// * `ctx` - Holds pool and position accounts
-    // /// * `amount_0_desired`, `amount_1_desired` - Desired amounts of token_0 and token_1 to be added
-    // /// * `amount_0_min`, `amount_1_min` - Mint fails if amounts added are below minimum levels
-    // /// * `deadline` - Mint fails if instruction is executed past the deadline
-    // ///
-    // pub fn increase_liquidity(
-    //     ctx: Context<MintPosition>,
-    //     amount_0_desired: u64,
-    //     amount_1_desired: u64,
-    //     amount_0_min: u64,
-    //     amount_1_min: u64,
-    //     deadline: u64
-    // ) -> ProgramResult {
-    //     require!(ctx.accounts.clock.slot <= deadline, ErrorCode::OldTransaction);
+    /// Increases liquidity in a position, with amount paid by `payer`
+    ///
+    /// # Arguments
+    ///
+    /// * `ctx` - Holds the pool, tick, bitmap, position and token accounts
+    /// * `amount_0_desired` - Desired amount of token_0 to be spent
+    /// * `amount_1_desired` - Desired amount of token_1 to be spent
+    /// * `amount_0_min` - The minimum amount of token_0 to spend, which serves as a slippage check
+    /// * `amount_1_min` - The minimum amount of token_1 to spend, which serves as a slippage check
+    /// * `deadline` - The time by which the transaction must be included to effect the change
+    ///
+    #[access_control(check_deadline(deadline))]
+    pub fn increase_liquidity(
+        ctx: Context<IncreaseLiquidity>,
+        amount_0_desired: u64,
+        amount_1_desired: u64,
+        amount_0_min: u64,
+        amount_1_min: u64,
+        deadline: i64,
+    ) -> ProgramResult {
+        let tick_lower = Loader::<TickState>::try_from(
+            &cyclos_core::id(),
+            &ctx.accounts.tick_lower_state.to_account_info(),
+        )?
+        .load()?
+        .tick;
 
-    //     Ok(())
-    // }
+        let tick_upper = Loader::<TickState>::try_from(
+            &cyclos_core::id(),
+            &ctx.accounts.tick_upper_state.to_account_info(),
+        )?
+        .load()?
+        .tick;
 
-    // /// Decrease liquidity in a position and credit it as owed token amounts
-    // /// Liquidity provider must call collect() to claim owed tokens
-    // ///
-    // pub fn decrease_liquidity(
-    //     ctx: Context<MintPosition>,
-    //     liquidity: u32,
-    //     amount_0_min: u64,
-    //     amount_1_min: u64,
-    //     deadline: u64
-    // ) -> ProgramResult {
-    //     require!(ctx.accounts.clock.slot <= deadline, ErrorCode::OldTransaction);
+        let (liquidity, amount_0, amount_1) = add_liquidity(
+            amount_0_desired,
+            amount_1_desired,
+            amount_0_min,
+            amount_1_min,
+            tick_lower,
+            tick_upper,
+            ctx.accounts.payer.to_account_info(),
+            ctx.accounts.position_manager_state.to_account_info(),
+            ctx.accounts.pool_state.to_account_info(),
+            ctx.accounts.core_position_state.to_account_info(),
+            ctx.accounts.tick_lower_state.to_account_info(),
+            ctx.accounts.tick_upper_state.to_account_info(),
+            ctx.accounts.bitmap_lower.to_account_info(),
+            ctx.accounts.bitmap_upper.to_account_info(),
+            &mut ctx.accounts.token_account_0,
+            &mut ctx.accounts.token_account_1,
+            ctx.accounts.vault_0.to_account_info(),
+            ctx.accounts.vault_1.to_account_info(),
+            ctx.accounts.latest_observation_state.to_account_info(),
+            ctx.accounts.next_observation_state.to_account_info(),
+            ctx.accounts.token_program.to_account_info(),
+            ctx.accounts.core_program.to_account_info(),
+        )?;
 
-    //     Ok(())
-    // }
+        let core_position_loader = Loader::<PositionState>::try_from(
+            &cyclos_core::id(),
+            &ctx.accounts.core_position_state.to_account_info(),
+        )?;
+        let fee_growth_inside_0_last_x32 = core_position_loader.load()?.fee_growth_inside_0_last_x32;
+        let fee_growth_inside_1_last_x32 = core_position_loader.load()?.fee_growth_inside_1_last_x32;
+
+        // Update tokenized position metadata
+        let mut position = ctx.accounts.tokenized_position_state.load_mut()?;
+        position.tokens_owed_0 += (fee_growth_inside_0_last_x32 - position.fee_growth_inside_0_last_x32)
+            .mul_div_floor(position.liquidity, fixed_point_x32::Q32).unwrap();
+
+        position.tokens_owed_1 += (fee_growth_inside_1_last_x32 - position.fee_growth_inside_1_last_x32)
+            .mul_div_floor(position.liquidity, fixed_point_x32::Q32).unwrap();
+
+        position.fee_growth_inside_0_last_x32 = fee_growth_inside_0_last_x32;
+        position.fee_growth_inside_0_last_x32 = fee_growth_inside_1_last_x32;
+        position.liquidity += liquidity;
+
+        emit!(IncreaseLiquidityEvent {
+            token_id: position.mint,
+            liquidity,
+            amount_0,
+            amount_1
+        });
+
+        Ok(())
+    }
 
     // /// Collect owed fees upto the max specified amounts
     // ///

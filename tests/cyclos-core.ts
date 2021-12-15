@@ -98,8 +98,8 @@ describe('cyclos-core', async () => {
   it('creates token accounts for position minter and airdrops to them', async () => {
     minterWallet0 = await token0.createAssociatedTokenAccount(owner)
     minterWallet1 = await token1.createAssociatedTokenAccount(owner)
-    await token0.mintTo(minterWallet0, mintAuthority, [], 1_000_000)
-    await token1.mintTo(minterWallet1, mintAuthority, [], 1_000_000)
+    await token0.mintTo(minterWallet0, mintAuthority, [], 100_000_000)
+    await token1.mintTo(minterWallet1, mintAuthority, [], 100_000_000)
   })
 
   it('derive pool address', async () => {
@@ -1148,7 +1148,7 @@ describe('cyclos-core', async () => {
     const wordPosLower = tickLower >> 8
     const wordPosUpper = tickUpper >> 8
 
-    const amount0Desired = new BN(1_000_000)
+    const amount0Desired = new BN(0)
     const amount1Desired = new BN(1_000_000)
     const amount0Minimum = new BN(0)
     const amount1Minimum = new BN(1_000_000)
@@ -1583,12 +1583,18 @@ describe('cyclos-core', async () => {
         console.log('Tokenized position', tokenizedPositionData)
         assert.equal(tokenizedPositionData.bump, tokenizedPositionBump)
         assert(tokenizedPositionData.poolId.equals(poolState))
+        assert(tokenizedPositionData.mint.equals(nftMintKeypair.publicKey))
         assert.equal(tokenizedPositionData.tickLower, tickLower)
         assert.equal(tokenizedPositionData.tickUpper, tickUpper)
         assert(tokenizedPositionData.feeGrowthInside0LastX32.eqn(0))
         assert(tokenizedPositionData.feeGrowthInside1LastX32.eqn(0))
         assert(tokenizedPositionData.tokensOwed0.eqn(0))
         assert(tokenizedPositionData.tokensOwed1.eqn(0))
+
+        const vault0State = await token0.getAccountInfo(vault0)
+        assert(vault0State.amount.eqn(0))
+        const vault1State = await token1.getAccountInfo(vault1)
+        assert(vault1State.amount.eqn(1_000_000))
 
         const tickLowerData = await coreProgram.account.tickState.fetch(tickLowerState)
         console.log('Tick lower', tickLowerData)
@@ -1600,6 +1606,9 @@ describe('cyclos-core', async () => {
 
         const corePositionData = await coreProgram.account.positionState.fetch(corePositionState)
         console.log('Core position data', corePositionData)
+
+        // TODO test remaining fields later
+        // Look at uniswap tests for reference
       })
     })
 
@@ -1659,6 +1668,92 @@ describe('cyclos-core', async () => {
           }
         })).to.be.rejectedWith(Error)
       })
+    })
+
+    describe('#increase_liquidity', () => {
+      it ('fails if past deadline', async () => {
+        const deadline = new BN(Date.now() / 1000 - 100_000)
+        await expect(mgrProgram.rpc.increaseLiquidity(
+          amount0Desired,
+          amount1Desired,
+          amount0Minimum,
+          amount1Minimum,
+          deadline, {
+            accounts: {
+              payer: owner,
+              positionManagerState: posMgrState,
+              poolState,
+              corePositionState,
+              tickLowerState,
+              tickUpperState,
+              bitmapLower,
+              bitmapUpper,
+              tokenAccount0: minterWallet0,
+              tokenAccount1: minterWallet1,
+              vault0,
+              vault1,
+              latestObservationState,
+              nextObservationState,
+              tokenizedPositionState,
+              coreProgram: coreProgram.programId,
+              tokenProgram: TOKEN_PROGRAM_ID,
+            },
+          }
+        )).to.be.rejectedWith('Transaction too old')
+      })
+      it('Add token 1 to the position', async () => {
+        const deadline = new BN(Date.now() / 1000 + 10_000)
+        let listener: number
+        let [_event, _slot] = await new Promise((resolve, _reject) => {
+          listener = mgrProgram.addEventListener("IncreaseLiquidityEvent", (event, slot) => {
+            assert((event.tokenId as web3.PublicKey).equals(nftMintKeypair.publicKey))
+            assert((event.amount0 as BN).eqn(0))
+            assert((event.amount1 as BN).eq(amount1Desired))
+
+            resolve([event, slot]);
+          });
+
+          mgrProgram.rpc.increaseLiquidity(
+            amount0Desired,
+            amount1Desired,
+            amount0Minimum,
+            amount1Minimum,
+            deadline, {
+              accounts: {
+                payer: owner,
+                positionManagerState: posMgrState,
+                poolState,
+                corePositionState,
+                tickLowerState,
+                tickUpperState,
+                bitmapLower,
+                bitmapUpper,
+                tokenAccount0: minterWallet0,
+                tokenAccount1: minterWallet1,
+                vault0,
+                vault1,
+                latestObservationState,
+                nextObservationState,
+                tokenizedPositionState,
+                coreProgram: coreProgram.programId,
+                tokenProgram: TOKEN_PROGRAM_ID,
+              },
+            }
+          )
+        })
+        await mgrProgram.removeEventListener(listener)
+
+        const vault0State = await token0.getAccountInfo(vault0)
+        assert(vault0State.amount.eqn(0))
+        const vault1State = await token1.getAccountInfo(vault1)
+        assert(vault1State.amount.eqn(2_000_000))
+
+        // TODO test remaining fields later
+        // Look at uniswap tests for reference
+      })
+
+      // To check slippage, we must add liquidity in a price range around
+      // current price
     })
   })
 
