@@ -538,6 +538,7 @@ pub mod cyclos_core {
         solana_program::program::invoke(&ix, &ctx.accounts.to_account_infos())?;
 
         ctx.accounts.token_account_0.reload()?;
+        ctx.accounts.token_account_1.reload()?;
 
         if amount_0 > 0 {
             require!(balance_0_before + amount_0 <= ctx.accounts.token_account_0.amount, ErrorCode::M0);
