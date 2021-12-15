@@ -116,3 +116,32 @@ pub struct MintEvent {
     /// How much token_1 was required for the minted liquidity
     pub amount_1: u64,
 }
+
+/// Emitted when a position's liquidity is removed.
+/// Does not withdraw any fees earned by the liquidity position, which must be withdrawn via #collect
+#[event]
+pub struct BurnEvent {
+    /// The pool from where liquidity was removed
+    #[index]
+    pub pool_state: Pubkey,
+
+    /// The owner of the position for which liquidity is removed
+    pub owner: Pubkey,
+
+    /// The lower tick of the position
+    #[index]
+    pub tick_lower: i32,
+
+    /// The upper tick of the position
+    #[index]
+    pub tick_upper: i32,
+
+    /// The amount of liquidity to remove
+    pub amount: u64,
+
+    /// The amount of token_0 withdrawn
+    pub amount_0: u64,
+
+    /// The amount of token_1 withdrawn
+    pub amount_1: u64,
+}

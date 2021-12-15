@@ -55,3 +55,20 @@ pub struct IncreaseLiquidityEvent {
     /// The amount of token_1 that was paid for the increase in liquidity
     pub amount_1: u64,
 }
+
+/// Emitted when liquidity is decreased for a position NFT
+#[event]
+pub struct DecreaseLiquidityEvent {
+    /// The ID of the token for which liquidity was decreased
+    #[index]
+    pub token_id: Pubkey,
+
+    /// The amount by which liquidity for the NFT position was decreased
+    pub liquidity: u64,
+
+    /// The amount of token_0 that was accounted for the decrease in liquidity
+    pub amount_0: u64,
+
+    /// The amount of token_1 that was accounted for the decrease in liquidity
+    pub amount_1: u64,
+}

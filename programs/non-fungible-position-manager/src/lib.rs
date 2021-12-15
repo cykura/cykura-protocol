@@ -31,8 +31,14 @@ pub mod non_fungible_position_manager {
 
     use std::ops::Deref;
 
-    use cyclos_core::{states::{pool::PoolState, position::PositionState}, libraries::fixed_point_x32};
-    use states::tokenized_position::{IncreaseLiquidityEvent, TokenizedPositionState};
+    use cyclos_core::{
+        cpi::accounts::BurnContext,
+        libraries::fixed_point_x32,
+        states::{pool::PoolState, position::PositionState},
+    };
+    use states::tokenized_position::{
+        DecreaseLiquidityEvent, IncreaseLiquidityEvent, TokenizedPositionState,
+    };
 
     use super::*;
 
@@ -187,7 +193,7 @@ pub mod non_fungible_position_manager {
             }]),
             0,
             true,
-            false
+            false,
         );
         solana_program::program::invoke_signed(
             &create_metadata_ix,
@@ -195,22 +201,33 @@ pub mod non_fungible_position_manager {
                 ctx.accounts.metadata_account.to_account_info().clone(),
                 ctx.accounts.nft_mint.to_account_info().clone(),
                 ctx.accounts.payer.to_account_info().clone(),
-                ctx.accounts.position_manager_state.to_account_info().clone(), // mint and update authority
+                ctx.accounts
+                    .position_manager_state
+                    .to_account_info()
+                    .clone(), // mint and update authority
                 ctx.accounts.system_program.to_account_info().clone(),
                 ctx.accounts.rent.to_account_info().clone(),
             ],
-            &[&seeds[..]]
+            &[&seeds[..]],
         )?;
 
         // Disable minting
-        token::set_authority(CpiContext::new_with_signer(
-            ctx.accounts.token_program.to_account_info().clone(),
-            token::SetAuthority {
-                current_authority: ctx.accounts.position_manager_state.to_account_info().clone(),
-                account_or_mint: ctx.accounts.nft_mint.to_account_info().clone(),
-            },
-            &[&seeds[..]]
-        ), AuthorityType::MintTokens, None)?;
+        token::set_authority(
+            CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info().clone(),
+                token::SetAuthority {
+                    current_authority: ctx
+                        .accounts
+                        .position_manager_state
+                        .to_account_info()
+                        .clone(),
+                    account_or_mint: ctx.accounts.nft_mint.to_account_info().clone(),
+                },
+                &[&seeds[..]],
+            ),
+            AuthorityType::MintTokens,
+            None,
+        )?;
 
         Ok(())
     }
@@ -278,22 +295,118 @@ pub mod non_fungible_position_manager {
             &cyclos_core::id(),
             &ctx.accounts.core_position_state.to_account_info(),
         )?;
-        let fee_growth_inside_0_last_x32 = core_position_loader.load()?.fee_growth_inside_0_last_x32;
-        let fee_growth_inside_1_last_x32 = core_position_loader.load()?.fee_growth_inside_1_last_x32;
+        let fee_growth_inside_0_last_x32 =
+            core_position_loader.load()?.fee_growth_inside_0_last_x32;
+        let fee_growth_inside_1_last_x32 =
+            core_position_loader.load()?.fee_growth_inside_1_last_x32;
 
         // Update tokenized position metadata
         let mut position = ctx.accounts.tokenized_position_state.load_mut()?;
-        position.tokens_owed_0 += (fee_growth_inside_0_last_x32 - position.fee_growth_inside_0_last_x32)
-            .mul_div_floor(position.liquidity, fixed_point_x32::Q32).unwrap();
+        position.tokens_owed_0 += (fee_growth_inside_0_last_x32
+            - position.fee_growth_inside_0_last_x32)
+            .mul_div_floor(position.liquidity, fixed_point_x32::Q32)
+            .unwrap();
 
-        position.tokens_owed_1 += (fee_growth_inside_1_last_x32 - position.fee_growth_inside_1_last_x32)
-            .mul_div_floor(position.liquidity, fixed_point_x32::Q32).unwrap();
+        position.tokens_owed_1 += (fee_growth_inside_1_last_x32
+            - position.fee_growth_inside_1_last_x32)
+            .mul_div_floor(position.liquidity, fixed_point_x32::Q32)
+            .unwrap();
 
         position.fee_growth_inside_0_last_x32 = fee_growth_inside_0_last_x32;
         position.fee_growth_inside_0_last_x32 = fee_growth_inside_1_last_x32;
         position.liquidity += liquidity;
 
         emit!(IncreaseLiquidityEvent {
+            token_id: position.mint,
+            liquidity,
+            amount_0,
+            amount_1
+        });
+
+        Ok(())
+    }
+
+    /// Decreases the amount of liquidity in a position and accounts it to the position
+    ///
+    /// # Arguments
+    ///
+    /// * `ctx` - Holds the pool, tick, bitmap, position and token accounts
+    /// * `liquidity` - The amount by which liquidity will be decreased
+    /// * `amount_0_min` - The minimum amount of token_0 that should be accounted for the burned liquidity
+    /// * `amount_1_min` - The minimum amount of token_1 that should be accounted for the burned liquidity
+    /// * `deadline` - The time by which the transaction must be included to effect the change
+    ///
+    #[access_control(check_deadline(deadline))]
+    #[access_control(is_authorized_for_token(&ctx.accounts.owner_or_delegate, &ctx.accounts.nft_account))]
+    pub fn decrease_liquidity(
+        ctx: Context<DecreaseLiquidity>,
+        liquidity: u64,
+        amount_0_min: u64,
+        amount_1_min: u64,
+        deadline: i64,
+    ) -> ProgramResult {
+        assert!(liquidity > 0);
+
+        let core_position_loader = Loader::<PositionState>::try_from(
+            &cyclos_core::id(),
+            &ctx.accounts.core_position_state.to_account_info(),
+        )?;
+        let tokens_owed_0_before = core_position_loader.load()?.tokens_owed_0;
+        let tokens_owed_1_before = core_position_loader.load()?.tokens_owed_1;
+
+        cyclos_core::cpi::burn(
+            CpiContext::new_with_signer(
+                ctx.accounts.core_program.to_account_info(),
+                BurnContext {
+                    owner: ctx.accounts.position_manager_state.to_account_info(),
+                    lamport_destination: ctx.accounts.owner_or_delegate.to_account_info(),
+                    pool_state: ctx.accounts.pool_state.to_account_info(),
+                    tick_lower_state: ctx.accounts.tick_lower_state.to_account_info(),
+                    tick_upper_state: ctx.accounts.tick_upper_state.to_account_info(),
+                    bitmap_lower: ctx.accounts.bitmap_lower.to_account_info(),
+                    bitmap_upper: ctx.accounts.bitmap_upper.to_account_info(),
+                    position_state: ctx.accounts.core_position_state.to_account_info(),
+                    latest_observation_state: ctx
+                        .accounts
+                        .latest_observation_state
+                        .to_account_info(),
+                    next_observation_state: ctx.accounts.next_observation_state.to_account_info(),
+                },
+                &[&[&[ctx.accounts.position_manager_state.load()?.bump]]],
+            ),
+            liquidity,
+        )?;
+
+        let amount_0 = core_position_loader.load()?.tokens_owed_0 - tokens_owed_0_before;
+        let amount_1 = core_position_loader.load()?.tokens_owed_1 - tokens_owed_1_before;
+        msg!("amount 0 {}, amount 1 {}", amount_0, amount_1);
+        require!(
+            amount_0 >= amount_0_min && amount_1 >= amount_1_min,
+            ErrorCode::PriceSlippageCheck
+        );
+
+        // Update the tokenized position to the current transaction
+        let fee_growth_inside_0_last_x32 =
+            core_position_loader.load()?.fee_growth_inside_0_last_x32;
+        let fee_growth_inside_1_last_x32 =
+            core_position_loader.load()?.fee_growth_inside_1_last_x32;
+
+        let mut position = ctx.accounts.tokenized_position_state.load_mut()?;
+        position.tokens_owed_0 += amount_0
+            + (fee_growth_inside_0_last_x32 - position.fee_growth_inside_0_last_x32)
+                .mul_div_floor(position.liquidity, fixed_point_x32::Q32)
+                .unwrap();
+
+        position.tokens_owed_1 += amount_1
+            + (fee_growth_inside_1_last_x32 - position.fee_growth_inside_1_last_x32)
+                .mul_div_floor(position.liquidity, fixed_point_x32::Q32)
+                .unwrap();
+
+        position.fee_growth_inside_0_last_x32 = fee_growth_inside_0_last_x32;
+        position.fee_growth_inside_0_last_x32 = fee_growth_inside_1_last_x32;
+        position.liquidity -= liquidity;
+
+        emit!(DecreaseLiquidityEvent {
             token_id: position.mint,
             liquidity,
             amount_0,
@@ -444,6 +557,20 @@ pub fn check_deadline(deadline: i64) -> ProgramResult {
     require!(
         Clock::get()?.unix_timestamp <= deadline,
         ErrorCode::TransactionTooOld
+    );
+    Ok(())
+}
+
+pub fn is_authorized_for_token<'info>(
+    signer: &Signer<'info>,
+    token_account: &Box<Account<'info, TokenAccount>>,
+) -> ProgramResult {
+    require!(
+        token_account.owner == signer.key() || (
+            token_account.delegate.contains(&signer.key())
+                && token_account.delegated_amount > 0
+        ),
+        ErrorCode::NotApproved
     );
     Ok(())
 }

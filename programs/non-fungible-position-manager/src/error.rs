@@ -7,4 +7,7 @@ pub enum ErrorCode {
 
     #[msg("Price slippage check")]
     PriceSlippageCheck,
+
+    #[msg("Not approved")]
+    NotApproved
 }

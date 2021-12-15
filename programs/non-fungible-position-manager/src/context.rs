@@ -1,5 +1,6 @@
 use crate::states::position_manager::PositionManagerState;
 use crate::{non_fungible_position_manager, states::tokenized_position::TokenizedPositionState};
+use crate::error::ErrorCode;
 use anchor_lang::prelude::*;
 use anchor_spl::{
     associated_token::AssociatedToken,
@@ -38,7 +39,7 @@ pub struct MintPosition<'info> {
     /// Receives the position NFT
     pub recipient: UncheckedAccount<'info>,
 
-    /// Authority PDA for NFT mint
+    /// Position manager PDA to custody the core liquidity and mint the tokenized position NFT
     pub position_manager_state: Loader<'info, PositionManagerState>,
 
     /// Unique token mint address
@@ -176,7 +177,7 @@ pub struct IncreaseLiquidity<'info> {
     #[account(mut)]
     pub payer: Signer<'info>,
 
-    /// Authority PDA for NFT mint
+    /// Authority PDA for the NFT mint
     pub position_manager_state: Loader<'info, PositionManagerState>,
 
     /// Increase liquidity for this position
@@ -236,4 +237,60 @@ pub struct IncreaseLiquidity<'info> {
 
     /// Program to create mint account and mint tokens
     pub token_program: Program<'info, Token>,
+}
+
+#[derive(Accounts)]
+pub struct DecreaseLiquidity<'info> {
+    /// The position owner or delegated authority
+    #[account(mut)]
+    pub owner_or_delegate: Signer<'info>,
+
+    /// The token account for the tokenized position
+    #[account(
+        constraint = nft_account.mint == tokenized_position_state.load()?.mint,
+        constraint = nft_account.amount == 1 @ErrorCode::NotApproved
+    )]
+    pub nft_account: Box<Account<'info, TokenAccount>>,
+
+    /// Decrease liquidity for this position
+    #[account(mut)]
+    pub tokenized_position_state: Loader<'info, TokenizedPositionState>,
+
+    /// Position manager PDA which custodies the core liquidity on behalf of the token holder
+    pub position_manager_state: Loader<'info, PositionManagerState>,
+
+    /// Burn liquidity for this pool
+    #[account(mut)]
+    pub pool_state: UncheckedAccount<'info>,
+
+    /// Core program account to store position data
+    #[account(mut)]
+    pub core_position_state: UncheckedAccount<'info>,
+
+    /// Account to store data for the position's lower tick
+    #[account(mut)]
+    pub tick_lower_state: UncheckedAccount<'info>,
+
+    /// Account to store data for the position's upper tick
+    #[account(mut)]
+    pub tick_upper_state: UncheckedAccount<'info>,
+
+    /// Stores init state for the lower tick
+    #[account(mut)]
+    pub bitmap_lower: UncheckedAccount<'info>,
+
+    /// Stores init state for the upper tick
+    #[account(mut)]
+    pub bitmap_upper: UncheckedAccount<'info>,
+
+    /// The latest observation state
+    #[account(mut)]
+    pub latest_observation_state: UncheckedAccount<'info>,
+
+    /// The next observation state
+    #[account(mut)]
+    pub next_observation_state: UncheckedAccount<'info>,
+
+    /// The core program where liquidity is burned
+    pub core_program: Program<'info, cyclos_core::program::CyclosCore>,
 }

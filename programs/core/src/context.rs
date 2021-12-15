@@ -501,3 +501,116 @@ pub struct MintCallback<'info> {
     /// The SPL program to perform token transfers
     pub token_program: UncheckedAccount<'info>,
 }
+
+#[derive(Accounts)]
+pub struct BurnContext<'info> {
+    /// The position owner
+    pub owner: Signer<'info>,
+
+    /// Destination address for freed lamports
+    pub lamport_destination: UncheckedAccount<'info>,
+
+    /// Burn liquidity for this pool
+    #[account(mut)]
+    pub pool_state: Loader<'info, PoolState>,
+
+    /// The lower tick boundary of the position
+    #[account(
+        mut,
+        seeds = [
+            pool_state.load()?.token_0.key().as_ref(),
+            pool_state.load()?.token_1.key().as_ref(),
+            &pool_state.load()?.fee.to_be_bytes(),
+            &tick_lower_state.load()?.tick.to_be_bytes()
+        ],
+        bump = tick_lower_state.load()?.bump,
+    )]
+    pub tick_lower_state: Loader<'info, TickState>,
+
+    /// The upper tick boundary of the position
+    #[account(
+        mut,
+        seeds = [
+            pool_state.load()?.token_0.key().as_ref(),
+            pool_state.load()?.token_1.key().as_ref(),
+            &pool_state.load()?.fee.to_be_bytes(),
+            &tick_upper_state.load()?.tick.to_be_bytes()
+        ],
+        bump = tick_upper_state.load()?.bump,
+    )]
+    pub tick_upper_state: Loader<'info, TickState>,
+
+    /// The bitmap storing initialization state of the lower tick
+    #[account(
+        mut,
+        seeds = [
+            BITMAP_SEED.as_bytes(),
+            pool_state.load()?.token_0.key().as_ref(),
+            pool_state.load()?.token_1.key().as_ref(),
+            &pool_state.load()?.fee.to_be_bytes(),
+            &((tick_lower_state.load()?.tick >> 8) as i16).to_be_bytes()
+        ],
+        bump = bitmap_lower.load()?.bump,
+    )]
+    pub bitmap_lower: Loader<'info, TickBitmapState>,
+
+    /// The bitmap storing initialization state of the upper tick
+    #[account(
+        mut,
+        seeds = [
+            BITMAP_SEED.as_bytes(),
+            pool_state.load()?.token_0.key().as_ref(),
+            pool_state.load()?.token_1.key().as_ref(),
+            &pool_state.load()?.fee.to_be_bytes(),
+            &((tick_upper_state.load()?.tick >> 8) as i16).to_be_bytes()
+        ],
+        bump = bitmap_upper.load()?.bump,
+    )]
+    pub bitmap_upper: Loader<'info, TickBitmapState>,
+
+    /// Burn liquidity from this position
+    #[account(
+        mut,
+        seeds = [
+            POSITION_SEED.as_bytes(),
+            pool_state.load()?.token_0.key().as_ref(),
+            pool_state.load()?.token_1.key().as_ref(),
+            &pool_state.load()?.fee.to_be_bytes(),
+            &owner.key().as_ref(),
+            &tick_lower_state.load()?.tick.to_be_bytes(),
+            &tick_upper_state.load()?.tick.to_be_bytes(),
+        ],
+        bump = position_state.load()?.bump,
+    )]
+    pub position_state: Loader<'info, PositionState>,
+
+    /// The latest observation state
+    #[account(
+        mut,
+        seeds = [
+            &OBSERVATION_SEED.as_bytes(),
+            pool_state.load()?.token_0.key().as_ref(),
+            pool_state.load()?.token_1.key().as_ref(),
+            &pool_state.load()?.fee.to_be_bytes(),
+            &pool_state.load()?.observation_index.to_be_bytes(),
+        ],
+        bump = latest_observation_state.load()?.bump
+    )]
+    pub latest_observation_state: Loader<'info, ObservationState>,
+
+    /// The next observation state
+    #[account(
+        mut,
+        seeds = [
+            &OBSERVATION_SEED.as_bytes(),
+            pool_state.load()?.token_0.key().as_ref(),
+            pool_state.load()?.token_1.key().as_ref(),
+            &pool_state.load()?.fee.to_be_bytes(),
+            &((pool_state.load()?.observation_index + 1)
+                % pool_state.load()?.observation_cardinality_next
+            ).to_be_bytes(),
+        ],
+        bump = next_observation_state.load()?.bump
+    )]
+    pub next_observation_state: Loader<'info, ObservationState>,
+}

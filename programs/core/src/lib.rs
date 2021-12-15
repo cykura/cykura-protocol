@@ -562,105 +562,57 @@ pub mod cyclos_core {
         Ok(())
     }
 
-    // pub fn mint(
-    //     ctx: Context<MintAccount>,
-    //     amount: u32, // Δliquidity
-    //     data: [u8; 32]
-    // ) -> ProgramResult {
-    //     if !ctx.accounts.pool_state.unlocked {
-    //         return Err(ErrorCode::Locked.into());
-    //     }
-    //     ctx.accounts.pool_state.unlocked = false;
+    /// Burn liquidity from the sender and account tokens owed for the liquidity to the position.
+    /// Can be used to trigger a recalculation of fees owed to a position by calling with an amount of 0 (poke).
+    /// Fees must be collected separately via a call to #collect
+    ///
+    /// # Arguments
+    ///
+    /// * `ctx` - Holds position and other validated accounts need to burn liquidity
+    /// * `amount` - Amount of liquidity to be burned
+    ///
+    pub fn burn(
+        ctx: Context<BurnContext>,
+        amount: u64,
+    ) -> ProgramResult {
+        let mut pool_state = ctx.accounts.pool_state.load_mut()?;
+        require!(pool_state.unlocked, ErrorCode::LOK);
+        pool_state.unlocked = false;
 
-    //     // ________________________________________________
-    //     require!(amount > 0, ErrorCode::ZeroMintAmount);
+        let (amount_0_int, amount_1_int) = _modify_position(
+            pool_state.deref_mut(),
+            &ctx.accounts.position_state,
+            &ctx.accounts.tick_lower_state,
+            &ctx.accounts.tick_upper_state,
+            &ctx.accounts.bitmap_lower,
+            &ctx.accounts.bitmap_upper,
+            &ctx.accounts.latest_observation_state,
+            &ctx.accounts.next_observation_state,
+            ctx.accounts.lamport_destination.to_account_info(),
+            -i64::try_from(amount).unwrap(),
+        )?;
 
-    //     // Position, tick and tick_bitmap states may be initialized
+        let amount_0 = (-amount_0_int) as u64;
+        let amount_1 = (-amount_1_int) as u64;
+        if amount_0 > 0 || amount_1 > 0 {
+            let mut position_state = ctx.accounts.position_state.load_mut()?;
+            position_state.tokens_owed_0 += amount_0;
+            position_state.tokens_owed_1 += amount_1;
+        }
 
-    //     // TODO if position_state was initialized, set values
-    //     // let pos_is_init = ctx.accounts.position_state.to_account_info().data.into_inner().len() == 8;
+        emit!(BurnEvent {
+            pool_state: ctx.accounts.pool_state.key(),
+            owner: ctx.accounts.owner.key(),
+            tick_lower: ctx.accounts.tick_lower_state.load()?.tick,
+            tick_upper: ctx.accounts.tick_upper_state.load()?.tick,
+            amount,
+            amount_0,
+            amount_1,
+        });
 
-    //     // Minter must transfer these amounts to smart contract
-    //     // amount_0 and amount_1 will be positive since Δliquidity is positive
-    //     let (amount_0, amount_1) = modify_position(
-    //         &mut ctx.accounts.position_state,
-    //         &mut ctx.accounts.pool_state,
-    //         &mut ctx.accounts.tick_lower_state,
-    //         &mut ctx.accounts.tick_upper_state,
-    //         &mut ctx.accounts.tick_lower_bitmap,
-    //         &mut ctx.accounts.tick_upper_bitmap,
-    //         amount.try_into().unwrap(),
-    //     );
-
-    //     let mut balance_0_before = 0_u64;
-    //     let mut balance_1_before = 0_u64;
-
-    //     // Gas optimization: skip comparison if amount was not added
-    //     if amount_0 > 0 {
-    //         balance_0_before = ctx.accounts.vault_0.amount;
-    //     }
-    //     if amount_1 > 0 {
-    //         balance_1_before = ctx.accounts.vault_1.amount;
-    //     }
-
-    //     // Callback to make minter pay
-    //     // TODO study encoding format and security
-    //     // Uniswap sends amount_0, amount_1, data(bump: factory_state_bumpess interacting with NFT position manager
-    //     // and pool key(token_0, token_1, fee))
-    //     // We pass borsh serialized message (amount_0_owed, amount_1_owed, arbitrary data) and entire context
-    //     // Arbitrary data not needed for Cyclos, but retained for composability
-
-    //     let ix = Instruction::new_with_bytes(
-    //         ctx.accounts.minter.key(),
-    //         &data,
-    //         ctx.accounts.to_account_metas(Some(true))
-    //     );
-
-    //     let seeds = &[
-    //         &ctx.accounts.pool_state.token_0.to_bytes() as &[u8],
-    //         &ctx.accounts.pool_state.token_1.to_bytes() as &[u8],
-    //         &ctx.accounts.pool_state.fee.to_be_bytes() as &[u8],
-    //     ];
-    //     let signer_seeds = &[&seeds[..]];
-
-    // bumps: observation_account_bumps/ let cpi_ctx = CpiContext::from(&*ctx.accounts).with_signer(signer);
-    //     // non_fungible_position_manager::cpi::mint_callback(cpi_ctx, data)
-
-    //     // Sign with pool
-    //     solana_program::program::invoke_signed(
-    //         &ix,
-    //         &ctx.accounts.to_account_infos(),
-    //         signer_seeds
-    //     )?;
-
-    //     // Ensure payment is made. Skip checks if amount was not added
-    //     if amount_0 > 0 {
-    //         require!(
-    //             balance_0_before + (amount_0 as u64) <= ctx.accounts.vault_0.amount,
-    //             ErrorCode::M0
-    //         );
-    //     }
-    //     if amount_1 > 0 {
-    //         require!(
-    //             balance_1_before + (amount_1 as u64) <= ctx.accounts.vault_1.amount,
-    //             ErrorCode::M1
-    //         );
-    //     }
-
-    //     emit!(MintEvent {
-    //         pool_state: ctx.accounts.pool_state.key(),
-    //         mint_creator: ctx.accounts.minter.key(),
-    //         position_state: ctx.accounts.position_state.key(),
-    //         tick_lower: ctx.accounts.tick_lower_state.tick,
-    //         tick_upper: ctx.accounts.tick_upper_state.tick,
-    //         amount,
-    //         amount_0,
-    //         amount_bump: bumps   //     });
-
-    //     // ______________________________________________
-    //     ctx.accounts.pool_state.unlocked = true;
-    //     Ok(())
-    // }
+        pool_state.unlocked = true;
+        Ok(())
+    }
 
     // /// Collect tokens owed to a position
     // /// Owed = fees + burned tokens
@@ -715,71 +667,6 @@ pub mod cyclos_core {
     //         pool_state: pool_state.key(),
     //         tick_lower,
     //         tick_upper,
-    //         amount_0: amount_0 as i64,
-    //         amount_1: amount_1 as i64,
-    //     });
-
-    //     // ______________________________________________
-    //     ctx.accounts.pool_state.unlocked = true;
-    //     Ok(())
-    // }
-
-    // /// Burn liquidity for the sender and credit to tokens owed for the liquidity to the position
-    // /// Poke- Trigger recalculation of fees by calling with amount = 0
-    // /// Fees must be collected separately via a call to collect()
-    // ///
-    // /// # Arguments
-    // ///
-    // /// * `amount` - Amount of liquidity to be burned
-    // ///
-    // pub fn burn(
-    //     ctx: Context<MintAccount>,
-    //     // TODO read tick range from position account
-    //     tick_lower: i32,
-    //     tick_upper: i32,
-    //     amount: u32,
-    // ) -> ProgramResult {
-    //     if !ctx.accounts.pool_state.unlocked {
-    //         return Err(ErrorCode::Locked.into());
-    //     }
-    //     ctx.accounts.pool_state.unlocked = false;
-    //     // ______________________________________________
-
-    //     let position_state = &mut *ctx.accounts.position_state;
-    //     let pool_state = &mut *ctx.accounts.pool_state;
-
-    //     // let (amount_0, amount_1) = modify_position(
-    //     //     position_state,
-    //     //     pool_state,
-    //     //     // Need to recheck
-    //     //     &mut ctx.remaining_accounts.tick_lower_state,
-    //     //     &mut ctx.remaining_accounts.tick_upper_state,
-    //     //     0,
-    //     //     &mut ctx.remaining_accounts.tick_lower_bitmap,
-    //     //     &mut ctx.remaining_accounts.tick_upper_bitmap,
-    //     //     0,
-    //     // );
-    //     // TODO: Make modify_position work
-
-    //     let amount_0 = 0_i64;
-    //     let amount_1 = 0_i64;
-
-    //     if amount_0 > 0 || amount_1 > 0 {
-    //         position_state.tokens_owed_0 = position_state
-    //             .tokens_owed_0
-    //             .checked_add(amount_0.abs() as u64)
-    //             .unwrap();
-    //         position_state.tokens_owed_1 = position_state
-    //             .tokens_owed_1
-    //             .checked_add(amount_1.abs() as u64)
-    //             .unwrap();
-    //     }
-
-    //     emit!(BurnEvent {
-    //         pool_state: pool_state.key(),
-    //         tick_lower,
-    //         tick_upper,
-    //         amount,
     //         amount_0: amount_0 as i64,
     //         amount_1: amount_1 as i64,
     //     });
