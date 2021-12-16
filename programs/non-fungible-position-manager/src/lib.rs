@@ -32,13 +32,15 @@ pub mod non_fungible_position_manager {
     use std::ops::Deref;
 
     use cyclos_core::{
-        cpi::accounts::BurnContext,
+        cpi::accounts::{BurnContext, CollectContext},
         libraries::fixed_point_x32,
         states::{pool::PoolState, position::PositionState},
     };
     use states::tokenized_position::{
         DecreaseLiquidityEvent, IncreaseLiquidityEvent, TokenizedPositionState,
     };
+
+    use crate::states::tokenized_position;
 
     use super::*;
 
@@ -416,24 +418,118 @@ pub mod non_fungible_position_manager {
         Ok(())
     }
 
-    // /// Collect owed fees upto the max specified amounts
-    // ///
-    // /// # Arguments
-    // ///
-    // /// * `ctx` - Holds position mint address and recipient address. Fees can be sent
-    // /// to third parties
-    // /// * `amount_0_max`, `amount_1_max` - Collect fees upto these amounts
-    // pub fn collect(
-    //     ctx: Context<MintPosition>,
-    //     amount_0_max: u64,
-    //     amount_1_max: u64
-    // ) -> ProgramResult {
+    /// Collects up to a maximum amount of fees owed to a specific position to the recipient
+    ///
+    /// # Arguments
+    ///
+    /// * `ctx` - Validated addresses of the tokenized position and token accounts. Fees can be sent
+    /// to third parties
+    /// * `amount_0_max` - The maximum amount of token0 to collect
+    /// * `amount_1_max` - The maximum amount of token0 to collect
+    ///
+    #[access_control(is_authorized_for_token(&ctx.accounts.owner_or_delegate, &ctx.accounts.nft_account))]
+    pub fn collect(
+        ctx: Context<Collect>,
+        amount_0_max: u64,
+        amount_1_max: u64
+    ) -> ProgramResult {
+        assert!(amount_0_max > 0 || amount_1_max > 0);
 
-    //     // CPI core.burn() with amount 0 to trigger a poke, i.e. to update fee status
-    //     // CPI core.collect() to collect fees from core and transfer to recipient
+        let mut position = ctx.accounts.tokenized_position_state.load_mut()?;
+        let mut tokens_owed_0 = position.tokens_owed_0;
+        let mut tokens_owed_1 = position.tokens_owed_1;
 
-    //     todo!()
-    // }
+        let seeds = [&[ctx.accounts.position_manager_state.load()?.bump] as &[u8]];
+
+        // trigger an update of the position fees owed and fee growth snapshots if it has any liquidity
+        if position.liquidity > 0 {
+            cyclos_core::cpi::burn(
+                CpiContext::new_with_signer(
+                    ctx.accounts.core_program.to_account_info(),
+                    BurnContext {
+                        owner: ctx.accounts.position_manager_state.to_account_info(),
+                        lamport_destination: ctx.accounts.owner_or_delegate.to_account_info(),
+                        pool_state: ctx.accounts.pool_state.to_account_info(),
+                        tick_lower_state: ctx.accounts.tick_lower_state.to_account_info(),
+                        tick_upper_state: ctx.accounts.tick_upper_state.to_account_info(),
+                        bitmap_lower: ctx.accounts.bitmap_lower.to_account_info(),
+                        bitmap_upper: ctx.accounts.bitmap_upper.to_account_info(),
+                        position_state: ctx.accounts.core_position_state.to_account_info(),
+                        latest_observation_state: ctx
+                            .accounts
+                            .latest_observation_state
+                            .to_account_info(),
+                        next_observation_state: ctx.accounts.next_observation_state.to_account_info(),
+                    },
+                    &[&seeds[..]],
+                ),
+                0,
+            )?;
+
+            let core_position_loader = Loader::<PositionState>::try_from(
+                &cyclos_core::id(),
+                &ctx.accounts.core_position_state.to_account_info(),
+            )?;
+            let fee_growth_inside_0_last_x32 =
+                core_position_loader.load()?.fee_growth_inside_0_last_x32;
+            let fee_growth_inside_1_last_x32 =
+                core_position_loader.load()?.fee_growth_inside_1_last_x32;
+
+            drop(core_position_loader);
+
+            tokens_owed_0 += (fee_growth_inside_0_last_x32 - position.fee_growth_inside_0_last_x32)
+                .mul_div_floor(position.liquidity, fixed_point_x32::Q32)
+                .unwrap();
+            tokens_owed_1 += (fee_growth_inside_1_last_x32 - position.fee_growth_inside_1_last_x32)
+                .mul_div_floor(position.liquidity, fixed_point_x32::Q32)
+                .unwrap();
+
+            position.fee_growth_inside_0_last_x32 = fee_growth_inside_0_last_x32;
+            position.fee_growth_inside_1_last_x32 = fee_growth_inside_1_last_x32;
+        }
+
+        // adjust amounts to the max for the position
+        let amount_0 = amount_0_max.min(tokens_owed_0);
+        let amount_1 = amount_1_max.min(tokens_owed_1);
+
+        cyclos_core::cpi::collect(
+            CpiContext::new_with_signer(
+                ctx.accounts.core_program.to_account_info(),
+                CollectContext {
+                    owner: ctx.accounts.position_manager_state.to_account_info(),
+                    pool_state: ctx.accounts.pool_state.to_account_info(),
+                    tick_lower_state: ctx.accounts.tick_lower_state.to_account_info(),
+                    tick_upper_state: ctx.accounts.tick_upper_state.to_account_info(),
+                    position_state: ctx.accounts.core_position_state.to_account_info(),
+                    vault_0: ctx.accounts.vault_0.to_account_info(),
+                    vault_1: ctx.accounts.vault_1.to_account_info(),
+                    recipient_wallet_0: ctx.accounts.recipient_wallet_0.to_account_info(),
+                    recipient_wallet_1: ctx.accounts.recipient_wallet_1.to_account_info(),
+                    token_program: ctx.accounts.token_program.to_account_info()
+                },
+                &[&seeds[..]],
+            ),
+            amount_0,
+            amount_1
+        )?;
+
+        // sometimes there will be a few less wei than expected due to rounding down in core, but
+        // we just subtract the full amount expected
+        // instead of the actual amount so we can burn the token
+        position.tokens_owed_0 = tokens_owed_0 - amount_0;
+        position.tokens_owed_1 = tokens_owed_1 - amount_1;
+
+        emit!(tokenized_position::CollectEvent {
+            token_id: position.mint,
+            recipient_wallet_0: ctx.accounts.recipient_wallet_0.key(),
+            recipient_wallet_1: ctx.accounts.recipient_wallet_1.key(),
+            amount_0,
+            amount_1
+        });
+
+        Ok(())
+    }
+
 
     // /// Burn a token to reclaim lamports
     // /// Position must have zero liquidity and all tokens must be collected first
@@ -561,15 +657,22 @@ pub fn check_deadline(deadline: i64) -> ProgramResult {
     Ok(())
 }
 
+/// Ensures that the signer is the owner or a delgated authority for the position NFT
+///
+/// # Arguments
+///
+/// * `signer` - The signer address
+/// * `token_account` - The token account holding the position NFT
+///
 pub fn is_authorized_for_token<'info>(
     signer: &Signer<'info>,
     token_account: &Box<Account<'info, TokenAccount>>,
 ) -> ProgramResult {
     require!(
-        token_account.owner == signer.key() || (
-            token_account.delegate.contains(&signer.key())
-                && token_account.delegated_amount > 0
-        ),
+        token_account.amount == 1
+            && (token_account.owner == signer.key()
+                || (token_account.delegate.contains(&signer.key())
+                    && token_account.delegated_amount > 0)),
         ErrorCode::NotApproved
     );
     Ok(())

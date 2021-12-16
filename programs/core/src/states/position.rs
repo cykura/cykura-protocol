@@ -145,3 +145,29 @@ pub struct BurnEvent {
     /// The amount of token_1 withdrawn
     pub amount_1: u64,
 }
+
+/// Emitted when fees are collected by the owner of a position
+/// Collect events may be emitted with zero amount_0 and amount_1 when the caller chooses not to collect fees
+#[event]
+pub struct CollectEvent {
+    /// The pool from which fees are collected
+    #[index]
+    pub pool_state: Pubkey,
+
+    /// The owner of the position for which fees are collected
+    pub owner: Pubkey,
+
+    /// The lower tick of the position
+    #[index]
+    pub tick_lower: i32,
+
+    /// The upper tick of the position
+    #[index]
+    pub tick_upper: i32,
+
+    /// The amount of token_0 fees collected
+    pub amount_0: u64,
+
+    /// The amount of token_1 fees collected
+    pub amount_1: u64,
+}

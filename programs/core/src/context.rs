@@ -444,7 +444,7 @@ pub struct MintContext<'info> {
     )]
     pub position_state: Loader<'info, PositionState>,
 
-    /// The latest observation state
+    /// The program account for the most recent oracle observation
     #[account(
         mut,
         seeds = [
@@ -458,7 +458,7 @@ pub struct MintContext<'info> {
     )]
     pub latest_observation_state: Loader<'info, ObservationState>,
 
-    /// The next observation state
+    /// The observation program account one position after latest_observation_state
     #[account(
         mut,
         seeds = [
@@ -584,7 +584,7 @@ pub struct BurnContext<'info> {
     )]
     pub position_state: Loader<'info, PositionState>,
 
-    /// The latest observation state
+    /// The program account for the most recent oracle observation
     #[account(
         mut,
         seeds = [
@@ -598,7 +598,7 @@ pub struct BurnContext<'info> {
     )]
     pub latest_observation_state: Loader<'info, ObservationState>,
 
-    /// The next observation state
+    /// The observation program account one position after latest_observation_state
     #[account(
         mut,
         seeds = [
@@ -613,4 +613,81 @@ pub struct BurnContext<'info> {
         bump = next_observation_state.load()?.bump
     )]
     pub next_observation_state: Loader<'info, ObservationState>,
+}
+
+#[derive(Accounts)]
+pub struct CollectContext<'info> {
+    /// The position owner
+    pub owner: Signer<'info>,
+
+    /// The program account for the liquidity pool from which fees are collected
+    #[account(mut)]
+    pub pool_state: Loader<'info, PoolState>,
+
+    /// The lower tick of the position for which to collect fees
+    #[account(
+        seeds = [
+            pool_state.load()?.token_0.key().as_ref(),
+            pool_state.load()?.token_1.key().as_ref(),
+            &pool_state.load()?.fee.to_be_bytes(),
+            &tick_lower_state.load()?.tick.to_be_bytes()
+        ],
+        bump = tick_lower_state.load()?.bump,
+    )]
+    pub tick_lower_state: Loader<'info, TickState>,
+
+    /// The upper tick of the position for which to collect fees
+    #[account(
+        seeds = [
+            pool_state.load()?.token_0.key().as_ref(),
+            pool_state.load()?.token_1.key().as_ref(),
+            &pool_state.load()?.fee.to_be_bytes(),
+            &tick_upper_state.load()?.tick.to_be_bytes()
+        ],
+        bump = tick_upper_state.load()?.bump,
+    )]
+    pub tick_upper_state: Loader<'info, TickState>,
+
+    /// The position program account to collect fees from
+    #[account(
+        mut,
+        seeds = [
+            POSITION_SEED.as_bytes(),
+            pool_state.load()?.token_0.key().as_ref(),
+            pool_state.load()?.token_1.key().as_ref(),
+            &pool_state.load()?.fee.to_be_bytes(),
+            &owner.key().as_ref(),
+            &tick_lower_state.load()?.tick.to_be_bytes(),
+            &tick_upper_state.load()?.tick.to_be_bytes(),
+        ],
+        bump = position_state.load()?.bump,
+    )]
+    pub position_state: Loader<'info, PositionState>,
+
+    /// The account holding pool tokens for token_0
+    #[account(
+        mut,
+        associated_token::mint = pool_state.load()?.token_0.key(),
+        associated_token::authority = pool_state,
+    )]
+    pub vault_0: Box<Account<'info, TokenAccount>>,
+
+    /// The account holding pool tokens for token_1
+    #[account(
+        mut,
+        associated_token::mint = pool_state.load()?.token_1.key(),
+        associated_token::authority = pool_state,
+    )]
+    pub vault_1: Box<Account<'info, TokenAccount>>,
+
+    /// The destination token account for the collected amount_0
+    #[account(mut)]
+    pub recipient_wallet_0: UncheckedAccount<'info>,
+
+    /// The destination token account for the collected amount_1
+    #[account(mut)]
+    pub recipient_wallet_1: UncheckedAccount<'info>,
+
+    /// SPL program to transfer out tokens
+    pub token_program: Program<'info, Token>,
 }

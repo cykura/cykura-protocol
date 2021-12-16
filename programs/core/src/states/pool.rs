@@ -141,13 +141,3 @@ pub struct CollectProtocolEvent {
     /// The amount of token_0 protocol fees that is withdrawn
     pub amount_1: u64,
 }
-
-#[event]
-pub struct CollectEvent {
-    #[index]
-    pub pool_state: Pubkey,
-    pub tick_lower: i32,
-    pub tick_upper: i32,
-    pub amount_0: i64,
-    pub amount_1: i64,
-}

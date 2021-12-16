@@ -72,3 +72,24 @@ pub struct DecreaseLiquidityEvent {
     /// The amount of token_1 that was accounted for the decrease in liquidity
     pub amount_1: u64,
 }
+
+/// Emitted when tokens are collected for a position NFT
+/// The amounts reported may not be exactly equivalent to the amounts transferred, due to rounding behavior
+#[event]
+pub struct CollectEvent {
+    /// The ID of the token for which underlying tokens were collected
+    #[index]
+    pub token_id: Pubkey,
+
+    /// The token account that received the collected token_0 tokens
+    pub recipient_wallet_0: Pubkey,
+
+    /// The token account that received the collected token_1 tokens
+    pub recipient_wallet_1: Pubkey,
+
+    /// The amount of token_0 owed to the position that was collected
+    pub amount_0: u64,
+
+    /// The amount of token_1 owed to the position that was collected
+    pub amount_1: u64,
+}

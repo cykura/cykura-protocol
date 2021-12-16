@@ -2,32 +2,32 @@ pub mod context;
 pub mod error;
 pub mod libraries;
 pub mod states;
+use crate::error::ErrorCode;
 use crate::libraries::tick_math;
+use crate::states::oracle;
+use crate::states::oracle::ObservationState;
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program;
+use anchor_lang::solana_program::system_instruction::create_account;
 use anchor_lang::AccountsClose;
+use anchor_lang::{solana_program::instruction::Instruction, InstructionData};
 use anchor_spl::{associated_token, token};
 use context::*;
 use libraries::liquidity_math;
 use libraries::sqrt_price_math;
-use crate::error::ErrorCode;
 use states::factory::*;
 use states::fee::*;
 use states::pool::*;
-use states::tick;
 use states::position::*;
+use states::tick;
 use states::tick::*;
 use states::tick_bitmap::*;
 use std::cell::Ref;
 use std::cell::RefMut;
-use std::convert::TryInto;
-use crate::states::oracle::ObservationState;
-use std::mem::size_of;
 use std::convert::TryFrom;
-use anchor_lang::solana_program::system_instruction::create_account;
-use crate::states::oracle;
+use std::convert::TryInto;
+use std::mem::size_of;
 use std::ops::{Deref, DerefMut};
-use anchor_lang::{solana_program::instruction::Instruction, InstructionData};
 
 declare_id!("37kn8WUzihQoAnhYxueA2BnqCA7VRnrVvYoHy1hQ6Veu");
 
@@ -184,7 +184,7 @@ pub mod cyclos_core {
     ///
     pub fn increase_observation_cardinality_next<'a, 'b, 'c, 'info>(
         ctx: Context<'a, 'b, 'c, 'info, IncreaseObservationCardinalityNext<'info>>,
-        observation_account_bumps: Vec<u8>
+        observation_account_bumps: Vec<u8>,
     ) -> ProgramResult {
         let mut pool_state = ctx.accounts.pool_state.load_mut()?;
         require!(pool_state.unlocked, ErrorCode::LOK);
@@ -192,21 +192,21 @@ pub mod cyclos_core {
 
         let mut i: usize = 0;
         while i < observation_account_bumps.len() {
-
             let observation_account_seeds = [
                 &OBSERVATION_SEED.as_bytes(),
                 pool_state.token_0.as_ref(),
                 pool_state.token_1.as_ref(),
                 &pool_state.fee.to_be_bytes(),
                 &(pool_state.observation_cardinality_next + i as u16).to_be_bytes(),
-                &[observation_account_bumps[i]]
+                &[observation_account_bumps[i]],
             ];
 
             require!(
-                ctx.remaining_accounts[i].key() == Pubkey::create_program_address(
-                    &observation_account_seeds[..],
-                    &ctx.program_id
-                )?,
+                ctx.remaining_accounts[i].key()
+                    == Pubkey::create_program_address(
+                        &observation_account_seeds[..],
+                        &ctx.program_id
+                    )?,
                 ErrorCode::OS
             );
 
@@ -218,7 +218,7 @@ pub mod cyclos_core {
                 &ctx.remaining_accounts[i].key,
                 lamports,
                 space as u64,
-                ctx.program_id
+                ctx.program_id,
             );
 
             solana_program::program::invoke_signed(
@@ -226,14 +226,14 @@ pub mod cyclos_core {
                 &[
                     ctx.accounts.payer.to_account_info(),
                     ctx.remaining_accounts[i].to_account_info(),
-                    ctx.accounts.system_program.to_account_info()
+                    ctx.accounts.system_program.to_account_info(),
                 ],
-                &[&observation_account_seeds[..]]
+                &[&observation_account_seeds[..]],
             )?;
 
             let observation_state_loader = Loader::<ObservationState>::try_from_unchecked(
                 &cyclos_core::id(),
-                &ctx.remaining_accounts[i].to_account_info()
+                &ctx.remaining_accounts[i].to_account_info(),
             )?;
             let mut observation_state = observation_state_loader.load_init()?;
             // this data will not be used because the initialized boolean is still false
@@ -258,7 +258,7 @@ pub mod cyclos_core {
         Ok(())
     }
 
-     // ---------------------------------------------------------------------
+    // ---------------------------------------------------------------------
     // Pool owner instructions
 
     /// Set the denominator of the protocol's % share of the fees
@@ -280,8 +280,8 @@ pub mod cyclos_core {
         pool_state.unlocked = false;
 
         assert!(
-            (fee_protocol_0 == 0 || (fee_protocol_0 >= 4 && fee_protocol_0 <= 10)) &&
-            (fee_protocol_1 == 0 || (fee_protocol_1 >= 4 && fee_protocol_1 <= 10))
+            (fee_protocol_0 == 0 || (fee_protocol_0 >= 4 && fee_protocol_0 <= 10))
+                && (fee_protocol_1 == 0 || (fee_protocol_1 >= 4 && fee_protocol_1 <= 10))
         );
 
         let fee_protocol_old = pool_state.fee_protocol;
@@ -325,33 +325,35 @@ pub mod cyclos_core {
             &pool_state.token_0.to_bytes() as &[u8],
             &pool_state.token_1.to_bytes() as &[u8],
             &pool_state.fee.to_be_bytes(),
-            &[pool_state.bump]
+            &[pool_state.bump],
         ];
 
         if amount_0 > 0 {
             pool_state.protocol_fees_token_0 -= amount_0;
-            token::transfer(CpiContext::new_with_signer(
+            token::transfer(
+                CpiContext::new_with_signer(
                     ctx.accounts.token_program.to_account_info().clone(),
                     token::Transfer {
                         from: ctx.accounts.vault_0.to_account_info().clone(),
                         to: ctx.accounts.recipient_wallet_0.to_account_info().clone(),
                         authority: ctx.accounts.pool_state.to_account_info().clone(),
                     },
-                    &[&pool_state_seeds[..]]
+                    &[&pool_state_seeds[..]],
                 ),
                 amount_0,
             )?;
         }
         if amount_1 > 0 {
             pool_state.protocol_fees_token_1 -= amount_1;
-            token::transfer(CpiContext::new_with_signer(
+            token::transfer(
+                CpiContext::new_with_signer(
                     ctx.accounts.token_program.to_account_info().clone(),
                     token::Transfer {
                         from: ctx.accounts.vault_1.to_account_info().clone(),
                         to: ctx.accounts.recipient_wallet_1.to_account_info().clone(),
                         authority: ctx.accounts.pool_state.to_account_info().clone(),
                     },
-                    &[&pool_state_seeds[..]]
+                    &[&pool_state_seeds[..]],
                 ),
                 amount_1,
             )?;
@@ -385,7 +387,11 @@ pub mod cyclos_core {
     /// * `tick_account_bump` - Bump to validate tick account PDA
     /// * `tick` - The tick for which the account is created
     ///
-    pub fn init_tick_account(ctx: Context<InitTickAccount>, tick_account_bump: u8, tick: i32) -> ProgramResult {
+    pub fn init_tick_account(
+        ctx: Context<InitTickAccount>,
+        tick_account_bump: u8,
+        tick: i32,
+    ) -> ProgramResult {
         let pool_state = ctx.accounts.pool_state.load()?;
         check_tick(tick, pool_state.tick_spacing)?;
         let mut tick_account = ctx.accounts.tick_state.load_init()?;
@@ -406,7 +412,7 @@ pub mod cyclos_core {
     pub fn init_bitmap_account(
         ctx: Context<InitBitmapAccount>,
         bitmap_account_bump: u8,
-        tick: i32
+        tick: i32,
     ) -> ProgramResult {
         let pool_state = ctx.accounts.pool_state.load()?;
         check_tick(tick, pool_state.tick_spacing)?;
@@ -425,10 +431,7 @@ pub mod cyclos_core {
     /// * `tick` - The tick for which the bitmap account is created. Program address of
     /// the account is derived using most significant 16 bits of the tick
     ///
-    pub fn init_position_account(
-        ctx: Context<InitPositionAccount>,
-        bump: u8,
-    ) -> ProgramResult {
+    pub fn init_position_account(ctx: Context<InitPositionAccount>, bump: u8) -> ProgramResult {
         let mut position_account = ctx.accounts.position_state.load_init()?;
         position_account.bump = bump;
         Ok(())
@@ -453,25 +456,27 @@ pub mod cyclos_core {
         amount_1_owed: u64,
     ) -> ProgramResult {
         if amount_0_owed > 0 {
-            token::transfer(CpiContext::new(
+            token::transfer(
+                CpiContext::new(
                     ctx.accounts.token_program.to_account_info(),
                     token::Transfer {
                         from: ctx.accounts.token_account_0.to_account_info(),
                         to: ctx.accounts.vault_0.to_account_info(),
                         authority: ctx.accounts.minter.to_account_info(),
-                    }
+                    },
                 ),
                 amount_0_owed,
             )?;
         }
         if amount_1_owed > 0 {
-            token::transfer(CpiContext::new(
+            token::transfer(
+                CpiContext::new(
                     ctx.accounts.token_program.to_account_info(),
                     token::Transfer {
                         from: ctx.accounts.token_account_1.to_account_info(),
                         to: ctx.accounts.vault_1.to_account_info(),
                         authority: ctx.accounts.minter.to_account_info(),
-                    }
+                    },
                 ),
                 amount_1_owed,
             )?;
@@ -487,10 +492,7 @@ pub mod cyclos_core {
     /// pool, position and ticks.
     /// * `amount` - The amount of liquidity to mint
     ///
-    pub fn mint(
-        ctx: Context<MintContext>,
-        amount: u64
-    ) -> ProgramResult {
+    pub fn mint(ctx: Context<MintContext>, amount: u64) -> ProgramResult {
         let mut pool_state = ctx.accounts.pool_state.load_mut()?;
         require!(pool_state.unlocked, ErrorCode::LOK);
         pool_state.unlocked = false;
@@ -528,7 +530,7 @@ pub mod cyclos_core {
 
         let mint_callback_ix = cyclos_core::instruction::MintCallback {
             amount_0_owed: amount_0,
-            amount_1_owed: amount_1
+            amount_1_owed: amount_1,
         };
         let ix = Instruction::new_with_bytes(
             ctx.accounts.callback_handler.key(),
@@ -541,10 +543,16 @@ pub mod cyclos_core {
         ctx.accounts.token_account_1.reload()?;
 
         if amount_0 > 0 {
-            require!(balance_0_before + amount_0 <= ctx.accounts.token_account_0.amount, ErrorCode::M0);
+            require!(
+                balance_0_before + amount_0 <= ctx.accounts.token_account_0.amount,
+                ErrorCode::M0
+            );
         }
         if amount_1 > 0 {
-            require!(balance_1_before + amount_1 <= ctx.accounts.token_account_1.amount, ErrorCode::M1);
+            require!(
+                balance_1_before + amount_1 <= ctx.accounts.token_account_1.amount,
+                ErrorCode::M1
+            );
         }
 
         emit!(MintEvent {
@@ -571,10 +579,7 @@ pub mod cyclos_core {
     /// * `ctx` - Holds position and other validated accounts need to burn liquidity
     /// * `amount` - Amount of liquidity to be burned
     ///
-    pub fn burn(
-        ctx: Context<BurnContext>,
-        amount: u64,
-    ) -> ProgramResult {
+    pub fn burn(ctx: Context<BurnContext>, amount: u64) -> ProgramResult {
         let mut pool_state = ctx.accounts.pool_state.load_mut()?;
         require!(pool_state.unlocked, ErrorCode::LOK);
         pool_state.unlocked = false;
@@ -614,67 +619,83 @@ pub mod cyclos_core {
         Ok(())
     }
 
-    // /// Collect tokens owed to a position
-    // /// Owed = fees + burned tokens
-    // ///
-    // /// Does not recompute fees earned, which must be done either via mint or
-    // /// burn of any amount of liquidity.
-    // /// To withdraw a single asset, the amount for the other asset can be set as 0.
-    // /// To withdraw all tokens owed, a value larger than owed amount can be passed,
-    // /// e.g. u64::MAX
-    // ///
-    // pub fn collect(
-    //     ctx: Context<MintAccount>,
-    //     // TODO Read position details (tick_upper, tick_lower) from the Position PDA
-    //     tick_lower: i32,
-    //     tick_upper: i32,
-    //     amount_0_requested: u64,
-    //     amount_1_requested: u64,
-    // ) -> ProgramResult {
-    //     if !ctx.accounts.pool_state.unlocked {
-    //         return Err(ErrorCode::Locked.into());
-    //     }
-    //     ctx.accounts.pool_state.unlocked = false;
-    //     // ______________________________________________
+    /// Collects tokens owed to a position.
+    ///
+    /// Does not recompute fees earned, which must be done either via mint or burn of any amount of liquidity.
+    /// Collect must be called by the position owner. To withdraw only token_0 or only token_1, amount_0_requested or
+    /// amount_1_requested may be set to zero. To withdraw all tokens owed, caller may pass any value greater than the
+    /// actual tokens owed, e.g. u64::MAX. Tokens owed may be from accumulated swap fees or burned liquidity.
+    ///
+    /// # Arguments
+    ///
+    /// * `amount_0_requested` - How much token_0 should be withdrawn from the fees owed
+    /// * `amount_1_requested` - How much token_1 should be withdrawn from the fees owed
+    ///
+    pub fn collect(
+        ctx: Context<CollectContext>,
+        amount_0_requested: u64,
+        amount_1_requested: u64,
+    ) -> ProgramResult {
+        let mut pool_state = ctx.accounts.pool_state.load_mut()?;
+        require!(pool_state.unlocked, ErrorCode::LOK);
+        pool_state.unlocked = false;
 
-    //     let position_state = &mut *ctx.accounts.position_state;
-    //     let pool_state = &mut *ctx.accounts.pool_state;
+        let mut position = ctx.accounts.position_state.load_mut()?;
 
-    //     let amount_0 = if amount_0_requested > position_state.tokens_owed_0 {
-    //         position_state.tokens_owed_0
-    //     } else {
-    //         amount_0_requested
-    //     };
+        let amount_0 = amount_0_requested.min(position.tokens_owed_0);
+        let amount_1 = amount_1_requested.min(position.tokens_owed_1);
 
-    //     let amount_1 = if amount_1_requested > position_state.tokens_owed_1 {
-    //         position_state.tokens_owed_1
-    //     } else {
-    //         amount_1_requested
-    //     };
+        let pool_state_seeds = [
+            &pool_state.token_0.to_bytes() as &[u8],
+            &pool_state.token_1.to_bytes() as &[u8],
+            &pool_state.fee.to_be_bytes(),
+            &[pool_state.bump],
+        ];
 
-    //     if amount_0 > 0 {
-    //         position_state.tokens_owed_0 =
-    //             position_state.tokens_owed_0.checked_sub(amount_0).unwrap();
-    //         // TODO: Transfer
-    //     }
-    //     if amount_1 > 0 {
-    //         position_state.tokens_owed_1 =
-    //             position_state.tokens_owed_1.checked_sub(amount_1).unwrap();
-    //         //  TODO: Transfer
-    //     }
+        drop(pool_state);
+        if amount_0 > 0 {
+            position.tokens_owed_0 -= amount_0;
+            token::transfer(
+                CpiContext::new_with_signer(
+                    ctx.accounts.token_program.to_account_info().clone(),
+                    token::Transfer {
+                        from: ctx.accounts.vault_0.to_account_info().clone(),
+                        to: ctx.accounts.recipient_wallet_0.to_account_info().clone(),
+                        authority: ctx.accounts.pool_state.to_account_info().clone(),
+                    },
+                    &[&pool_state_seeds[..]],
+                ),
+                amount_0,
+            )?;
+        }
+        if amount_1 > 0 {
+            position.tokens_owed_1 -= amount_1;
+            token::transfer(
+                CpiContext::new_with_signer(
+                    ctx.accounts.token_program.to_account_info().clone(),
+                    token::Transfer {
+                        from: ctx.accounts.vault_1.to_account_info().clone(),
+                        to: ctx.accounts.recipient_wallet_1.to_account_info().clone(),
+                        authority: ctx.accounts.pool_state.to_account_info().clone(),
+                    },
+                    &[&pool_state_seeds[..]],
+                ),
+                amount_1,
+            )?;
+        }
 
-    //     emit!(CollectEvent {
-    //         pool_state: pool_state.key(),
-    //         tick_lower,
-    //         tick_upper,
-    //         amount_0: amount_0 as i64,
-    //         amount_1: amount_1 as i64,
-    //     });
+        emit!(CollectEvent {
+            pool_state: ctx.accounts.pool_state.key(),
+            owner: ctx.accounts.owner.key(),
+            tick_lower: ctx.accounts.tick_lower_state.load()?.tick,
+            tick_upper: ctx.accounts.tick_upper_state.load()?.tick,
+            amount_0,
+            amount_1,
+        });
 
-    //     // ______________________________________________
-    //     ctx.accounts.pool_state.unlocked = true;
-    //     Ok(())
-    // }
+        ctx.accounts.pool_state.load_mut()?.unlocked = true;
+        Ok(())
+    }
 
     // // ---------------------------------------------------------------------
     // // 4. Swap instructions
@@ -722,8 +743,6 @@ pub mod cyclos_core {
     // pub fn flash(ctx: Context<SetFeeProtocol>, amount_0: u64, amount_1: u64) -> ProgramResult {
     //     todo!()
     // }
-
-
 }
 
 /// Common checks for a valid tick input.
@@ -814,8 +833,7 @@ pub fn _modify_position<'info>(
                 tick_math::get_sqrt_ratio_at_tick(tick_upper)?,
                 liquidity_delta,
             );
-        }
-        else if pool_state.tick < tick_upper {
+        } else if pool_state.tick < tick_upper {
             // current tick is inside the passed range
 
             // write oracle observation
@@ -831,7 +849,7 @@ pub fn _modify_position<'info>(
                 pool_state.tick,
                 pool_state.liquidity,
                 pool_state.observation_cardinality,
-                pool_state.observation_cardinality_next
+                pool_state.observation_cardinality_next,
             );
             pool_state.observation_index = next_observation.index;
 
@@ -847,7 +865,8 @@ pub fn _modify_position<'info>(
                 liquidity_delta,
             );
 
-            pool_state.liquidity = liquidity_math::add_delta(pool_state.liquidity, liquidity_delta)?;
+            pool_state.liquidity =
+                liquidity_math::add_delta(pool_state.liquidity, liquidity_delta)?;
         }
         // current tick is above the range
         else {
@@ -897,14 +916,8 @@ pub fn _update_position<'info>(
     // update the ticks if liquidity delta is non-zero
     if liquidity_delta != 0 {
         let time = oracle::_block_timestamp();
-        let (
-            tick_cumulative,
-            seconds_per_liquidity_cumulative_x32
-        ) = latest_observation_state.observe_latest(
-            time,
-            pool_state.tick,
-            pool_state.liquidity
-        );
+        let (tick_cumulative, seconds_per_liquidity_cumulative_x32) =
+            latest_observation_state.observe_latest(time, pool_state.tick, pool_state.liquidity);
 
         let max_liquidity_per_tick =
             tick_spacing_to_max_liquidity_per_tick(pool_state.tick_spacing as i32);
@@ -954,7 +967,11 @@ pub fn _update_position<'info>(
         pool_state.fee_growth_global_0_x32,
         pool_state.fee_growth_global_1_x32,
     );
-    position_state.load_mut()?.update(liquidity_delta, fee_growth_inside_0_x32, fee_growth_inside_1_x32)?;
+    position_state.load_mut()?.update(
+        liquidity_delta,
+        fee_growth_inside_0_x32,
+        fee_growth_inside_1_x32,
+    )?;
 
     // Deallocate the tick accounts if they get un-initialized
     // A tick is un-initialized on flip if liquidity_delta is negative

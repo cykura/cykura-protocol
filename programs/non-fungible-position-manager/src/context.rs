@@ -39,7 +39,8 @@ pub struct MintPosition<'info> {
     /// Receives the position NFT
     pub recipient: UncheckedAccount<'info>,
 
-    /// Position manager PDA to custody the core liquidity and mint the tokenized position NFT
+    /// The program account acting as the core liquidity custodian for token holder, and as
+    /// mint authority of the position NFT
     pub position_manager_state: Loader<'info, PositionManagerState>,
 
     /// Unique token mint address
@@ -247,8 +248,7 @@ pub struct DecreaseLiquidity<'info> {
 
     /// The token account for the tokenized position
     #[account(
-        constraint = nft_account.mint == tokenized_position_state.load()?.mint,
-        constraint = nft_account.amount == 1 @ErrorCode::NotApproved
+        constraint = nft_account.mint == tokenized_position_state.load()?.mint
     )]
     pub nft_account: Box<Account<'info, TokenAccount>>,
 
@@ -256,7 +256,7 @@ pub struct DecreaseLiquidity<'info> {
     #[account(mut)]
     pub tokenized_position_state: Loader<'info, TokenizedPositionState>,
 
-    /// Position manager PDA which custodies the core liquidity on behalf of the token holder
+    /// The program account acting as the core liquidity custodian for token holder
     pub position_manager_state: Loader<'info, PositionManagerState>,
 
     /// Burn liquidity for this pool
@@ -293,4 +293,78 @@ pub struct DecreaseLiquidity<'info> {
 
     /// The core program where liquidity is burned
     pub core_program: Program<'info, cyclos_core::program::CyclosCore>,
+}
+
+#[derive(Accounts)]
+pub struct Collect<'info> {
+    /// The position owner or delegated authority
+    #[account(mut)]
+    pub owner_or_delegate: Signer<'info>,
+
+    /// The token account for the tokenized position
+    #[account(
+        constraint = nft_account.mint == tokenized_position_state.load()?.mint
+    )]
+    pub nft_account: Box<Account<'info, TokenAccount>>,
+
+    /// The program account of the NFT for which tokens are being collected
+    #[account(mut)]
+    pub tokenized_position_state: Loader<'info, TokenizedPositionState>,
+
+    /// The program account acting as the core liquidity custodian for token holder
+    pub position_manager_state: Loader<'info, PositionManagerState>,
+
+    /// The program account for the liquidity pool from which fees are collected
+    #[account(mut)]
+    pub pool_state: UncheckedAccount<'info>,
+
+    /// The program account to access the core program position state
+    #[account(mut)]
+    pub core_position_state: UncheckedAccount<'info>,
+
+    /// The program account for the position's lower tick
+    #[account(mut)]
+    pub tick_lower_state: UncheckedAccount<'info>,
+
+    /// The program account for the position's upper tick
+    #[account(mut)]
+    pub tick_upper_state: UncheckedAccount<'info>,
+
+    /// The bitmap program account for the init state of the lower tick
+    #[account(mut)]
+    pub bitmap_lower: UncheckedAccount<'info>,
+
+    /// Stores init state for the upper tick
+    #[account(mut)]
+    pub bitmap_upper: UncheckedAccount<'info>,
+
+    /// The latest observation state
+    #[account(mut)]
+    pub latest_observation_state: UncheckedAccount<'info>,
+
+    /// The next observation state
+    #[account(mut)]
+    pub next_observation_state: UncheckedAccount<'info>,
+
+    /// The account holding pool tokens for token_0
+    #[account(mut)]
+    pub vault_0: UncheckedAccount<'info>,
+
+    /// The account holding pool tokens for token_1
+    #[account(mut)]
+    pub vault_1: UncheckedAccount<'info>,
+
+    /// The destination token account for the collected amount_0
+    #[account(mut)]
+    pub recipient_wallet_0: UncheckedAccount<'info>,
+
+    /// The destination token account for the collected amount_1
+    #[account(mut)]
+    pub recipient_wallet_1: UncheckedAccount<'info>,
+
+    /// The core program where liquidity is burned
+    pub core_program: Program<'info, cyclos_core::program::CyclosCore>,
+
+    /// SPL program to transfer out tokens
+    pub token_program: UncheckedAccount<'info>,
 }
