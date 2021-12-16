@@ -137,7 +137,7 @@ pub fn get_next_sqrt_price_from_amount_1_rounding_down(
             u64::div_rounding_up(amount << fixed_point_x32::RESOLUTION, liquidity)
         } else {
             amount
-                .mul_div_floor(fixed_point_x32::Q32, liquidity)
+                .mul_div_ceil(fixed_point_x32::Q32, liquidity)
                 .unwrap()
         };
 
