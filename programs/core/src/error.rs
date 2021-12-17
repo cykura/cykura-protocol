@@ -39,6 +39,14 @@ pub enum ErrorCode {
     #[msg("OS")]
     OS,
 
+    // `amount_specified` cannot be zero
+    #[msg("AS")]
+    AS,
+
+    // Square root price limit
+    #[msg("SPL")]
+    SPL,
+
     // states/position.rs
 
     // No poke/burn for a position with 0 liquidity

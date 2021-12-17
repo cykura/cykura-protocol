@@ -13,6 +13,12 @@ use bitmaps::Bitmap;
 use bitmaps::Bits;
 use bitmaps::BitsImpl;
 
+use uint::construct_uint;
+
+construct_uint! {
+    pub struct U256(4);
+}
+
 /// Seed to derive account address and signature
 pub const BITMAP_SEED: &str = "b";
 
@@ -29,11 +35,11 @@ pub struct TickBitmapState {
     /// Bump to identify PDA
     pub bump: u8,
 
-    /// Most significant 16 bits of the 256 ticks
+    /// Most significant 16 bits of the consecutive 256 ticks represented by this struct
     pub word_pos: i16,
 
-    /// Packed initialized state for 256 ticks
-    pub word: [u128; 2],
+    /// Packed initialized state for the 256 ticks
+    pub word: [u64; 4],
 }
 
 // // Get tick / spacing
@@ -67,9 +73,6 @@ pub struct TickBitmapState {
 // }
 
 impl TickBitmapState {
-    // pub fn decode_bitmap(&self) -> Bitmap<256> {
-    //     Bitmap::<256>::from_value(self.bitmap)
-    // }
 
     ///  Flips the initialized state for a given tick from false to true, or vice versa
     ///
@@ -79,12 +82,18 @@ impl TickBitmapState {
     /// * `bit_pos` - The rightmost 8 bits of the tick
     ///
     pub fn flip_tick(&mut self, bit_pos: u8) {
-        if bit_pos < 128 {
-            self.word[0] ^= 1 << (bit_pos)
-        } else {
-            self.word[1] ^= 1 << (bit_pos - 127)
-        }
-        // self.word[(bit_pos > 127) as usize] ^= 1 << (bit_pos - 127 * ((bit_pos > 127) as u8));
+        let word = U256(self.word);
+        let mask = U256::default() << bit_pos;
+        self.word = word.bitxor(mask).0;
+    }
+
+    pub fn next_initialized_tick(
+        &self,
+        bit_pos: u8,
+        lte: bool
+    ) -> u8 {
+
+        1
     }
 
     // Get next initialized tick in given word

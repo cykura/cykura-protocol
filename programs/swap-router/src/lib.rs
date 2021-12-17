@@ -3,8 +3,8 @@ pub mod error;
 pub mod event;
 pub mod states;
 
-use context::*;
 use anchor_lang::prelude::*;
+use context::*;
 
 declare_id!("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS");
 
@@ -33,53 +33,8 @@ pub mod swap_router {
         ctx: Context<SwapCallback>,
         amount_0_delta: i64,
         amount_1_delta: i64,
-        data: [u128; 8]
+        data: [u128; 8],
     ) -> ProgramResult {
-
-        todo!()
-    }
-
-    /// Swaps `amount_in` of one token for as much as possible of another token,
-    /// across a single pool
-    ///
-    /// # Arguments
-    ///
-    /// * `ctx` - Token and pool accounts for swap
-    /// * `zero_for_one` - Direction of swap. Swap token_0 for token_1 if true
-    /// * `deadline` - Swap should if fail if past deadline
-    /// * `amount_in` - Token amount to be swapped in
-    /// * `amount_out_minimum` - Panic if output amount is below minimum amount. For slippage.
-    /// * `sqrt_price_limit` - Limit price √P for slippage
-    ///
-    pub fn exact_input_single(
-        ctx: Context<ExactInputSingle>,
-        zero_for_one: bool,
-        deadline: u64,
-        amount_in: u64,
-        amount_out_minimum: u64,
-        sqrt_price_limit_x32: u64
-    ) -> ProgramResult {
-
-        todo!()
-    }
-
-    /// Swaps `amount_in` of one token for as much as possible of another token,
-    /// across the path provided
-    ///
-    /// # Arguments
-    ///
-    /// * `ctx` - Accounts for token transfer and swap route
-    /// * `deadline` - Swap should if fail if past deadline
-    /// * `amount_in` - Token amount to be swapped in
-    /// * `amount_out_minimum` - Panic if output amount is below minimum amount. For slippage.
-    ///
-    pub fn exact_input(
-        ctx: Context<ExactInput>,
-        deadline: u64,
-        amount_in: u64,
-        amount_out_minimum: u64,
-    ) -> ProgramResult {
-
         todo!()
     }
 
@@ -101,9 +56,8 @@ pub mod swap_router {
         deadline: u64,
         amount_out: u64,
         amount_in_maximum: u64,
-        sqrt_price_limit_x32: u64
+        sqrt_price_limit_x32: u64,
     ) -> ProgramResult {
-
         todo!()
     }
 
@@ -123,13 +77,60 @@ pub mod swap_router {
         amount_out: u64,
         amount_out_maximum: u64,
     ) -> ProgramResult {
-
         todo!()
+    }
+
+    /// Swaps `amount_in` of one token for as much as possible of another token,
+    /// across the path provided
+    ///
+    /// # Arguments
+    ///
+    /// * `ctx` - Accounts for token transfer and swap route
+    /// * `deadline` - Swap should if fail if past deadline
+    /// * `amount_in` - Token amount to be swapped in
+    /// * `amount_out_minimum` - Panic if output amount is below minimum amount. For slippage.
+    ///
+    pub fn exact_input(
+        ctx: Context<ExactInput>,
+        deadline: u64,
+        amount_in: u64,
+        amount_out_minimum: u64,
+    ) -> ProgramResult {
+        todo!()
+    }
+
+    /// Swaps `amount_in` of one token for as much as possible of another token,
+    /// across a single pool
+    ///
+    /// # Arguments
+    ///
+    /// * `ctx` - Accounts required for the swap
+    /// * `zero_for_one` -  The direction of the swap, true for token_0 to token_1, false for token_1 to token_0
+    /// * `deadline` - The time by which the transaction must be included to effect the change
+    /// * `amount_in` - Token amount to be swapped in
+    /// * `amount_out_minimum` - The minimum amount to swap out, which serves as a slippage check
+    /// * `sqrt_price_limit` - The Q32.32 sqrt price √P limit. If zero for one, the price cannot
+    /// be less than this value after the swap.  If one for zero, the price cannot be greater than
+    /// this value after the swap.
+    ///
+    pub fn exact_input_single(
+        ctx: Context<ExactInputSingle>,
+        zero_for_one: bool,
+        deadline: u64,
+        amount_in: u64,
+        amount_out_minimum: u64,
+        sqrt_price_limit_x32: u64,
+    ) -> ProgramResult {
+
+        Ok(())
     }
 }
 
-/// Common function to perform CPI for exact_input_single() and exact_input()
-pub fn exact_input_internal() {
+pub struct ExactInputInternalArgs<'info> {
+    pub pool_state: UncheckedAccount<'info>,
+}
+/// Performs a single exact input swap
+pub fn exact_input_internal(args: ExactInputInternalArgs) {
     todo!()
 }
 

@@ -221,21 +221,6 @@ pub struct CollectProtocol<'info> {
     pub token_program: Program<'info, Token>,
 }
 
-// #[derive(Accounts)]
-// #[instruction(fee: u32, token_0: Pubkey, token_1: Pubkey, tick_lower:u128, tick_upper:u128, bump: u8)]
-// pub struct CreatePosition<'info> {
-//     pub owner: Signer<'info>,
-//     #[account(
-//         init, // should be mut ?
-//         seeds = [token_0.as_ref(), token_1.as_ref(), &fee.to_be_bytes(), &tick_lower.to_be_bytes(), &tick_upper.to_be_bytes()],
-//         bump = bump,
-//         payer = owner,
-//         space = size_of::<FeeState>() + 10
-//     )]
-//     pub pool_state: Box<Account<'info, PositionState>>,
-//     pub system_program: Program<'info, System>,
-// }
-
 #[derive(Accounts)]
 #[instruction(tick_account_bump: u8, tick: i32)]
 pub struct InitTickAccount<'info> {
@@ -689,5 +674,44 @@ pub struct CollectContext<'info> {
     pub recipient_wallet_1: UncheckedAccount<'info>,
 
     /// SPL program to transfer out tokens
+    pub token_program: Program<'info, Token>,
+}
+
+#[derive(Accounts)]
+pub struct SwapContext<'info> {
+    /// The user performing the swap
+    pub signer: Signer<'info>,
+
+    /// The program account of the pool in which the swap will be performed
+    #[account(mut)]
+    pub pool_state: Loader<'info, PoolState>,
+
+    /// The payer token account in zero for one swaps, or the recipient token account
+    /// in one for zero swaps
+    #[account(mut)]
+    pub token_account_0: Box<Account<'info, TokenAccount>>,
+
+    /// The payer token account in one for zero swaps, or the recipient token account
+    /// in zero for one swaps
+    #[account(mut)]
+    pub token_account_1: Box<Account<'info, TokenAccount>>,
+
+    /// The account holding pool tokens for token_0
+    #[account(
+        mut,
+        associated_token::mint = pool_state.load()?.token_0.key(),
+        associated_token::authority = pool_state,
+    )]
+    pub vault_0: Box<Account<'info, TokenAccount>>,
+
+    /// The account holding pool tokens for token_1
+    #[account(
+        mut,
+        associated_token::mint = pool_state.load()?.token_1.key(),
+        associated_token::authority = pool_state,
+    )]
+    pub vault_1: Box<Account<'info, TokenAccount>>,
+
+    /// SPL program for token transfers
     pub token_program: Program<'info, Token>,
 }

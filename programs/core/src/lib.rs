@@ -34,6 +34,8 @@ declare_id!("37kn8WUzihQoAnhYxueA2BnqCA7VRnrVvYoHy1hQ6Veu");
 #[program]
 pub mod cyclos_core {
 
+    use libraries::swap_math::SwapStep;
+
     use super::*;
 
     // ---------------------------------------------------------------------
@@ -697,30 +699,142 @@ pub mod cyclos_core {
         Ok(())
     }
 
-    // // ---------------------------------------------------------------------
-    // // 4. Swap instructions
+    // ---------------------------------------------------------------------
+    // 4. Swap instructions
 
-    // /// Perform swap
-    // ///
-    // /// Only callable by smart contract which implements uniswapV3SwapCallback()
-    // ///
-    // /// Flow
-    // /// 1. Periphery.SwapRouter.exactInputInternal()/exactOutputInternal(): stateless routing
-    // /// 2. Core.UniswapV3Pool.swap(): change state
-    // /// 3. Periphery.SwapRouter.uniswapV3SwapCallback(): transfer tokens from user to pool
-    // ///
-    // /// @param zero_for_one Swap token0 -> token1 if true, else token1 -> token0
-    // /// @param amount_specified Δtoken0 or Δtoken1 to be added/removed to pool.
-    // /// Exact input swap if positive, else exact output swap
-    // /// @param sqrt_price_limit Limit price √P for slippage
-    // pub fn swap(
-    //     ctx: Context<SetFeeProtocol>,
-    //     zero_for_one: bool,
-    //     amount_specified: i64,
-    //     sqrt_price_limit: f64,
-    // ) -> ProgramResult {
-    //     todo!()
-    // }
+    pub struct SwapCache {
+        // the protocol fee for the input token
+        pub fee_protocol: u8,
+        // liquidity at the beginning of the swap
+        pub liquidity_start: u64,
+        // the timestamp of the current block
+        pub block_timestamp: u32,
+        // the current value of the tick accumulator, computed only if we cross an initialized tick
+        pub tick_cumulative: i64,
+        // the current value of seconds per liquidity accumulator, computed only if we cross an initialized tick
+        pub seconds_per_liquidity_cumulative_x32: u64,
+        // whether we've computed and cached the above two accumulators
+        pub computed_latest_observation: bool,
+    }
+
+    // the top level state of the swap, the results of which are recorded in storage at the end
+    pub struct SwapState {
+        // the amount remaining to be swapped in/out of the input/output asset
+        pub amount_specified_remaining: i64,
+        // the amount already swapped out/in of the output/input asset
+        pub amount_calculated: i64,
+        // current sqrt(price)
+        pub sqrt_price_x32: u64,
+        // the tick associated with the current price
+        pub tick: i32,
+        // the global fee growth of the input token
+        pub fee_growth_global_x32: u64,
+        // amount of input token paid as protocol fee
+        pub protocol_fee: u64,
+        // the current liquidity in range
+        pub liquidity: u64,
+    }
+
+    #[derive(Default)]
+    struct StepComputations {
+        // the price at the beginning of the step
+        sqrt_price_start_x32: u64,
+        // the next tick to swap to from the current tick in the swap direction
+        tick_next: i32,
+        // whether tick_next is initialized or not
+        initialized: bool,
+        // sqrt(price) for the next tick (1/0)
+        sqrt_price_next_x32: u64,
+        // how much is being swapped in in this step
+        amount_in: u64,
+        // how much is being swapped out
+        amount_out: u64,
+        // how much fee is being paid in
+        fee_amount: u64,
+    }
+
+    /// Swap token_0 for token_1, or token_1 for token_0
+    ///
+    /// Outstanding tokens must be paid in #swap_callback
+    ///
+    /// # Arguments
+    ///
+    /// * `ctx` - Accounts required for the swap
+    /// * `zero_for_one` -  The direction of the swap, true for token_0 to token_1, false for token_1 to token_0
+    /// * `deadline` - The time by which the transaction must be included to effect the change
+    /// * `amount_specified` - The amount of the swap, which implicitly configures the swap as exact input (positive),
+    /// or exact output (negative)
+    /// * `sqrt_price_limit` - The Q32.32 sqrt price √P limit. If zero for one, the price cannot
+    /// be less than this value after the swap.  If one for zero, the price cannot be greater than
+    /// this value after the swap.
+    ///
+    pub fn swap(
+        ctx: Context<SwapContext>,
+        zero_for_one: bool,
+        amount_specified: i64,
+        sqrt_price_limit_x32: u64,
+    ) -> ProgramResult {
+        require!(amount_specified != 0, ErrorCode::AS);
+
+        let mut pool_state = ctx.accounts.pool_state.load_mut()?;
+        require!(pool_state.unlocked, ErrorCode::LOK);
+        require!(
+            if zero_for_one {
+                sqrt_price_limit_x32 < pool_state.sqrt_price_x32
+                    && sqrt_price_limit_x32 > tick_math::MIN_SQRT_RATIO
+            } else {
+                sqrt_price_limit_x32 > pool_state.sqrt_price_x32
+                    && sqrt_price_limit_x32 < tick_math::MAX_SQRT_RATIO
+            },
+            ErrorCode::SPL
+        );
+
+        pool_state.unlocked = false;
+
+        let cache = SwapCache {
+            liquidity_start: pool_state.liquidity,
+            block_timestamp: oracle::_block_timestamp(),
+            fee_protocol: if zero_for_one {
+                pool_state.fee_protocol % 16
+            } else {
+                pool_state.fee_protocol >> 4
+            },
+            seconds_per_liquidity_cumulative_x32: 0,
+            tick_cumulative: 0,
+            computed_latest_observation: false,
+        };
+
+        let exact_input = amount_specified > 0;
+
+        let state = SwapState {
+            amount_specified_remaining: amount_specified,
+            amount_calculated: 0,
+            sqrt_price_x32: pool_state.sqrt_price_x32,
+            tick: pool_state.tick,
+            fee_growth_global_x32: if zero_for_one {
+                pool_state.fee_growth_global_0_x32
+            } else {
+                pool_state.fee_growth_global_1_x32
+            },
+            protocol_fee: 0,
+            liquidity: cache.liquidity_start,
+        };
+
+        // continue swapping as long as we haven't used the entire input/output and haven't
+        // reached the price limit
+
+        while state.amount_specified_remaining != 0 && state.sqrt_price_x32 != sqrt_price_limit_x32 {
+            let mut step = StepComputations::default();
+
+            step.sqrt_price_start_x32 = state.sqrt_price_x32;
+
+            // if zero_for_one(lte = true) start with the word containing the current tick
+            // else use the word of the next tick
+            // what about looping?
+
+        }
+        Ok(())
+    }
 
     // /// Component function for flash swaps
     // ///
