@@ -35,10 +35,11 @@ pub struct TickBitmapState {
     /// Bump to identify PDA
     pub bump: u8,
 
-    /// Most significant 16 bits of the consecutive 256 ticks represented by this struct
+    /// The bitmap key. To find word position from a tick, divide the tick by tick spacing
+    /// to get a 24 bit compressed result, then right shift to obtain the most significant 16 bits.
     pub word_pos: i16,
 
-    /// Packed initialized state for the 256 ticks
+    /// Packed initialized state
     pub word: [u64; 4],
 }
 

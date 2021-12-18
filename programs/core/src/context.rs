@@ -250,7 +250,7 @@ pub struct InitTickAccount<'info> {
 }
 
 #[derive(Accounts)]
-#[instruction(bitmap_account_bump: u8, tick: i32)]
+#[instruction(bump: u8, word_pos: i16)]
 pub struct InitBitmapAccount<'info> {
     /// Pays to create bitmap account
     #[account(mut)]
@@ -267,9 +267,9 @@ pub struct InitBitmapAccount<'info> {
             pool_state.load()?.token_0.key().as_ref(),
             pool_state.load()?.token_1.key().as_ref(),
             &pool_state.load()?.fee.to_be_bytes(),
-            &((tick >> 8) as i16).to_be_bytes()
+            &word_pos.to_be_bytes()
         ],
-        bump = bitmap_account_bump,
+        bump = bump,
         payer = signer
     )]
     pub bitmap_state: Loader<'info, TickBitmapState>,

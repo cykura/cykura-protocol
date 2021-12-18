@@ -17,11 +17,11 @@ pub enum ErrorCode {
     #[msg("TMS")]
     TMS,
 
-    // The lower tick must be greater, or equal to, the minimum tick
+    // The tick must be greater, or equal to, the minimum tick
     #[msg("TLM")]
     TLM,
 
-    // The upper tick must be lesser than, or equal to, the maximum tick
+    // The tick must be lesser than, or equal to, the maximum tick
     #[msg("TUM")]
     TUM,
 

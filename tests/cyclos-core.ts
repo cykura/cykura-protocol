@@ -1161,8 +1161,8 @@ describe('cyclos-core', async () => {
 
     const tickLower = 0
     const tickUpper = 10
-    const wordPosLower = tickLower >> 8
-    const wordPosUpper = tickUpper >> 8
+    const wordPosLower = (tickLower / tickSpacing) >> 8
+    const wordPosUpper = (tickUpper / tickSpacing) >> 8
 
     const amount0Desired = new BN(0)
     const amount1Desired = new BN(1_000_000)
@@ -1332,18 +1332,21 @@ describe('cyclos-core', async () => {
     })
 
     describe('#init_bitmap_account', () => {
+      const minWordPos = (MIN_TICK / tickSpacing) >> 8
+      const maxWordPos = (MAX_TICK / tickSpacing) >> 8
+
       it('fails if tick is lower than limit', async () => {
         const [invalidBitmapLower, invalidBitmapLowerBump] = await PublicKey.findProgramAddress([
             BITMAP_SEED,
             token0.publicKey.toBuffer(),
             token1.publicKey.toBuffer(),
             u32ToSeed(fee),
-            u16ToSeed((MIN_TICK - 1) >> 8),
+            u16ToSeed(minWordPos - 1),
           ],
           coreProgram.programId
         )
 
-        await expect(coreProgram.rpc.initBitmapAccount(invalidBitmapLowerBump, MIN_TICK - 1, {
+        await expect(coreProgram.rpc.initBitmapAccount(invalidBitmapLowerBump, minWordPos - 1, {
           accounts: {
             signer: owner,
             poolState,
@@ -1359,12 +1362,12 @@ describe('cyclos-core', async () => {
             token0.publicKey.toBuffer(),
             token1.publicKey.toBuffer(),
             u32ToSeed(fee),
-            u16ToSeed((MAX_TICK + 1) >> 8),
+            u16ToSeed(maxWordPos + 1),
           ],
           coreProgram.programId
         )
 
-        await expect(coreProgram.rpc.initBitmapAccount(invalidBitmapUpperBump, MAX_TICK + 1, {
+        await expect(coreProgram.rpc.initBitmapAccount(invalidBitmapUpperBump, maxWordPos + 1, {
           accounts: {
             signer: owner,
             poolState,
@@ -1374,30 +1377,8 @@ describe('cyclos-core', async () => {
         })).to.be.rejectedWith('TUM')
       })
 
-      it('fails if tick is not a multiple of tick spacing', async () => {
-        const invalidTick = 5
-        const [bitmapState, bitmapBump] = await PublicKey.findProgramAddress([
-            BITMAP_SEED,
-            token0.publicKey.toBuffer(),
-            token1.publicKey.toBuffer(),
-            u32ToSeed(fee),
-            u16ToSeed(invalidTick >> 8),
-          ],
-          coreProgram.programId
-        );
-
-        await expect(coreProgram.rpc.initBitmapAccount(bitmapBump, invalidTick, {
-          accounts: {
-            signer: owner,
-            poolState,
-            bitmapState,
-            systemProgram: SystemProgram.programId,
-          }
-        })).to.be.rejectedWith('TMS')
-      })
-
       it('creates new bitmap account for lower and upper ticks', async () => {
-        await coreProgram.rpc.initBitmapAccount(bitmapLowerBump, tickLower, {
+        await coreProgram.rpc.initBitmapAccount(bitmapLowerBump, wordPosLower, {
           accounts: {
             signer: owner,
             poolState,

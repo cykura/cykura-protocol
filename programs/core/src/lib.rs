@@ -408,19 +408,24 @@ pub mod cyclos_core {
     ///
     /// * `ctx` - Contains accounts to initialize an empty bitmap account
     /// * `bitmap_account_bump` - Bump to validate the bitmap account PDA
-    /// * `tick` - The tick for which the bitmap account is created. Program address of
-    /// the account is derived using most significant 16 bits of the tick
+    /// * `word_pos` - The bitmap key for which to create account. To find word position from a tick,
+    /// divide the tick by tick spacing to get a 24 bit compressed result, then right shift to obtain the
+    /// most significant 16 bits.
     ///
     pub fn init_bitmap_account(
         ctx: Context<InitBitmapAccount>,
-        bitmap_account_bump: u8,
-        tick: i32,
+        bump: u8,
+        word_pos: i16,
     ) -> ProgramResult {
         let pool_state = ctx.accounts.pool_state.load()?;
-        check_tick(tick, pool_state.tick_spacing)?;
+        let max_word_pos = ((tick_math::MAX_TICK / pool_state.tick_spacing as i32) >> 8) as i16;
+        let min_word_pos = ((tick_math::MIN_TICK / pool_state.tick_spacing as i32) >> 8) as i16;
+        require!(word_pos >= min_word_pos, ErrorCode::TLM);
+        require!(word_pos <= max_word_pos, ErrorCode::TUM);
+
         let mut bitmap_account = ctx.accounts.bitmap_state.load_init()?;
-        bitmap_account.bump = bitmap_account_bump;
-        bitmap_account.word_pos = (tick >> 8) as i16;
+        bitmap_account.bump = bump;
+        bitmap_account.word_pos = word_pos;
         Ok(())
     }
 
