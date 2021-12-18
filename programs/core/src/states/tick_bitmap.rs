@@ -12,12 +12,8 @@ use anchor_lang::prelude::*;
 use bitmaps::Bitmap;
 use bitmaps::Bits;
 use bitmaps::BitsImpl;
-
-use uint::construct_uint;
-
-construct_uint! {
-    pub struct U256(4);
-}
+use crate::libraries::bit_math;
+use crate::libraries::big_num::U256;
 
 /// Seed to derive account address and signature
 pub const BITMAP_SEED: &str = "b";
@@ -41,6 +37,30 @@ pub struct TickBitmapState {
 
     /// Packed initialized state
     pub word: [u64; 4],
+}
+
+/// The position in the mapping where the initialized bit for a tick lives
+pub struct Position {
+    /// The key in the mapping containing the word in which the bit is stored
+    pub word_pos: i16,
+
+    /// The bit position in the word where the flag is stored
+    pub bit_pos: u8
+}
+
+/// Computes the position in the mapping where the initialized bit for a tick lives.
+///
+///
+/// # Arguments
+///
+/// * `tick_by_spacing` - The tick for which to compute the position, divided by pool tick spacing
+///
+pub fn position(tick_by_spacing: i32) -> Position {
+    Position {
+        word_pos: (tick_by_spacing >> 8) as i16,
+        // begins with 255 for negative numbers
+        bit_pos: (tick_by_spacing % 256) as u8
+    }
 }
 
 // // Get tick / spacing
@@ -88,12 +108,33 @@ impl TickBitmapState {
         self.word = word.bitxor(mask).0;
     }
 
-    pub fn next_initialized_tick(
+    /// Returns the bit position for the next initialized tick contained in the same word (or adjacent word)
+    /// as the tick that is either to the left (less than or equal to) or right (greater than) of the given tick
+    ///
+    /// # Arguments
+    ///
+    /// * `self` - The mapping in which to compute the next initialized tick
+    /// * `bit_pos` - The starting bit position
+    /// * `lte` - Whether to search for the next initialized tick to the left (less than or equal to the starting tick)
+    ///
+    pub fn next_initialized_bit(
         &self,
         bit_pos: u8,
         lte: bool
     ) -> u8 {
+        let word = U256(self.word);
+        if lte {
+            // all the 1s at or to the right of the current bitPos
+            let mask = (U256::from(1) << bit_pos) - 1 + (U256::from(1) << bit_pos);
+            let masked = word & mask;
 
+            let initialized = mask != U256::default();
+
+            // masked.leading_zeros()
+            // let next = if initialized {
+            //     bit_pos - bit_math::most_significant_bit(masked)
+            // }
+        }
         1
     }
 
@@ -133,59 +174,72 @@ impl TickBitmapState {
     // }
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-//     #[test]
-//     fn bitmap_test() {
-//         let mut bitmap = Bitmap::<256>::new();
-//         println!("Bitmap length {}", bitmap.len());
+    #[test]
+    fn position_for_negative_tick() {
+        let pos = position(-1);
+        assert_eq!(pos.word_pos, -1);
+        assert_eq!(pos.bit_pos, 255);
+    }
 
-//         bitmap.set(0, true);
-//         let converted_bitmap = bitmap.as_value() as &[u128; 2];
-//         msg!("Converted bitmap {:?}", converted_bitmap);
+    #[test]
+    fn msb_lsb_test() {
+        let a = U256::from(1);
+        println!("leading zeroes {}", a.leading_zeros());
+        println!("trailing zeroes {}", a.trailing_zeros());
+    }
+    // #[test]
+    // fn bitmap_test() {
+    //     let mut bitmap = Bitmap::<256>::new();
+    //     println!("Bitmap length {}", bitmap.len());
 
-//         let arr = [10_u128, 50];
-//         let decoded_bitmap = Bitmap::<256>::from(arr);
-//         msg!("Decoded bitmap {:?}", decoded_bitmap.into_value());
-//     }
+    //     bitmap.set(0, true);
+    //     let converted_bitmap = bitmap.as_value() as &[u128; 2];
+    //     msg!("Converted bitmap {:?}", converted_bitmap);
 
-//     #[test]
-//     fn flip_start_of_first_item() {
-//         let mut tb_state = BitmapState::default();
+    //     let arr = [10_u128, 50];
+    //     let decoded_bitmap = Bitmap::<256>::from(arr);
+    //     msg!("Decoded bitmap {:?}", decoded_bitmap.into_value());
+    // }
 
-//         tb_state.flip_tick(0);
-//         assert_eq!(tb_state.bitmap, [1, 0]);
+    // #[test]
+    // fn flip_start_of_first_item() {
+    //     let mut tb_state = BitmapState::default();
 
-//         tb_state.flip_tick(0);
-//         assert_eq!(tb_state.bitmap, [0, 0]);
-//     }
+    //     tb_state.flip_tick(0);
+    //     assert_eq!(tb_state.bitmap, [1, 0]);
 
-//     #[test]
-//     fn flip_end_of_first_item() {
-//         let mut tb_state = BitmapState::default();
-//         tb_state.flip_tick(127);
-//         assert_eq!(tb_state.bitmap, [u128::pow(2, 127), 0]);
-//         tb_state.flip_tick(127);
-//         assert_eq!(tb_state.bitmap, [0, 0]);
-//     }
+    //     tb_state.flip_tick(0);
+    //     assert_eq!(tb_state.bitmap, [0, 0]);
+    // }
 
-//     #[test]
-//     fn flip_start_of_second_item() {
-//         let mut tb_state = BitmapState::default();
-//         tb_state.flip_tick(128);
-//         assert_eq!(tb_state.bitmap, [0, 1]);
-//         tb_state.flip_tick(128);
-//         assert_eq!(tb_state.bitmap, [0, 0]);
-//     }
+    // #[test]
+    // fn flip_end_of_first_item() {
+    //     let mut tb_state = BitmapState::default();
+    //     tb_state.flip_tick(127);
+    //     assert_eq!(tb_state.bitmap, [u128::pow(2, 127), 0]);
+    //     tb_state.flip_tick(127);
+    //     assert_eq!(tb_state.bitmap, [0, 0]);
+    // }
 
-//     #[test]
-//     fn flip_end_of_second_item() {
-//         let mut tb_state = BitmapState::default();
-//         tb_state.flip_tick(255);
-//         assert_eq!(tb_state.bitmap, [0, u128::pow(2, 127)]);
-//         tb_state.flip_tick(255);
-//         assert_eq!(tb_state.bitmap, [0, 0]);
-//     }
-// }
+    // #[test]
+    // fn flip_start_of_second_item() {
+    //     let mut tb_state = BitmapState::default();
+    //     tb_state.flip_tick(128);
+    //     assert_eq!(tb_state.bitmap, [0, 1]);
+    //     tb_state.flip_tick(128);
+    //     assert_eq!(tb_state.bitmap, [0, 0]);
+    // }
+
+    // #[test]
+    // fn flip_end_of_second_item() {
+    //     let mut tb_state = BitmapState::default();
+    //     tb_state.flip_tick(255);
+    //     assert_eq!(tb_state.bitmap, [0, u128::pow(2, 127)]);
+    //     tb_state.flip_tick(255);
+    //     assert_eq!(tb_state.bitmap, [0, 0]);
+    // }
+}

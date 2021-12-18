@@ -36,6 +36,8 @@ pub mod cyclos_core {
 
     use libraries::swap_math::SwapStep;
 
+    use crate::states::tick_bitmap;
+
     use super::*;
 
     // ---------------------------------------------------------------------
@@ -828,7 +830,8 @@ pub mod cyclos_core {
         // continue swapping as long as we haven't used the entire input/output and haven't
         // reached the price limit
 
-        while state.amount_specified_remaining != 0 && state.sqrt_price_x32 != sqrt_price_limit_x32 {
+        while state.amount_specified_remaining != 0 && state.sqrt_price_x32 != sqrt_price_limit_x32
+        {
             let mut step = StepComputations::default();
 
             step.sqrt_price_start_x32 = state.sqrt_price_x32;
@@ -836,7 +839,21 @@ pub mod cyclos_core {
             // if zero_for_one(lte = true) start with the word containing the current tick
             // else use the word of the next tick
             // what about looping?
+            let mut compressed = state.tick / pool_state.tick_spacing as i32;
+            if state.tick < 0 && state.tick % pool_state.tick_spacing as i32 != 0 {
+                compressed -= 1;
+            }
 
+            if zero_for_one {
+                let Position { word_pos, bit_pos } = tick_bitmap::position(compressed);
+
+                let bitmap_loader = Loader::<TickBitmapState>::try_from(
+                    &cyclos_core::id(),
+                    &ctx.remaining_accounts[0],
+                )?;
+                let bitmap = bitmap_loader.load()?;
+                assert!(bitmap.word_pos == word_pos);
+            }
         }
         Ok(())
     }
