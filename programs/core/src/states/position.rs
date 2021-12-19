@@ -7,6 +7,9 @@ use crate::{error::ErrorCode, libraries::{liquidity_math, fixed_point_x32}};
 extern crate muldiv;
 use muldiv::MulDiv;
 
+/// Seed to derive account address and signature
+pub const POSITION_SEED: &str = "p";
+
 /// Info stored for each user's position
 ///
 /// PDA of `[POSITION_SEED, token_0, token_1, fee, owner, tick_lower, tick_upper]`

@@ -5,15 +5,15 @@
 ///! Therefore the mapping uses i16 for keys and there are 256 (2^8) values per word.
 ///!
 
-use std::ops::BitOr;
-use std::ops::BitXor;
-use std::ops::BitXorAssign;
+use crate::libraries::big_num::U256;
+use crate::libraries::bit_math;
 use anchor_lang::prelude::*;
 use bitmaps::Bitmap;
 use bitmaps::Bits;
 use bitmaps::BitsImpl;
-use crate::libraries::bit_math;
-use crate::libraries::big_num::U256;
+use std::ops::BitOr;
+use std::ops::BitXor;
+use std::ops::BitXorAssign;
 
 /// Seed to derive account address and signature
 pub const BITMAP_SEED: &str = "b";
@@ -45,7 +45,16 @@ pub struct Position {
     pub word_pos: i16,
 
     /// The bit position in the word where the flag is stored
-    pub bit_pos: u8
+    pub bit_pos: u8,
+}
+
+/// The next initialized bit
+pub struct NextBit {
+    /// The relative position of the next initialized or uninitialized tick up to 256 ticks away from the current tick
+    pub next: i32,
+
+    /// Whether the next tick is initialized, as the function only searches within up to 256 ticks
+    pub initialized: bool,
 }
 
 /// Computes the position in the mapping where the initialized bit for a tick lives.
@@ -59,7 +68,7 @@ pub fn position(tick_by_spacing: i32) -> Position {
     Position {
         word_pos: (tick_by_spacing >> 8) as i16,
         // begins with 255 for negative numbers
-        bit_pos: (tick_by_spacing % 256) as u8
+        bit_pos: (tick_by_spacing % 256) as u8,
     }
 }
 
@@ -94,7 +103,6 @@ pub fn position(tick_by_spacing: i32) -> Position {
 // }
 
 impl TickBitmapState {
-
     ///  Flips the initialized state for a given tick from false to true, or vice versa
     ///
     /// # Arguments
@@ -117,61 +125,48 @@ impl TickBitmapState {
     /// * `bit_pos` - The starting bit position
     /// * `lte` - Whether to search for the next initialized tick to the left (less than or equal to the starting tick)
     ///
-    pub fn next_initialized_bit(
-        &self,
-        bit_pos: u8,
-        lte: bool
-    ) -> u8 {
+    pub fn next_initialized_bit(&self, bit_pos: u8, lte: bool) -> NextBit {
         let word = U256(self.word);
         if lte {
-            // all the 1s at or to the right of the current bitPos
+            // all the 1s at or to the right of the current bit_pos
             let mask = (U256::from(1) << bit_pos) - 1 + (U256::from(1) << bit_pos);
             let masked = word & mask;
 
+            // if there are no initialized ticks to the right of or at the current tick, return rightmost in the word
             let initialized = mask != U256::default();
 
-            // masked.leading_zeros()
-            // let next = if initialized {
-            //     bit_pos - bit_math::most_significant_bit(masked)
-            // }
+            // overflow/underflow is possible, but prevented externally by limiting both tick_spacing and tick
+            let next = -(if initialized {
+                bit_pos - bit_math::most_significant_bit(masked)
+            } else {
+                bit_pos
+            } as i32);
+
+            NextBit {
+                next,
+                initialized,
+            }
+        } else {
+            // all the 1s at or to the left of the bit_pos
+            let mask = !((U256::from(1) << bit_pos) - 1);
+            let masked = word & mask;
+
+            // if there are no initialized ticks to the left of the current tick, return leftmost in the word
+            let initialized = mask != U256::default();
+
+            // overflow/underflow is possible, but prevented externally by limiting both tick_spacing and tick
+            let next = if initialized {
+                1 + bit_math::least_significant_bit(masked) - bit_pos
+            } else {
+                1 + u8::MAX - bit_pos
+            } as i32;
+
+            NextBit {
+                next,
+                initialized,
+            }
         }
-        1
     }
-
-    // Get next initialized tick in given word
-    // Look to the left if less than or equal (lte) is true, else look at right
-    // Modification: use right bits instead of entire tick. Left bits are used
-    // to find PDA
-    // Use simple looping for now
-    // TODO explore mask to remove looping
-    // TODO externally find bit_pos using tick: i32, and impose tick % tick_spacing condition
-    // Returns bit position of next tick, and whether it is initialized
-    // pub fn next_initialized_tick_within_one_word(
-    //     &self,
-    //     current_bit_pos: u8,
-    //     lte: bool,
-    // ) -> (u8, bool) {
-    //     let bitmap = self.decode_bitmap();
-
-    //     if lte {
-    //         // check to the left
-    //         for i in current_bit_pos..=0 {
-    //             let tick = bitmap.get(i as usize);
-    //             if tick == true {
-    //                 return (i, true);
-    //             }
-    //         }
-    //         (0, false)
-    //     } else {
-    //         for i in (current_bit_pos + 1)..(bitmap.len() as u8) {
-    //             let tick = bitmap.get(i as usize);
-    //             if tick == true {
-    //                 return (i, true);
-    //             }
-    //         }
-    //         (bitmap.len() as u8 - 1, false)
-    //     }
-    // }
 }
 
 #[cfg(test)]

@@ -157,6 +157,36 @@ impl TickState {
         Ok(flipped)
     }
 
+    /// Transitions to the current tick as needed by price movement, returning the amount of liquidity
+    /// added (subtracted) when tick is crossed from left to right (right to left)
+    ///
+    /// # Arguments
+    ///
+    /// * `self` - The destination tick of the transition
+    /// * `fee_growth_global_0_x32` - The all-time global fee growth, per unit of liquidity, in token_0
+    /// * `fee_growth_global_1_x32` - The all-time global fee growth, per unit of liquidity, in token_1
+    /// * `seconds_per_liquidity_cumulative_x32` - The current seconds per liquidity
+    /// * `tick_cumulative` - The tick * time elapsed since the pool was first initialized
+    /// * `time` - The current block timestamp
+    ///
+    pub fn cross(
+        &mut self,
+        fee_growth_global_0_x32: u64,
+        fee_growth_global_1_x32: u64,
+        seconds_per_liquidity_cumulative_x32: u64,
+        tick_cumulative: i64,
+        time: u32,
+    ) -> i64 {
+        self.fee_growth_outside_0_x32 = fee_growth_global_0_x32 - self.fee_growth_outside_0_x32;
+        self.fee_growth_outside_1_x32 = fee_growth_global_1_x32 - self.fee_growth_outside_1_x32;
+        self.seconds_per_liquidity_outside_x32 =
+            seconds_per_liquidity_cumulative_x32 - self.seconds_per_liquidity_outside_x32;
+        self.tick_cumulative_outside = tick_cumulative - self.tick_cumulative_outside;
+        self.seconds_outside = time - self.seconds_outside;
+
+        self.liquidity_net
+    }
+
     // Clear stored data
     // Delete account after clearing
     // TODO replace- clear() should de-initialize tick account
@@ -171,15 +201,6 @@ impl TickState {
     //     self.fee_growth_outside_0_x32 = 0;
     //     self.fee_growth_outside_1_x32 = 0;
     //     self.initialized = false;
-    // }
-
-    // Transition to this tick, update fee_growth_outside and return its net liquidity
-    // Modification from uniswap: tick is the tick to which we transition.
-    // pub fn cross(&mut self, fee_growth_global_0_x32: u64, fee_growth_global_1_x32: u64) -> u32 {
-    //     self.fee_growth_outside_0_x32 = fee_growth_global_0_x32 - self.fee_growth_outside_0_x32;
-    //     self.fee_growth_outside_1_x32 = fee_growth_global_1_x32 - self.fee_growth_outside_1_x32;
-    //     // skip oracle variables
-    //     self.liquidity_net
     // }
 }
 

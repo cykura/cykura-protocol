@@ -141,3 +141,40 @@ pub struct CollectProtocolEvent {
     /// The amount of token_0 protocol fees that is withdrawn
     pub amount_1: u64,
 }
+
+/// Emitted by when a swap is performed for a pool
+#[event]
+pub struct SwapEvent {
+    /// The pool for which token_0 and token_1 were swapped
+    #[index]
+    pub pool_state: Pubkey,
+
+    /// The address that initiated the swap call, and that received the callback
+    #[index]
+    pub sender: Pubkey,
+
+    /// The payer token account in zero for one swaps, or the recipient token account
+    /// in one for zero swaps
+    #[index]
+    pub token_account_0: Pubkey,
+
+    /// The payer token account in one for zero swaps, or the recipient token account
+    /// in zero for one swaps
+    #[index]
+    pub token_account_1: Pubkey,
+
+    /// The delta of the token_0 balance of the pool
+    pub amount_0: i64,
+
+    /// The delta of the token_1 balance of the pool
+    pub amount_1: i64,
+
+    /// The sqrt(price) of the pool after the swap, as a Q32.32
+    pub sqrt_price_x32: u64,
+
+    /// The liquidity of the pool after the swap
+    pub liquidity: u64,
+
+    /// The log base 1.0001 of price of the pool after the swap
+    pub tick: i32
+}

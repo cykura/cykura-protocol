@@ -8,16 +8,11 @@ use std::thread::AccessError;
 use crate::error::ErrorCode;
 use crate::states::factory::FactoryState;
 use crate::states::fee::FeeState;
-use crate::states::oracle::ObservationState;
+use crate::states::oracle::{ObservationState, OBSERVATION_SEED};
 use crate::states::pool::PoolState;
-use crate::states::position::PositionState;
+use crate::states::position::{PositionState, POSITION_SEED};
 use crate::states::tick::TickState;
-use crate::states::tick_bitmap::TickBitmapState;
-
-/// Seed to derive program account addresses and signatures
-pub const POSITION_SEED: &str = "p";
-pub const BITMAP_SEED: &str = "b";
-pub const OBSERVATION_SEED: &str = "o";
+use crate::states::tick_bitmap::{TickBitmapState, BITMAP_SEED};
 
 #[derive(Accounts)]
 #[instruction(bump: u8)]
@@ -711,6 +706,36 @@ pub struct SwapContext<'info> {
         associated_token::authority = pool_state,
     )]
     pub vault_1: Box<Account<'info, TokenAccount>>,
+
+    /// The program account for the most recent oracle observation
+    #[account(
+        mut,
+        seeds = [
+            &OBSERVATION_SEED.as_bytes(),
+            pool_state.load()?.token_0.key().as_ref(),
+            pool_state.load()?.token_1.key().as_ref(),
+            &pool_state.load()?.fee.to_be_bytes(),
+            &pool_state.load()?.observation_index.to_be_bytes(),
+        ],
+        bump = latest_observation_state.load()?.bump
+    )]
+    pub latest_observation_state: Loader<'info, ObservationState>,
+
+    /// The observation program account one position after latest_observation_state
+    #[account(
+        mut,
+        seeds = [
+            &OBSERVATION_SEED.as_bytes(),
+            pool_state.load()?.token_0.key().as_ref(),
+            pool_state.load()?.token_1.key().as_ref(),
+            &pool_state.load()?.fee.to_be_bytes(),
+            &((pool_state.load()?.observation_index + 1)
+                % pool_state.load()?.observation_cardinality_next
+            ).to_be_bytes(),
+        ],
+        bump = next_observation_state.load()?.bump
+    )]
+    pub next_observation_state: Loader<'info, ObservationState>,
 
     /// SPL program for token transfers
     pub token_program: Program<'info, Token>,

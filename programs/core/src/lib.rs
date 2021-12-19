@@ -34,9 +34,15 @@ declare_id!("37kn8WUzihQoAnhYxueA2BnqCA7VRnrVvYoHy1hQ6Veu");
 #[program]
 pub mod cyclos_core {
 
-    use libraries::swap_math::SwapStep;
+    use std::ops::Neg;
 
-    use crate::states::tick_bitmap;
+    use libraries::swap_math::SwapStep;
+    use muldiv::MulDiv;
+
+    use crate::{
+        libraries::{fixed_point_x32, swap_math},
+        states::{oracle::OBSERVATION_SEED, tick_bitmap},
+    };
 
     use super::*;
 
@@ -798,7 +804,7 @@ pub mod cyclos_core {
 
         pool_state.unlocked = false;
 
-        let cache = SwapCache {
+        let mut cache = SwapCache {
             liquidity_start: pool_state.liquidity,
             block_timestamp: oracle::_block_timestamp(),
             fee_protocol: if zero_for_one {
@@ -813,7 +819,7 @@ pub mod cyclos_core {
 
         let exact_input = amount_specified > 0;
 
-        let state = SwapState {
+        let mut state = SwapState {
             amount_specified_remaining: amount_specified,
             amount_calculated: 0,
             sqrt_price_x32: pool_state.sqrt_price_x32,
@@ -829,7 +835,8 @@ pub mod cyclos_core {
 
         // continue swapping as long as we haven't used the entire input/output and haven't
         // reached the price limit
-
+        let latest_observation = ctx.accounts.latest_observation_state.load_mut()?;
+        let mut remaining_accounts = ctx.remaining_accounts.iter();
         while state.amount_specified_remaining != 0 && state.sqrt_price_x32 != sqrt_price_limit_x32
         {
             let mut step = StepComputations::default();
@@ -843,18 +850,250 @@ pub mod cyclos_core {
             if state.tick < 0 && state.tick % pool_state.tick_spacing as i32 != 0 {
                 compressed -= 1;
             }
+            if !zero_for_one {
+                compressed += 1;
+            }
 
-            if zero_for_one {
-                let Position { word_pos, bit_pos } = tick_bitmap::position(compressed);
+            let Position { word_pos, bit_pos } = tick_bitmap::position(compressed);
+            let bitmap_loader = Loader::<TickBitmapState>::try_from(
+                &cyclos_core::id(),
+                remaining_accounts.next().unwrap(),
+            )?;
+            let bitmap = bitmap_loader.load()?;
+            let bitmap_account_seeds = [
+                BITMAP_SEED.as_bytes(),
+                pool_state.token_0.as_ref(),
+                pool_state.token_1.as_ref(),
+                &pool_state.fee.to_be_bytes(),
+                &word_pos.to_be_bytes(),
+                &[bitmap.bump],
+            ];
+            assert!(
+                bitmap_loader.key()
+                    == Pubkey::create_program_address(&bitmap_account_seeds[..], &ctx.program_id)?,
+            );
 
-                let bitmap_loader = Loader::<TickBitmapState>::try_from(
-                    &cyclos_core::id(),
-                    &ctx.remaining_accounts[0],
-                )?;
-                let bitmap = bitmap_loader.load()?;
-                assert!(bitmap.word_pos == word_pos);
+            let next_initialized_bit = bitmap.next_initialized_bit(bit_pos, zero_for_one);
+            step.tick_next =
+                (compressed + next_initialized_bit.next) * pool_state.tick_spacing as i32;
+            step.initialized = next_initialized_bit.initialized;
+
+            // ensure that we do not overshoot the min/max tick, as the tick bitmap is not aware of these bounds
+            if step.tick_next < tick_math::MIN_TICK {
+                step.tick_next = tick_math::MIN_TICK;
+            } else if step.tick_next > tick_math::MAX_TICK {
+                step.tick_next = tick_math::MAX_TICK;
+            }
+
+            step.sqrt_price_next_x32 = tick_math::get_sqrt_ratio_at_tick(step.tick_next)?;
+
+            let swap_step = swap_math::compute_swap_step(
+                state.sqrt_price_x32,
+                if (zero_for_one && step.sqrt_price_next_x32 < sqrt_price_limit_x32)
+                    || (!zero_for_one && step.sqrt_price_next_x32 > sqrt_price_limit_x32)
+                {
+                    sqrt_price_limit_x32
+                } else {
+                    step.sqrt_price_next_x32
+                },
+                state.liquidity,
+                state.amount_specified_remaining,
+                pool_state.fee,
+            );
+            state.sqrt_price_x32 = swap_step.sqrt_ratio_next_x32;
+            step.amount_in = swap_step.amount_in;
+            step.amount_out = swap_step.amount_out;
+            step.fee_amount = swap_step.fee_amount;
+
+            if exact_input {
+                state.amount_specified_remaining -=
+                    i64::try_from(step.amount_in + step.fee_amount).unwrap();
+                state.amount_calculated = state
+                    .amount_calculated
+                    .checked_sub(i64::try_from(step.amount_out).unwrap())
+                    .unwrap();
+            } else {
+                state.amount_specified_remaining += i64::try_from(step.amount_out).unwrap();
+                state.amount_calculated = state
+                    .amount_calculated
+                    .checked_add(i64::try_from(step.amount_in + step.fee_amount).unwrap())
+                    .unwrap();
+            }
+
+            // if the protocol fee is on, calculate how much is owed, decrement fee_amount, and increment protocol_fee
+            if cache.fee_protocol > 0 {
+                let delta = step.fee_amount / cache.fee_protocol as u64;
+                step.fee_amount -= delta;
+                state.protocol_fee += delta;
+            }
+
+            // update global fee tracker
+            if state.liquidity > 0 {
+                state.fee_growth_global_x32 += step
+                    .fee_amount
+                    .mul_div_floor(fixed_point_x32::Q32, state.liquidity)
+                    .unwrap();
+            }
+
+            // shift tick if we reached the next price
+            if state.sqrt_price_x32 == step.sqrt_price_next_x32 {
+                // if the tick is initialized, run the tick transition
+                if step.initialized {
+                    // check for the placeholder value for the oracle observation, which we replace with the
+                    // actual value the first time the swap crosses an initialized tick
+                    if !cache.computed_latest_observation {
+                        let new_observation = latest_observation.observe_latest(
+                                cache.block_timestamp,
+                                pool_state.tick,
+                                pool_state.liquidity,
+                            );
+                        cache.tick_cumulative = new_observation.0;
+                        cache.seconds_per_liquidity_cumulative_x32 = new_observation.1;
+                        cache.computed_latest_observation = true;
+                    }
+
+                    let tick_loader = Loader::<TickState>::try_from(
+                        &cyclos_core::id(),
+                        remaining_accounts.next().unwrap(),
+                    )?;
+                    let mut tick_state = tick_loader.load_mut()?;
+                    let tick_account_seeds = [
+                        pool_state.token_0.as_ref(),
+                        pool_state.token_1.as_ref(),
+                        &pool_state.fee.to_be_bytes(),
+                        &step.tick_next.to_be_bytes(),
+                        &[tick_state.bump],
+                    ];
+                    assert!(
+                        tick_loader.key()
+                            == Pubkey::create_program_address(
+                                &tick_account_seeds[..],
+                                &ctx.program_id
+                            )?,
+                    );
+
+                    let mut liquidity_net = tick_state.deref_mut().cross(
+                        if zero_for_one {
+                            state.fee_growth_global_x32
+                        } else {
+                            pool_state.fee_growth_global_0_x32
+                        },
+                        if zero_for_one {
+                            pool_state.fee_growth_global_1_x32
+                        } else {
+                            state.fee_growth_global_x32
+                        },
+                        cache.seconds_per_liquidity_cumulative_x32,
+                        cache.tick_cumulative,
+                        cache.block_timestamp,
+                    );
+
+                    // if we're moving leftward, we interpret liquidity_net as the opposite sign
+                    // safe because liquidity_net cannot be i64::MIN
+                    if zero_for_one {
+                        liquidity_net = liquidity_net.neg();
+                    }
+
+                    state.liquidity = liquidity_math::add_delta(state.liquidity, liquidity_net)?;
+                }
+
+                state.tick = if zero_for_one {
+                    step.tick_next - 1
+                } else {
+                    step.tick_next
+                };
+            } else if state.sqrt_price_x32 != step.sqrt_price_start_x32 {
+                // recompute unless we're on a lower tick boundary (i.e. already transitioned ticks), and haven't moved
+                state.tick = tick_math::get_tick_at_sqrt_ratio(state.sqrt_price_x32)?;
             }
         }
+        // update tick and write an oracle entry if the tick changes
+        if state.tick != pool_state.tick {
+            let next_observation_start_time = (latest_observation.block_timestamp / 14 + 1) * 14;
+            let mut next_observation = if cache.block_timestamp >= next_observation_start_time {
+                let next_observation = ctx.accounts.next_observation_state.load_mut()?;
+                pool_state.observation_index = next_observation.index;
+                next_observation
+            } else {
+                latest_observation
+            };
+            pool_state.tick = state.tick;
+            pool_state.observation_cardinality_next = next_observation.update(
+                cache.block_timestamp,
+                pool_state.tick,
+                cache.liquidity_start,
+                pool_state.observation_cardinality,
+                pool_state.observation_cardinality_next,
+            );
+        }
+        pool_state.sqrt_price_x32 = state.sqrt_price_x32;
+
+        // update liquidity if it changed
+        if cache.liquidity_start != state.liquidity {
+            pool_state.liquidity = state.liquidity;
+        }
+
+        // update fee growth global and, if necessary, protocol fees
+        // overflow is acceptable, protocol has to withdraw before it hit u64::MAX fees
+        if zero_for_one {
+            pool_state.fee_growth_global_0_x32 = state.fee_growth_global_x32;
+            if state.protocol_fee > 0 {
+                pool_state.protocol_fees_token_0 += state.protocol_fee;
+            }
+        } else {
+            pool_state.fee_growth_global_1_x32 = state.fee_growth_global_x32;
+            if state.protocol_fee > 0 {
+                pool_state.protocol_fees_token_1 += state.protocol_fee;
+            }
+        }
+
+        let (amount_0, amount_1) = if zero_for_one == exact_input {
+            (amount_specified - state.amount_specified_remaining, state.amount_calculated)
+        } else {
+            (state.amount_calculated, amount_specified - state.amount_specified_remaining)
+        };
+
+        // do the transfers and collect payment
+        let pool_state_seeds = [
+            &pool_state.token_0.to_bytes() as &[u8],
+            &pool_state.token_1.to_bytes() as &[u8],
+            &pool_state.fee.to_be_bytes(),
+            &[pool_state.bump],
+        ];
+        drop(pool_state);
+        if zero_for_one {
+            if amount_1 < 0 {
+                token::transfer(
+                    CpiContext::new_with_signer(
+                        ctx.accounts.token_program.to_account_info().clone(),
+                        token::Transfer {
+                            from: ctx.accounts.vault_1.to_account_info().clone(),
+                            to: ctx.accounts.token_account_1.to_account_info().clone(),
+                            authority: ctx.accounts.pool_state.to_account_info().clone(),
+                        },
+                        &[&pool_state_seeds[..]],
+                    ),
+                    amount_1.neg() as u64,
+                )?;
+                let balance_0_before = ctx.accounts.vault_0.amount;
+                // transfer tokens to pool in callback
+            }
+        } else {
+            // TODO for token 0
+        }
+
+        emit!(SwapEvent {
+            pool_state: ctx.accounts.pool_state.key(),
+            sender: ctx.accounts.signer.key(),
+            token_account_0: ctx.accounts.token_account_0.key(),
+            token_account_1: ctx.accounts.token_account_1.key(),
+            amount_0,
+            amount_1,
+            sqrt_price_x32: state.sqrt_price_x32,
+            liquidity: state.liquidity,
+            tick: state.tick
+        });
+        ctx.accounts.pool_state.load_mut()?.unlocked = true;
         Ok(())
     }
 

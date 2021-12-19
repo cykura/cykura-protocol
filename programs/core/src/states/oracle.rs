@@ -15,6 +15,9 @@
 
 use anchor_lang::prelude::*;
 
+/// Seed to derive account address and signature
+pub const OBSERVATION_SEED: &str = "o";
+
 /// Returns data about a specific observation index
 ///
 /// PDA of `[OBSERVATION_SEED, token_0, token_1, fee, index]`
