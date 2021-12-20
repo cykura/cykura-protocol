@@ -5,6 +5,9 @@ pub mod states;
 
 use anchor_lang::prelude::*;
 use context::*;
+use cyclos_core::libraries::tick_math;
+use error::ErrorCode;
+use std::convert::TryFrom;
 
 declare_id!("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS");
 
@@ -113,28 +116,81 @@ pub mod swap_router {
     /// be less than this value after the swap.  If one for zero, the price cannot be greater than
     /// this value after the swap.
     ///
-    pub fn exact_input_single(
-        ctx: Context<ExactInputSingle>,
+    #[access_control(check_deadline(deadline))]
+    pub fn exact_input_single<'a, 'b, 'c, 'info>(
+        ctx: Context<'a, 'b, 'c, 'info, ExactInputSingle<'info>>,
+        deadline: i64,
         zero_for_one: bool,
-        deadline: u64,
         amount_in: u64,
         amount_out_minimum: u64,
         sqrt_price_limit_x32: u64,
     ) -> ProgramResult {
-
+        exact_input_internal(
+            ctx.accounts.core_program.to_account_info(),
+            cyclos_core::cpi::accounts::SwapContext {
+                signer: ctx.accounts.signer.to_account_info(),
+                pool_state: ctx.accounts.pool_state.to_account_info(),
+                token_account_0: ctx.accounts.token_account_0.to_account_info(),
+                token_account_1: ctx.accounts.token_account_1.to_account_info(),
+                vault_0: ctx.accounts.vault_0.to_account_info(),
+                vault_1: ctx.accounts.vault_1.to_account_info(),
+                latest_observation_state: ctx.accounts.latest_observation_state.to_account_info(),
+                next_observation_state: ctx.accounts.next_observation_state.to_account_info(),
+                token_program: ctx.accounts.token_program.to_account_info(),
+            },
+            ctx.remaining_accounts,
+            zero_for_one,
+            amount_in,
+            sqrt_price_limit_x32,
+        )?;
         Ok(())
     }
 }
 
-pub struct ExactInputInternalArgs<'info> {
-    pub pool_state: UncheckedAccount<'info>,
-}
 /// Performs a single exact input swap
-pub fn exact_input_internal(args: ExactInputInternalArgs) {
-    todo!()
+pub fn exact_input_internal<'info>(
+    core_program: AccountInfo<'info>,
+    accounts: cyclos_core::cpi::accounts::SwapContext<'info>,
+    remaining_accounts: &[AccountInfo<'info>],
+    zero_for_one: bool,
+    amount_in: u64,
+    sqrt_price_limit_x32: u64,
+) -> ProgramResult {
+    // let cpi_ctx = CpiContext::new(core_program, accounts)
+    // cpi_ctx.remaining_accounts;
+    cyclos_core::cpi::swap(
+        CpiContext::new(core_program, accounts)
+            .with_remaining_accounts(remaining_accounts.to_vec()),
+        zero_for_one,
+        i64::try_from(amount_in).unwrap(),
+        if sqrt_price_limit_x32 == 0 {
+            if zero_for_one {
+                tick_math::MIN_SQRT_RATIO + 1
+            } else {
+                tick_math::MAX_SQRT_RATIO - 1
+            }
+        } else {
+            sqrt_price_limit_x32
+        },
+    )?;
+    Ok(())
 }
 
 /// Common function to perform CPI for exact_output_single() and exact_output()
 pub fn exact_output_internal() {
     todo!()
+}
+
+/// Checks whether the transaction time has not crossed the deadline
+///
+/// # Arguments
+///
+/// * `deadline` - The deadline specified by a user
+///
+pub fn check_deadline(deadline: i64) -> ProgramResult {
+    require!(
+        Clock::get()?.unix_timestamp <= deadline,
+        ErrorCode::TransactionTooOld
+    );
+    Ok(())
 }

@@ -112,7 +112,7 @@ impl TickBitmapState {
     ///
     pub fn flip_tick(&mut self, bit_pos: u8) {
         let word = U256(self.word);
-        let mask = U256::default() << bit_pos;
+        let mask = U256::from(1) << bit_pos;
         self.word = word.bitxor(mask).0;
     }
 
@@ -155,10 +155,10 @@ impl TickBitmapState {
             let initialized = mask != U256::default();
 
             // overflow/underflow is possible, but prevented externally by limiting both tick_spacing and tick
-            let next = if initialized {
-                1 + bit_math::least_significant_bit(masked) - bit_pos
+            let next = 1 + if initialized {
+                bit_math::least_significant_bit(masked) - bit_pos
             } else {
-                1 + u8::MAX - bit_pos
+                u8::MAX - bit_pos
             } as i32;
 
             NextBit {

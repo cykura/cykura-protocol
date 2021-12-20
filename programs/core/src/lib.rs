@@ -25,7 +25,6 @@ use states::tick_bitmap::*;
 use std::cell::Ref;
 use std::cell::RefMut;
 use std::convert::TryFrom;
-use std::convert::TryInto;
 use std::mem::size_of;
 use std::ops::{Deref, DerefMut};
 
@@ -787,6 +786,7 @@ pub mod cyclos_core {
         amount_specified: i64,
         sqrt_price_limit_x32: u64,
     ) -> ProgramResult {
+        msg!("inside swap");
         require!(amount_specified != 0, ErrorCode::AS);
 
         let mut pool_state = ctx.accounts.pool_state.load_mut()?;
@@ -1322,11 +1322,11 @@ pub fn _update_position<'info>(
         )?;
 
         if flipped_lower {
-            let bit_pos = (tick_lower.tick % 256) as u8; // rightmost 8 bits
+            let bit_pos = ((tick_lower.tick / pool_state.tick_spacing as i32) % 256) as u8; // rightmost 8 bits
             bitmap_lower.load_mut()?.flip_tick(bit_pos);
         }
         if flipped_upper {
-            let bit_pos = (tick_upper.tick % 256) as u8;
+            let bit_pos = ((tick_upper.tick / pool_state.tick_spacing as i32) % 256) as u8;
             if bitmap_lower.key() == bitmap_upper.key() {
                 bitmap_lower.load_mut()?.flip_tick(bit_pos);
             } else {
