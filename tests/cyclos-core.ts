@@ -1640,763 +1640,864 @@ describe('cyclos-core', async () => {
       })
     })
 
-  //   describe('#add_metaplex_metadata', () => {
-  //     it('Add metadata to a generated position', async () => {
-  //       await mgrProgram.rpc.addMetaplexMetadata({
-  //         accounts: {
-  //           payer: owner,
-  //           positionManagerState: posMgrState,
-  //           nftMint: nftMintKeypair.publicKey,
-  //           tokenizedPositionState,
-  //           metadataAccount,
-  //           systemProgram: SystemProgram.programId,
-  //           rent: web3.SYSVAR_RENT_PUBKEY,
-  //           tokenProgram: TOKEN_PROGRAM_ID,
-  //           metadataProgram: metaplex.programs.metadata.MetadataProgram.PUBKEY,
-  //         }
-  //       })
+    describe('#add_metaplex_metadata', () => {
+      it('Add metadata to a generated position', async () => {
+        await mgrProgram.rpc.addMetaplexMetadata({
+          accounts: {
+            payer: owner,
+            positionManagerState: posMgrState,
+            nftMint: nftMintKeypair.publicKey,
+            tokenizedPositionState,
+            metadataAccount,
+            systemProgram: SystemProgram.programId,
+            rent: web3.SYSVAR_RENT_PUBKEY,
+            tokenProgram: TOKEN_PROGRAM_ID,
+            metadataProgram: metaplex.programs.metadata.MetadataProgram.PUBKEY,
+          }
+        })
 
-  //       const nftMint = new Token(
-  //         connection,
-  //         nftMintKeypair.publicKey,
-  //         TOKEN_PROGRAM_ID,
-  //         new Keypair()
-  //       )
-  //       const nftMintInfo = await nftMint.getMintInfo()
-  //       assert.isNull(nftMintInfo.mintAuthority)
-  //       const metadata = await Metadata.load(connection, metadataAccount)
-  //       assert.equal(metadata.data.mint, nftMint.publicKey.toString())
-  //       assert.equal(metadata.data.updateAuthority, posMgrState.toString())
-  //       assert.equal(metadata.data.data.name, 'Cyclos Positions NFT-V1')
-  //       assert.equal(metadata.data.data.symbol, 'CYS-POS')
-  //       assert.equal(metadata.data.data.uri, 'https://api.cyclos.io/mint=' + nftMint.publicKey.toString())
-  //       assert.deepEqual(metadata.data.data.creators, [{
-  //         address: posMgrState.toString(),
-  //         // @ts-ignore
-  //         verified: 1,
-  //         share: 100,
-  //       }])
-  //       assert.equal(metadata.data.data.sellerFeeBasisPoints, 0)
-  //       // @ts-ignore
-  //       assert.equal(metadata.data.isMutable, 0)
-  //     })
+        const nftMint = new Token(
+          connection,
+          nftMintKeypair.publicKey,
+          TOKEN_PROGRAM_ID,
+          new Keypair()
+        )
+        const nftMintInfo = await nftMint.getMintInfo()
+        assert.isNull(nftMintInfo.mintAuthority)
+        const metadata = await Metadata.load(connection, metadataAccount)
+        assert.equal(metadata.data.mint, nftMint.publicKey.toString())
+        assert.equal(metadata.data.updateAuthority, posMgrState.toString())
+        assert.equal(metadata.data.data.name, 'Cyclos Positions NFT-V1')
+        assert.equal(metadata.data.data.symbol, 'CYS-POS')
+        assert.equal(metadata.data.data.uri, 'https://api.cyclos.io/mint=' + nftMint.publicKey.toString())
+        assert.deepEqual(metadata.data.data.creators, [{
+          address: posMgrState.toString(),
+          // @ts-ignore
+          verified: 1,
+          share: 100,
+        }])
+        assert.equal(metadata.data.data.sellerFeeBasisPoints, 0)
+        // @ts-ignore
+        assert.equal(metadata.data.isMutable, 0)
+      })
 
-  //     it('fails if metadata is already set', async () => {
-  //       await expect(mgrProgram.rpc.addMetaplexMetadata({
-  //         accounts: {
-  //           payer: owner,
-  //           positionManagerState: posMgrState,
-  //           nftMint: nftMintKeypair.publicKey,
-  //           tokenizedPositionState,
-  //           metadataAccount,
-  //           systemProgram: SystemProgram.programId,
-  //           rent: web3.SYSVAR_RENT_PUBKEY,
-  //           tokenProgram: TOKEN_PROGRAM_ID,
-  //           metadataProgram: metaplex.programs.metadata.MetadataProgram.PUBKEY,
-  //         }
-  //       })).to.be.rejectedWith(Error)
-  //     })
-  //   })
+      it('fails if metadata is already set', async () => {
+        await expect(mgrProgram.rpc.addMetaplexMetadata({
+          accounts: {
+            payer: owner,
+            positionManagerState: posMgrState,
+            nftMint: nftMintKeypair.publicKey,
+            tokenizedPositionState,
+            metadataAccount,
+            systemProgram: SystemProgram.programId,
+            rent: web3.SYSVAR_RENT_PUBKEY,
+            tokenProgram: TOKEN_PROGRAM_ID,
+            metadataProgram: metaplex.programs.metadata.MetadataProgram.PUBKEY,
+          }
+        })).to.be.rejectedWith(Error)
+      })
+    })
 
-  //   describe('#increase_liquidity', () => {
-  //     it('fails if past deadline', async () => {
-  //       const deadline = new BN(Date.now() / 1000 - 100_000)
-  //       await expect(mgrProgram.rpc.increaseLiquidity(
-  //         amount0Desired,
-  //         amount1Desired,
-  //         amount0Minimum,
-  //         amount1Minimum,
-  //         deadline, {
-  //         accounts: {
-  //           payer: owner,
-  //           positionManagerState: posMgrState,
-  //           poolState,
-  //           corePositionState,
-  //           tickLowerState,
-  //           tickUpperState,
-  //           bitmapLower,
-  //           bitmapUpper,
-  //           tokenAccount0: minterWallet0,
-  //           tokenAccount1: minterWallet1,
-  //           vault0,
-  //           vault1,
-  //           latestObservationState,
-  //           nextObservationState,
-  //           tokenizedPositionState,
-  //           coreProgram: coreProgram.programId,
-  //           tokenProgram: TOKEN_PROGRAM_ID,
-  //         },
-  //       }
-  //       )).to.be.rejectedWith('Transaction too old')
-  //     })
-  //     it('Add token 1 to the position', async () => {
-  //       const deadline = new BN(Date.now() / 1000 + 10_000)
-  //       let listener: number
-  //       let [_event, _slot] = await new Promise((resolve, _reject) => {
-  //         listener = mgrProgram.addEventListener("IncreaseLiquidityEvent", (event, slot) => {
-  //           assert((event.tokenId as web3.PublicKey).equals(nftMintKeypair.publicKey))
-  //           assert((event.amount0 as BN).eqn(0))
-  //           assert((event.amount1 as BN).eq(amount1Desired))
+    describe('#increase_liquidity', () => {
+      it('fails if past deadline', async () => {
+        const deadline = new BN(Date.now() / 1000 - 100_000)
+        await expect(mgrProgram.rpc.increaseLiquidity(
+          amount0Desired,
+          amount1Desired,
+          amount0Minimum,
+          amount1Minimum,
+          deadline, {
+          accounts: {
+            payer: owner,
+            positionManagerState: posMgrState,
+            poolState,
+            corePositionState,
+            tickLowerState,
+            tickUpperState,
+            bitmapLower,
+            bitmapUpper,
+            tokenAccount0: minterWallet0,
+            tokenAccount1: minterWallet1,
+            vault0,
+            vault1,
+            latestObservationState,
+            nextObservationState,
+            tokenizedPositionState,
+            coreProgram: coreProgram.programId,
+            tokenProgram: TOKEN_PROGRAM_ID,
+          },
+        }
+        )).to.be.rejectedWith('Transaction too old')
+      })
+      it('Add token 1 to the position', async () => {
+        const deadline = new BN(Date.now() / 1000 + 10_000)
+        let listener: number
+        let [_event, _slot] = await new Promise((resolve, _reject) => {
+          listener = mgrProgram.addEventListener("IncreaseLiquidityEvent", (event, slot) => {
+            assert((event.tokenId as web3.PublicKey).equals(nftMintKeypair.publicKey))
+            assert((event.amount0 as BN).eqn(0))
+            assert((event.amount1 as BN).eq(amount1Desired))
 
-  //           resolve([event, slot]);
-  //         });
+            resolve([event, slot]);
+          });
 
-  //         mgrProgram.rpc.increaseLiquidity(
-  //           amount0Desired,
-  //           amount1Desired,
-  //           amount0Minimum,
-  //           amount1Minimum,
-  //           deadline, {
-  //           accounts: {
-  //             payer: owner,
-  //             positionManagerState: posMgrState,
-  //             poolState,
-  //             corePositionState,
-  //             tickLowerState,
-  //             tickUpperState,
-  //             bitmapLower,
-  //             bitmapUpper,
-  //             tokenAccount0: minterWallet0,
-  //             tokenAccount1: minterWallet1,
-  //             vault0,
-  //             vault1,
-  //             latestObservationState,
-  //             nextObservationState,
-  //             tokenizedPositionState,
-  //             coreProgram: coreProgram.programId,
-  //             tokenProgram: TOKEN_PROGRAM_ID,
-  //           },
-  //         }
-  //         )
-  //       })
-  //       await mgrProgram.removeEventListener(listener)
+          mgrProgram.rpc.increaseLiquidity(
+            amount0Desired,
+            amount1Desired,
+            amount0Minimum,
+            amount1Minimum,
+            deadline, {
+            accounts: {
+              payer: owner,
+              positionManagerState: posMgrState,
+              poolState,
+              corePositionState,
+              tickLowerState,
+              tickUpperState,
+              bitmapLower,
+              bitmapUpper,
+              tokenAccount0: minterWallet0,
+              tokenAccount1: minterWallet1,
+              vault0,
+              vault1,
+              latestObservationState,
+              nextObservationState,
+              tokenizedPositionState,
+              coreProgram: coreProgram.programId,
+              tokenProgram: TOKEN_PROGRAM_ID,
+            },
+          }
+          )
+        })
+        await mgrProgram.removeEventListener(listener)
 
-  //       const vault0State = await token0.getAccountInfo(vault0)
-  //       assert(vault0State.amount.eqn(0))
-  //       const vault1State = await token1.getAccountInfo(vault1)
-  //       assert(vault1State.amount.eqn(2_000_000))
+        const vault0State = await token0.getAccountInfo(vault0)
+        assert(vault0State.amount.eqn(0))
+        const vault1State = await token1.getAccountInfo(vault1)
+        assert(vault1State.amount.eqn(2_000_000))
 
-  //       // TODO test remaining fields later
-  //       // Look at uniswap tests for reference
-  //     })
+        // TODO test remaining fields later
+        // Look at uniswap tests for reference
+      })
 
-  //     // To check slippage, we must add liquidity in a price range around
-  //     // current price
-  //   })
+      // To check slippage, we must add liquidity in a price range around
+      // current price
+    })
 
-  //   describe('#decrease_liquidity', () => {
-  //     const liquidity = new BN(1999599283)
-  //     const amount1Desired = new BN(999999)
+    describe('#decrease_liquidity', () => {
+      const liquidity = new BN(1999599283)
+      const amount1Desired = new BN(999999)
 
-  //     it('fails if past deadline', async () => {
-  //       const deadline = new BN(Date.now() / 1000 - 100_000)
-  //       await expect(mgrProgram.rpc.decreaseLiquidity(
-  //         liquidity,
-  //         new BN(0),
-  //         amount1Desired,
-  //         deadline, {
-  //         accounts: {
-  //           ownerOrDelegate: owner,
-  //           nftAccount: positionNftAccount,
-  //           tokenizedPositionState,
-  //           positionManagerState: posMgrState,
-  //           poolState,
-  //           corePositionState,
-  //           tickLowerState,
-  //           tickUpperState,
-  //           bitmapLower,
-  //           bitmapUpper,
-  //           latestObservationState,
-  //           nextObservationState,
-  //           coreProgram: coreProgram.programId
-  //         }
-  //       }
-  //       )).to.be.rejectedWith('Transaction too old')
-  //     })
+      it('fails if past deadline', async () => {
+        const deadline = new BN(Date.now() / 1000 - 100_000)
+        await expect(mgrProgram.rpc.decreaseLiquidity(
+          liquidity,
+          new BN(0),
+          amount1Desired,
+          deadline, {
+          accounts: {
+            ownerOrDelegate: owner,
+            nftAccount: positionNftAccount,
+            tokenizedPositionState,
+            positionManagerState: posMgrState,
+            poolState,
+            corePositionState,
+            tickLowerState,
+            tickUpperState,
+            bitmapLower,
+            bitmapUpper,
+            latestObservationState,
+            nextObservationState,
+            coreProgram: coreProgram.programId
+          }
+        }
+        )).to.be.rejectedWith('Transaction too old')
+      })
 
-  //     it('fails if not called by the owner', async () => {
-  //       const deadline = new BN(Date.now() / 1000 + 10_000)
-  //       await expect(mgrProgram.rpc.decreaseLiquidity(
-  //         liquidity,
-  //         new BN(0),
-  //         amount1Desired,
-  //         deadline, {
-  //         accounts: {
-  //           ownerOrDelegate: notOwner,
-  //           nftAccount: positionNftAccount,
-  //           tokenizedPositionState,
-  //           positionManagerState: posMgrState,
-  //           poolState,
-  //           corePositionState,
-  //           tickLowerState,
-  //           tickUpperState,
-  //           bitmapLower,
-  //           bitmapUpper,
-  //           latestObservationState,
-  //           nextObservationState,
-  //           coreProgram: coreProgram.programId
-  //         }
-  //       }
-  //       )).to.be.rejectedWith(Error)
-  //     })
+      it('fails if not called by the owner', async () => {
+        const deadline = new BN(Date.now() / 1000 + 10_000)
+        await expect(mgrProgram.rpc.decreaseLiquidity(
+          liquidity,
+          new BN(0),
+          amount1Desired,
+          deadline, {
+          accounts: {
+            ownerOrDelegate: notOwner,
+            nftAccount: positionNftAccount,
+            tokenizedPositionState,
+            positionManagerState: posMgrState,
+            poolState,
+            corePositionState,
+            tickLowerState,
+            tickUpperState,
+            bitmapLower,
+            bitmapUpper,
+            latestObservationState,
+            nextObservationState,
+            coreProgram: coreProgram.programId
+          }
+        }
+        )).to.be.rejectedWith(Error)
+      })
 
-  //     it('fails if past slippage tolerance', async () => {
-  //       const deadline = new BN(Date.now() / 1000 + 10_000)
-  //       await expect(mgrProgram.rpc.decreaseLiquidity(
-  //         liquidity,
-  //         new BN(0),
-  //         new BN(1_000_000), // 999_999 available
-  //         deadline, {
-  //         accounts: {
-  //           ownerOrDelegate: owner,
-  //           nftAccount: positionNftAccount,
-  //           tokenizedPositionState,
-  //           positionManagerState: posMgrState,
-  //           poolState,
-  //           corePositionState,
-  //           tickLowerState,
-  //           tickUpperState,
-  //           bitmapLower,
-  //           bitmapUpper,
-  //           latestObservationState,
-  //           nextObservationState,
-  //           coreProgram: coreProgram.programId
-  //         }
-  //       }
-  //       )).to.be.rejectedWith('Price slippage check')
-  //     })
+      it('fails if past slippage tolerance', async () => {
+        const deadline = new BN(Date.now() / 1000 + 10_000)
+        await expect(mgrProgram.rpc.decreaseLiquidity(
+          liquidity,
+          new BN(0),
+          new BN(1_000_000), // 999_999 available
+          deadline, {
+          accounts: {
+            ownerOrDelegate: owner,
+            nftAccount: positionNftAccount,
+            tokenizedPositionState,
+            positionManagerState: posMgrState,
+            poolState,
+            corePositionState,
+            tickLowerState,
+            tickUpperState,
+            bitmapLower,
+            bitmapUpper,
+            latestObservationState,
+            nextObservationState,
+            coreProgram: coreProgram.programId
+          }
+        }
+        )).to.be.rejectedWith('Price slippage check')
+      })
 
 
 
-  //     it('generate a temporary NFT account for testing', async () => {
-  //       temporaryNftHolder = await nftMint.createAssociatedTokenAccount(mintAuthority.publicKey)
-  //     })
+      it('generate a temporary NFT account for testing', async () => {
+        temporaryNftHolder = await nftMint.createAssociatedTokenAccount(mintAuthority.publicKey)
+      })
 
-  //     it('fails if NFT token account for the user is empty', async () => {
-  //       const transferTx = new web3.Transaction()
-  //       transferTx.recentBlockhash = (await connection.getRecentBlockhash()).blockhash
-  //       transferTx.add(Token.createTransferInstruction(
-  //         TOKEN_PROGRAM_ID,
-  //         positionNftAccount,
-  //         temporaryNftHolder,
-  //         owner,
-  //         [],
-  //         1
-  //       ))
+      it('fails if NFT token account for the user is empty', async () => {
+        const transferTx = new web3.Transaction()
+        transferTx.recentBlockhash = (await connection.getRecentBlockhash()).blockhash
+        transferTx.add(Token.createTransferInstruction(
+          TOKEN_PROGRAM_ID,
+          positionNftAccount,
+          temporaryNftHolder,
+          owner,
+          [],
+          1
+        ))
 
-  //       await anchor.getProvider().send(transferTx)
+        await anchor.getProvider().send(transferTx)
 
-  //       const deadline = new BN(Date.now() / 1000 + 10_000)
-  //       await expect(mgrProgram.rpc.decreaseLiquidity(
-  //         liquidity,
-  //         new BN(0),
-  //         amount1Desired,
-  //         deadline, {
-  //         accounts: {
-  //           ownerOrDelegate: owner,
-  //           nftAccount: positionNftAccount, // no balance
-  //           tokenizedPositionState,
-  //           positionManagerState: posMgrState,
-  //           poolState,
-  //           corePositionState,
-  //           tickLowerState,
-  //           tickUpperState,
-  //           bitmapLower,
-  //           bitmapUpper,
-  //           latestObservationState,
-  //           nextObservationState,
-  //           coreProgram: coreProgram.programId
-  //         }
-  //       }
-  //       )).to.be.rejectedWith('Not approved')
+        const deadline = new BN(Date.now() / 1000 + 10_000)
+        await expect(mgrProgram.rpc.decreaseLiquidity(
+          liquidity,
+          new BN(0),
+          amount1Desired,
+          deadline, {
+          accounts: {
+            ownerOrDelegate: owner,
+            nftAccount: positionNftAccount, // no balance
+            tokenizedPositionState,
+            positionManagerState: posMgrState,
+            poolState,
+            corePositionState,
+            tickLowerState,
+            tickUpperState,
+            bitmapLower,
+            bitmapUpper,
+            latestObservationState,
+            nextObservationState,
+            coreProgram: coreProgram.programId
+          }
+        }
+        )).to.be.rejectedWith('Not approved')
 
-  //       // send the NFT back to the original owner
-  //       await nftMint.transfer(
-  //         temporaryNftHolder,
-  //         positionNftAccount,
-  //         mintAuthority,
-  //         [],
-  //         1
-  //       )
-  //     })
+        // send the NFT back to the original owner
+        await nftMint.transfer(
+          temporaryNftHolder,
+          positionNftAccount,
+          mintAuthority,
+          [],
+          1
+        )
+      })
 
-  //     it('burn half of the position liquidity as owner', async () => {
-  //       const deadline = new BN(Date.now() / 1000 + 10_000)
-  //       let listener: number
-  //       let [_event, _slot] = await new Promise((resolve, _reject) => {
-  //         listener = mgrProgram.addEventListener("DecreaseLiquidityEvent", (event, slot) => {
-  //           assert((event.tokenId as web3.PublicKey).equals(nftMintKeypair.publicKey))
-  //           assert((event.liquidity as BN).eq(liquidity))
-  //           assert((event.amount0 as BN).eqn(0))
-  //           assert((event.amount1 as BN).eq(amount1Desired))
+      it('burn half of the position liquidity as owner', async () => {
+        const deadline = new BN(Date.now() / 1000 + 10_000)
+        let listener: number
+        let [_event, _slot] = await new Promise((resolve, _reject) => {
+          listener = mgrProgram.addEventListener("DecreaseLiquidityEvent", (event, slot) => {
+            assert((event.tokenId as web3.PublicKey).equals(nftMintKeypair.publicKey))
+            assert((event.liquidity as BN).eq(liquidity))
+            assert((event.amount0 as BN).eqn(0))
+            assert((event.amount1 as BN).eq(amount1Desired))
 
-  //           resolve([event, slot]);
-  //         });
+            resolve([event, slot]);
+          });
 
-  //         mgrProgram.rpc.decreaseLiquidity(
-  //           liquidity,
-  //           new BN(0),
-  //           amount1Desired,
-  //           deadline, {
-  //           accounts: {
-  //             ownerOrDelegate: owner,
-  //             nftAccount: positionNftAccount,
-  //             tokenizedPositionState,
-  //             positionManagerState: posMgrState,
-  //             poolState,
-  //             corePositionState,
-  //             tickLowerState,
-  //             tickUpperState,
-  //             bitmapLower,
-  //             bitmapUpper,
-  //             latestObservationState,
-  //             nextObservationState,
-  //             coreProgram: coreProgram.programId
-  //           }
-  //         }
-  //         )
-  //       })
-  //       await mgrProgram.removeEventListener(listener)
-  //       const tokenizedPositionData = await mgrProgram.account.tokenizedPositionState.fetch(tokenizedPositionState)
-  //       assert(tokenizedPositionData.tokensOwed0.eqn(0))
-  //       assert(tokenizedPositionData.tokensOwed1.eqn(999999))
-  //     })
+          mgrProgram.rpc.decreaseLiquidity(
+            liquidity,
+            new BN(0),
+            amount1Desired,
+            deadline, {
+            accounts: {
+              ownerOrDelegate: owner,
+              nftAccount: positionNftAccount,
+              tokenizedPositionState,
+              positionManagerState: posMgrState,
+              poolState,
+              corePositionState,
+              tickLowerState,
+              tickUpperState,
+              bitmapLower,
+              bitmapUpper,
+              latestObservationState,
+              nextObservationState,
+              coreProgram: coreProgram.programId
+            }
+          }
+          )
+        })
+        await mgrProgram.removeEventListener(listener)
+        const tokenizedPositionData = await mgrProgram.account.tokenizedPositionState.fetch(tokenizedPositionState)
+        assert(tokenizedPositionData.tokensOwed0.eqn(0))
+        assert(tokenizedPositionData.tokensOwed1.eqn(999999))
+      })
 
-  //     it('fails if 0 tokens are delegated', async () => {
-  //       const approveTx = new web3.Transaction()
-  //       approveTx.recentBlockhash = (await connection.getRecentBlockhash()).blockhash
-  //       approveTx.add(Token.createApproveInstruction(
-  //         TOKEN_PROGRAM_ID,
-  //         positionNftAccount,
-  //         mintAuthority.publicKey,
-  //         owner,
-  //         [],
-  //         0
-  //       ))
-  //       await anchor.getProvider().send(approveTx)
+      it('fails if 0 tokens are delegated', async () => {
+        const approveTx = new web3.Transaction()
+        approveTx.recentBlockhash = (await connection.getRecentBlockhash()).blockhash
+        approveTx.add(Token.createApproveInstruction(
+          TOKEN_PROGRAM_ID,
+          positionNftAccount,
+          mintAuthority.publicKey,
+          owner,
+          [],
+          0
+        ))
+        await anchor.getProvider().send(approveTx)
 
-  //       const deadline = new BN(Date.now() / 1000 + 10_000)
-  //       const tx = mgrProgram.transaction.decreaseLiquidity(
-  //         new BN(1_000),
-  //         new BN(0),
-  //         new BN(0),
-  //         deadline, {
-  //         accounts: {
-  //           ownerOrDelegate: mintAuthority.publicKey,
-  //           nftAccount: positionNftAccount,
-  //           tokenizedPositionState,
-  //           positionManagerState: posMgrState,
-  //           poolState,
-  //           corePositionState,
-  //           tickLowerState,
-  //           tickUpperState,
-  //           bitmapLower,
-  //           bitmapUpper,
-  //           latestObservationState,
-  //           nextObservationState,
-  //           coreProgram: coreProgram.programId
-  //         }
-  //       }
-  //       )
-  //       await expect(connection.sendTransaction(tx, [mintAuthority])).to.be.rejectedWith(Error)
-  //       // TODO see why errors inside functions are not propagating outside
-  //     })
+        const deadline = new BN(Date.now() / 1000 + 10_000)
+        const tx = mgrProgram.transaction.decreaseLiquidity(
+          new BN(1_000),
+          new BN(0),
+          new BN(0),
+          deadline, {
+          accounts: {
+            ownerOrDelegate: mintAuthority.publicKey,
+            nftAccount: positionNftAccount,
+            tokenizedPositionState,
+            positionManagerState: posMgrState,
+            poolState,
+            corePositionState,
+            tickLowerState,
+            tickUpperState,
+            bitmapLower,
+            bitmapUpper,
+            latestObservationState,
+            nextObservationState,
+            coreProgram: coreProgram.programId
+          }
+        }
+        )
+        await expect(connection.sendTransaction(tx, [mintAuthority])).to.be.rejectedWith(Error)
+        // TODO see why errors inside functions are not propagating outside
+      })
 
-  //     it('burn liquidity as the delegated authority', async () => {
-  //       const approveTx = new web3.Transaction()
-  //       approveTx.recentBlockhash = (await connection.getRecentBlockhash()).blockhash
-  //       approveTx.add(Token.createApproveInstruction(
-  //         TOKEN_PROGRAM_ID,
-  //         positionNftAccount,
-  //         mintAuthority.publicKey,
-  //         owner,
-  //         [],
-  //         1
-  //       ))
-  //       await anchor.getProvider().send(approveTx)
+      it('burn liquidity as the delegated authority', async () => {
+        const approveTx = new web3.Transaction()
+        approveTx.recentBlockhash = (await connection.getRecentBlockhash()).blockhash
+        approveTx.add(Token.createApproveInstruction(
+          TOKEN_PROGRAM_ID,
+          positionNftAccount,
+          mintAuthority.publicKey,
+          owner,
+          [],
+          1
+        ))
+        await anchor.getProvider().send(approveTx)
 
-  //       const deadline = new BN(Date.now() / 1000 + 10_000)
-  //       let listener: number
-  //       let [_event, _slot] = await new Promise((resolve, _reject) => {
-  //         listener = mgrProgram.addEventListener("DecreaseLiquidityEvent", (event, slot) => {
-  //           resolve([event, slot]);
-  //         });
+        const deadline = new BN(Date.now() / 1000 + 10_000)
+        let listener: number
+        let [_event, _slot] = await new Promise((resolve, _reject) => {
+          listener = mgrProgram.addEventListener("DecreaseLiquidityEvent", (event, slot) => {
+            resolve([event, slot]);
+          });
 
-  //         const tx = mgrProgram.transaction.decreaseLiquidity(
-  //           new BN(1_000_000),
-  //           new BN(0),
-  //           new BN(0),
-  //           deadline, {
-  //           accounts: {
-  //             ownerOrDelegate: mintAuthority.publicKey,
-  //             nftAccount: positionNftAccount,
-  //             tokenizedPositionState,
-  //             positionManagerState: posMgrState,
-  //             poolState,
-  //             corePositionState,
-  //             tickLowerState,
-  //             tickUpperState,
-  //             bitmapLower,
-  //             bitmapUpper,
-  //             latestObservationState,
-  //             nextObservationState,
-  //             coreProgram: coreProgram.programId
-  //           }
-  //         }
-  //         )
-  //         connection.sendTransaction(tx, [mintAuthority])
-  //       })
-  //       await mgrProgram.removeEventListener(listener)
-  //     })
+          const tx = mgrProgram.transaction.decreaseLiquidity(
+            new BN(1_000_000),
+            new BN(0),
+            new BN(0),
+            deadline, {
+            accounts: {
+              ownerOrDelegate: mintAuthority.publicKey,
+              nftAccount: positionNftAccount,
+              tokenizedPositionState,
+              positionManagerState: posMgrState,
+              poolState,
+              corePositionState,
+              tickLowerState,
+              tickUpperState,
+              bitmapLower,
+              bitmapUpper,
+              latestObservationState,
+              nextObservationState,
+              coreProgram: coreProgram.programId
+            }
+          }
+          )
+          connection.sendTransaction(tx, [mintAuthority])
+        })
+        await mgrProgram.removeEventListener(listener)
+      })
 
-  //     it('fails if delegation is revoked', async () => {
-  //       const revokeTx = new web3.Transaction()
-  //       revokeTx.recentBlockhash = (await connection.getRecentBlockhash()).blockhash
-  //       revokeTx.add(Token.createRevokeInstruction(
-  //         TOKEN_PROGRAM_ID,
-  //         positionNftAccount,
-  //         owner,
-  //         [],
-  //       ))
-  //       await anchor.getProvider().send(revokeTx)
+      it('fails if delegation is revoked', async () => {
+        const revokeTx = new web3.Transaction()
+        revokeTx.recentBlockhash = (await connection.getRecentBlockhash()).blockhash
+        revokeTx.add(Token.createRevokeInstruction(
+          TOKEN_PROGRAM_ID,
+          positionNftAccount,
+          owner,
+          [],
+        ))
+        await anchor.getProvider().send(revokeTx)
 
-  //       const deadline = new BN(Date.now() / 1000 + 10_000)
-  //       const tx = mgrProgram.transaction.decreaseLiquidity(
-  //         new BN(1_000_000),
-  //         new BN(0),
-  //         new BN(0),
-  //         deadline, {
-  //         accounts: {
-  //           ownerOrDelegate: mintAuthority.publicKey,
-  //           nftAccount: positionNftAccount,
-  //           tokenizedPositionState,
-  //           positionManagerState: posMgrState,
-  //           poolState,
-  //           corePositionState,
-  //           tickLowerState,
-  //           tickUpperState,
-  //           bitmapLower,
-  //           bitmapUpper,
-  //           latestObservationState,
-  //           nextObservationState,
-  //           coreProgram: coreProgram.programId
-  //         }
-  //       }
-  //       )
-  //       // TODO check for 'Not approved' error
-  //       await expect(connection.sendTransaction(tx, [mintAuthority])).to.be.rejectedWith(Error)
-  //     })
-  //   })
+        const deadline = new BN(Date.now() / 1000 + 10_000)
+        const tx = mgrProgram.transaction.decreaseLiquidity(
+          new BN(1_000_000),
+          new BN(0),
+          new BN(0),
+          deadline, {
+          accounts: {
+            ownerOrDelegate: mintAuthority.publicKey,
+            nftAccount: positionNftAccount,
+            tokenizedPositionState,
+            positionManagerState: posMgrState,
+            poolState,
+            corePositionState,
+            tickLowerState,
+            tickUpperState,
+            bitmapLower,
+            bitmapUpper,
+            latestObservationState,
+            nextObservationState,
+            coreProgram: coreProgram.programId
+          }
+        }
+        )
+        // TODO check for 'Not approved' error
+        await expect(connection.sendTransaction(tx, [mintAuthority])).to.be.rejectedWith(Error)
+      })
+    })
 
-  //   describe('#collect', () => {
-  //     it('fails if both amounts are set as 0', async () => {
-  //       await expect(mgrProgram.rpc.collect(new BN(0), new BN(0), {
-  //         accounts: {
-  //           ownerOrDelegate: owner,
-  //           nftAccount: positionNftAccount,
-  //           tokenizedPositionState,
-  //           positionManagerState: posMgrState,
-  //           poolState,
-  //           corePositionState,
-  //           tickLowerState,
-  //           tickUpperState,
-  //           bitmapLower,
-  //           bitmapUpper,
-  //           latestObservationState,
-  //           nextObservationState,
-  //           coreProgram: coreProgram.programId,
-  //           vault0,
-  //           vault1,
-  //           recipientWallet0: feeRecipientWallet0,
-  //           recipientWallet1: feeRecipientWallet1,
-  //           tokenProgram: TOKEN_PROGRAM_ID,
-  //         }
-  //       })).to.be.rejectedWith(Error)
-  //     })
+    describe('#collect', () => {
+      it('fails if both amounts are set as 0', async () => {
+        await expect(mgrProgram.rpc.collect(new BN(0), new BN(0), {
+          accounts: {
+            ownerOrDelegate: owner,
+            nftAccount: positionNftAccount,
+            tokenizedPositionState,
+            positionManagerState: posMgrState,
+            poolState,
+            corePositionState,
+            tickLowerState,
+            tickUpperState,
+            bitmapLower,
+            bitmapUpper,
+            latestObservationState,
+            nextObservationState,
+            coreProgram: coreProgram.programId,
+            vault0,
+            vault1,
+            recipientWallet0: feeRecipientWallet0,
+            recipientWallet1: feeRecipientWallet1,
+            tokenProgram: TOKEN_PROGRAM_ID,
+          }
+        })).to.be.rejectedWith(Error)
+      })
 
-  //     it('fails if signer is not the owner or a delegated authority', async () => {
-  //       const tx = mgrProgram.transaction.collect(new BN(0), new BN(10), {
-  //         accounts: {
-  //           ownerOrDelegate: notOwner.publicKey,
-  //           nftAccount: positionNftAccount,
-  //           tokenizedPositionState,
-  //           positionManagerState: posMgrState,
-  //           poolState,
-  //           corePositionState,
-  //           tickLowerState,
-  //           tickUpperState,
-  //           bitmapLower,
-  //           bitmapUpper,
-  //           latestObservationState,
-  //           nextObservationState,
-  //           coreProgram: coreProgram.programId,
-  //           vault0,
-  //           vault1,
-  //           recipientWallet0: feeRecipientWallet0,
-  //           recipientWallet1: feeRecipientWallet1,
-  //           tokenProgram: TOKEN_PROGRAM_ID,
-  //         }
-  //       })
-  //       await expect(connection.sendTransaction(tx, [notOwner])).to.be.rejectedWith(Error)
-  //     })
+      it('fails if signer is not the owner or a delegated authority', async () => {
+        const tx = mgrProgram.transaction.collect(new BN(0), new BN(10), {
+          accounts: {
+            ownerOrDelegate: notOwner.publicKey,
+            nftAccount: positionNftAccount,
+            tokenizedPositionState,
+            positionManagerState: posMgrState,
+            poolState,
+            corePositionState,
+            tickLowerState,
+            tickUpperState,
+            bitmapLower,
+            bitmapUpper,
+            latestObservationState,
+            nextObservationState,
+            coreProgram: coreProgram.programId,
+            vault0,
+            vault1,
+            recipientWallet0: feeRecipientWallet0,
+            recipientWallet1: feeRecipientWallet1,
+            tokenProgram: TOKEN_PROGRAM_ID,
+          }
+        })
+        await expect(connection.sendTransaction(tx, [notOwner])).to.be.rejectedWith(Error)
+      })
 
-  //     it('fails delegated amount is 0', async () => {
-  //       const approveTx = new web3.Transaction()
-  //       approveTx.recentBlockhash = (await connection.getRecentBlockhash()).blockhash
-  //       approveTx.add(Token.createApproveInstruction(
-  //         TOKEN_PROGRAM_ID,
-  //         positionNftAccount,
-  //         mintAuthority.publicKey,
-  //         owner,
-  //         [],
-  //         0
-  //       ))
-  //       await anchor.getProvider().send(approveTx)
+      it('fails delegated amount is 0', async () => {
+        const approveTx = new web3.Transaction()
+        approveTx.recentBlockhash = (await connection.getRecentBlockhash()).blockhash
+        approveTx.add(Token.createApproveInstruction(
+          TOKEN_PROGRAM_ID,
+          positionNftAccount,
+          mintAuthority.publicKey,
+          owner,
+          [],
+          0
+        ))
+        await anchor.getProvider().send(approveTx)
 
-  //       const tx = mgrProgram.transaction.collect(new BN(0), new BN(10), {
-  //         accounts: {
-  //           ownerOrDelegate: mintAuthority.publicKey,
-  //           nftAccount: positionNftAccount,
-  //           tokenizedPositionState,
-  //           positionManagerState: posMgrState,
-  //           poolState,
-  //           corePositionState,
-  //           tickLowerState,
-  //           tickUpperState,
-  //           bitmapLower,
-  //           bitmapUpper,
-  //           latestObservationState,
-  //           nextObservationState,
-  //           coreProgram: coreProgram.programId,
-  //           vault0,
-  //           vault1,
-  //           recipientWallet0: feeRecipientWallet0,
-  //           recipientWallet1: feeRecipientWallet1,
-  //           tokenProgram: TOKEN_PROGRAM_ID,
-  //         }
-  //       })
-  //       await expect(connection.sendTransaction(tx, [mintAuthority])).to.be.rejectedWith(Error)
-  //     })
+        const tx = mgrProgram.transaction.collect(new BN(0), new BN(10), {
+          accounts: {
+            ownerOrDelegate: mintAuthority.publicKey,
+            nftAccount: positionNftAccount,
+            tokenizedPositionState,
+            positionManagerState: posMgrState,
+            poolState,
+            corePositionState,
+            tickLowerState,
+            tickUpperState,
+            bitmapLower,
+            bitmapUpper,
+            latestObservationState,
+            nextObservationState,
+            coreProgram: coreProgram.programId,
+            vault0,
+            vault1,
+            recipientWallet0: feeRecipientWallet0,
+            recipientWallet1: feeRecipientWallet1,
+            tokenProgram: TOKEN_PROGRAM_ID,
+          }
+        })
+        await expect(connection.sendTransaction(tx, [mintAuthority])).to.be.rejectedWith(Error)
+      })
 
-  //     it('fails if NFT token account is empty', async () => {
-  //       const transferTx = new web3.Transaction()
-  //       transferTx.recentBlockhash = (await connection.getRecentBlockhash()).blockhash
-  //       transferTx.add(Token.createTransferInstruction(
-  //         TOKEN_PROGRAM_ID,
-  //         positionNftAccount,
-  //         temporaryNftHolder,
-  //         owner,
-  //         [],
-  //         1
-  //       ))
-  //       await anchor.getProvider().send(transferTx)
+      it('fails if NFT token account is empty', async () => {
+        const transferTx = new web3.Transaction()
+        transferTx.recentBlockhash = (await connection.getRecentBlockhash()).blockhash
+        transferTx.add(Token.createTransferInstruction(
+          TOKEN_PROGRAM_ID,
+          positionNftAccount,
+          temporaryNftHolder,
+          owner,
+          [],
+          1
+        ))
+        await anchor.getProvider().send(transferTx)
 
-  //       await expect(mgrProgram.rpc.collect(new BN(0), new BN(10), {
-  //         accounts: {
-  //           ownerOrDelegate: owner,
-  //           nftAccount: positionNftAccount,
-  //           tokenizedPositionState,
-  //           positionManagerState: posMgrState,
-  //           poolState,
-  //           corePositionState,
-  //           tickLowerState,
-  //           tickUpperState,
-  //           bitmapLower,
-  //           bitmapUpper,
-  //           latestObservationState,
-  //           nextObservationState,
-  //           coreProgram: coreProgram.programId,
-  //           vault0,
-  //           vault1,
-  //           recipientWallet0: feeRecipientWallet0,
-  //           recipientWallet1: feeRecipientWallet1,
-  //           tokenProgram: TOKEN_PROGRAM_ID,
-  //         }
-  //       })).to.be.rejectedWith('Not approved')
+        await expect(mgrProgram.rpc.collect(new BN(0), new BN(10), {
+          accounts: {
+            ownerOrDelegate: owner,
+            nftAccount: positionNftAccount,
+            tokenizedPositionState,
+            positionManagerState: posMgrState,
+            poolState,
+            corePositionState,
+            tickLowerState,
+            tickUpperState,
+            bitmapLower,
+            bitmapUpper,
+            latestObservationState,
+            nextObservationState,
+            coreProgram: coreProgram.programId,
+            vault0,
+            vault1,
+            recipientWallet0: feeRecipientWallet0,
+            recipientWallet1: feeRecipientWallet1,
+            tokenProgram: TOKEN_PROGRAM_ID,
+          }
+        })).to.be.rejectedWith('Not approved')
 
-  //       // send the NFT back to the original owner
-  //       await nftMint.transfer(
-  //         temporaryNftHolder,
-  //         positionNftAccount,
-  //         mintAuthority,
-  //         [],
-  //         1
-  //       )
-  //     })
+        // send the NFT back to the original owner
+        await nftMint.transfer(
+          temporaryNftHolder,
+          positionNftAccount,
+          mintAuthority,
+          [],
+          1
+        )
+      })
 
-  //     it('collect a portion of owed tokens as owner', async () => {
-  //       const amount0Max = new BN(0)
-  //       const amount1Max = new BN(10)
-  //       let listener: number
-  //       let [_event, _slot] = await new Promise((resolve, _reject) => {
-  //         listener = mgrProgram.addEventListener("CollectEvent", (event, slot) => {
-  //           assert((event.tokenId as web3.PublicKey).equals(nftMintKeypair.publicKey))
-  //           assert((event.amount0 as BN).eq(amount0Max))
-  //           assert((event.amount1 as BN).eq(amount1Max))
-  //           assert((event.recipientWallet0 as web3.PublicKey).equals(feeRecipientWallet0))
-  //           assert((event.recipientWallet1 as web3.PublicKey).equals(feeRecipientWallet1))
+      it('collect a portion of owed tokens as owner', async () => {
+        const amount0Max = new BN(0)
+        const amount1Max = new BN(10)
+        let listener: number
+        let [_event, _slot] = await new Promise((resolve, _reject) => {
+          listener = mgrProgram.addEventListener("CollectEvent", (event, slot) => {
+            assert((event.tokenId as web3.PublicKey).equals(nftMintKeypair.publicKey))
+            assert((event.amount0 as BN).eq(amount0Max))
+            assert((event.amount1 as BN).eq(amount1Max))
+            assert((event.recipientWallet0 as web3.PublicKey).equals(feeRecipientWallet0))
+            assert((event.recipientWallet1 as web3.PublicKey).equals(feeRecipientWallet1))
 
-  //           resolve([event, slot]);
-  //         });
+            resolve([event, slot]);
+          });
 
-  //         mgrProgram.rpc.collect(amount0Max, amount1Max, {
-  //           accounts: {
-  //             ownerOrDelegate: owner,
-  //             nftAccount: positionNftAccount,
-  //             tokenizedPositionState,
-  //             positionManagerState: posMgrState,
-  //             poolState,
-  //             corePositionState,
-  //             tickLowerState,
-  //             tickUpperState,
-  //             bitmapLower,
-  //             bitmapUpper,
-  //             latestObservationState,
-  //             nextObservationState,
-  //             coreProgram: coreProgram.programId,
-  //             vault0,
-  //             vault1,
-  //             recipientWallet0: feeRecipientWallet0,
-  //             recipientWallet1: feeRecipientWallet1,
-  //             tokenProgram: TOKEN_PROGRAM_ID,
-  //           }
-  //         })
-  //       })
-  //       await mgrProgram.removeEventListener(listener)
+          mgrProgram.rpc.collect(amount0Max, amount1Max, {
+            accounts: {
+              ownerOrDelegate: owner,
+              nftAccount: positionNftAccount,
+              tokenizedPositionState,
+              positionManagerState: posMgrState,
+              poolState,
+              corePositionState,
+              tickLowerState,
+              tickUpperState,
+              bitmapLower,
+              bitmapUpper,
+              latestObservationState,
+              nextObservationState,
+              coreProgram: coreProgram.programId,
+              vault0,
+              vault1,
+              recipientWallet0: feeRecipientWallet0,
+              recipientWallet1: feeRecipientWallet1,
+              tokenProgram: TOKEN_PROGRAM_ID,
+            }
+          })
+        })
+        await mgrProgram.removeEventListener(listener)
 
-  //       const corePositionData = await coreProgram.account.positionState.fetch(corePositionState)
-  //       assert(corePositionData.tokensOwed0.eqn(0))
-  //       assert(corePositionData.tokensOwed1.eqn(1000489)) // minus 10
+        const corePositionData = await coreProgram.account.positionState.fetch(corePositionState)
+        assert(corePositionData.tokensOwed0.eqn(0))
+        assert(corePositionData.tokensOwed1.eqn(1000489)) // minus 10
 
-  //       const tokenizedPositionData = await mgrProgram.account.tokenizedPositionState.fetch(tokenizedPositionState)
-  //       assert(tokenizedPositionData.tokensOwed0.eqn(0))
-  //       assert(tokenizedPositionData.tokensOwed1.eqn(1000489))
+        const tokenizedPositionData = await mgrProgram.account.tokenizedPositionState.fetch(tokenizedPositionState)
+        assert(tokenizedPositionData.tokensOwed0.eqn(0))
+        assert(tokenizedPositionData.tokensOwed1.eqn(1000489))
 
-  //       const recipientWallet0Info = await token0.getAccountInfo(feeRecipientWallet0)
-  //       const recipientWallet1Info = await token1.getAccountInfo(feeRecipientWallet1)
-  //       assert(recipientWallet0Info.amount.eqn(0))
-  //       assert(recipientWallet1Info.amount.eqn(10))
+        const recipientWallet0Info = await token0.getAccountInfo(feeRecipientWallet0)
+        const recipientWallet1Info = await token1.getAccountInfo(feeRecipientWallet1)
+        assert(recipientWallet0Info.amount.eqn(0))
+        assert(recipientWallet1Info.amount.eqn(10))
 
-  //       const vault0Info = await token0.getAccountInfo(vault0)
-  //       const vault1Info = await token1.getAccountInfo(vault1)
-  //       assert(vault0Info.amount.eqn(0))
-  //       assert(vault1Info.amount.eqn(1999990)) // minus 10
-  //     })
+        const vault0Info = await token0.getAccountInfo(vault0)
+        const vault1Info = await token1.getAccountInfo(vault1)
+        assert(vault0Info.amount.eqn(0))
+        assert(vault1Info.amount.eqn(1999990)) // minus 10
+      })
 
-  //     it('collect a portion of owed tokens as the delegated authority', async () => {
-  //       const approveTx = new web3.Transaction()
-  //       approveTx.recentBlockhash = (await connection.getRecentBlockhash()).blockhash
-  //       approveTx.add(Token.createApproveInstruction(
-  //         TOKEN_PROGRAM_ID,
-  //         positionNftAccount,
-  //         mintAuthority.publicKey,
-  //         owner,
-  //         [],
-  //         1
-  //       ))
-  //       await anchor.getProvider().send(approveTx)
+      it('collect a portion of owed tokens as the delegated authority', async () => {
+        const approveTx = new web3.Transaction()
+        approveTx.recentBlockhash = (await connection.getRecentBlockhash()).blockhash
+        approveTx.add(Token.createApproveInstruction(
+          TOKEN_PROGRAM_ID,
+          positionNftAccount,
+          mintAuthority.publicKey,
+          owner,
+          [],
+          1
+        ))
+        await anchor.getProvider().send(approveTx)
 
-  //       const amount0Max = new BN(0)
-  //       const amount1Max = new BN(10)
-  //       let listener: number
-  //       let [_event, _slot] = await new Promise((resolve, _reject) => {
-  //         listener = mgrProgram.addEventListener("CollectEvent", (event, slot) => {
-  //           assert((event.tokenId as web3.PublicKey).equals(nftMintKeypair.publicKey))
-  //           assert((event.amount0 as BN).eq(amount0Max))
-  //           assert((event.amount1 as BN).eq(amount1Max))
-  //           assert((event.recipientWallet0 as web3.PublicKey).equals(feeRecipientWallet0))
-  //           assert((event.recipientWallet1 as web3.PublicKey).equals(feeRecipientWallet1))
+        const amount0Max = new BN(0)
+        const amount1Max = new BN(10)
+        let listener: number
+        let [_event, _slot] = await new Promise((resolve, _reject) => {
+          listener = mgrProgram.addEventListener("CollectEvent", (event, slot) => {
+            assert((event.tokenId as web3.PublicKey).equals(nftMintKeypair.publicKey))
+            assert((event.amount0 as BN).eq(amount0Max))
+            assert((event.amount1 as BN).eq(amount1Max))
+            assert((event.recipientWallet0 as web3.PublicKey).equals(feeRecipientWallet0))
+            assert((event.recipientWallet1 as web3.PublicKey).equals(feeRecipientWallet1))
 
-  //           resolve([event, slot]);
-  //         });
+            resolve([event, slot]);
+          });
 
-  //         const tx = mgrProgram.transaction.collect(new BN(0), new BN(10), {
-  //           accounts: {
-  //             ownerOrDelegate: mintAuthority.publicKey,
-  //             nftAccount: positionNftAccount,
-  //             tokenizedPositionState,
-  //             positionManagerState: posMgrState,
-  //             poolState,
-  //             corePositionState,
-  //             tickLowerState,
-  //             tickUpperState,
-  //             bitmapLower,
-  //             bitmapUpper,
-  //             latestObservationState,
-  //             nextObservationState,
-  //             coreProgram: coreProgram.programId,
-  //             vault0,
-  //             vault1,
-  //             recipientWallet0: feeRecipientWallet0,
-  //             recipientWallet1: feeRecipientWallet1,
-  //             tokenProgram: TOKEN_PROGRAM_ID,
-  //           }
-  //         })
-  //         connection.sendTransaction(tx, [mintAuthority])
-  //       })
-  //       await mgrProgram.removeEventListener(listener)
+          const tx = mgrProgram.transaction.collect(new BN(0), new BN(10), {
+            accounts: {
+              ownerOrDelegate: mintAuthority.publicKey,
+              nftAccount: positionNftAccount,
+              tokenizedPositionState,
+              positionManagerState: posMgrState,
+              poolState,
+              corePositionState,
+              tickLowerState,
+              tickUpperState,
+              bitmapLower,
+              bitmapUpper,
+              latestObservationState,
+              nextObservationState,
+              coreProgram: coreProgram.programId,
+              vault0,
+              vault1,
+              recipientWallet0: feeRecipientWallet0,
+              recipientWallet1: feeRecipientWallet1,
+              tokenProgram: TOKEN_PROGRAM_ID,
+            }
+          })
+          connection.sendTransaction(tx, [mintAuthority])
+        })
+        await mgrProgram.removeEventListener(listener)
 
-  //       const corePositionData = await coreProgram.account.positionState.fetch(corePositionState)
-  //       assert(corePositionData.tokensOwed0.eqn(0))
-  //       assert(corePositionData.tokensOwed1.eqn(1000479))
+        const corePositionData = await coreProgram.account.positionState.fetch(corePositionState)
+        assert(corePositionData.tokensOwed0.eqn(0))
+        assert(corePositionData.tokensOwed1.eqn(1000479))
 
-  //       const tokenizedPositionData = await mgrProgram.account.tokenizedPositionState.fetch(tokenizedPositionState)
-  //       assert(tokenizedPositionData.tokensOwed0.eqn(0))
-  //       assert(tokenizedPositionData.tokensOwed1.eqn(1000479))
+        const tokenizedPositionData = await mgrProgram.account.tokenizedPositionState.fetch(tokenizedPositionState)
+        assert(tokenizedPositionData.tokensOwed0.eqn(0))
+        assert(tokenizedPositionData.tokensOwed1.eqn(1000479))
 
-  //       const recipientWallet0Info = await token0.getAccountInfo(feeRecipientWallet0)
-  //       const recipientWallet1Info = await token1.getAccountInfo(feeRecipientWallet1)
-  //       assert(recipientWallet0Info.amount.eqn(0))
-  //       assert(recipientWallet1Info.amount.eqn(20))
+        const recipientWallet0Info = await token0.getAccountInfo(feeRecipientWallet0)
+        const recipientWallet1Info = await token1.getAccountInfo(feeRecipientWallet1)
+        assert(recipientWallet0Info.amount.eqn(0))
+        assert(recipientWallet1Info.amount.eqn(20))
 
-  //       const vault0Info = await token0.getAccountInfo(vault0)
-  //       const vault1Info = await token1.getAccountInfo(vault1)
-  //       assert(vault0Info.amount.eqn(0))
-  //       assert(vault1Info.amount.eqn(1999980))
-  //     })
-  //   })
+        const vault0Info = await token0.getAccountInfo(vault0)
+        const vault1Info = await token1.getAccountInfo(vault1)
+        assert(vault0Info.amount.eqn(0))
+        assert(vault1Info.amount.eqn(1999980))
+      })
+    })
 
-  //   describe('#exact_input_single', () => {
-  //     it('performs a zero for one swap', async () => {
-  //       const deadline = new BN(Date.now() / 1000 + 10_000)
-  //       const amountIn = new BN(100_000)
-  //       const amountOutMinimum = new BN(0)
-  //       const sqrtPriceLimitX32 = new BN(0)
-  //       await routerProgram.rpc.exactInputSingle(
-  //         deadline,
-  //         true,
-  //         amountIn,
-  //         amountOutMinimum,
-  //         sqrtPriceLimitX32,
-  //         {
-  //           accounts: {
-  //             signer: owner,
-  //             poolState,
-  //             tokenAccount0: minterWallet0,
-  //             tokenAccount1: minterWallet1,
-  //             vault0,
-  //             vault1,
-  //             latestObservationState,
-  //             nextObservationState,
-  //             coreProgram: coreProgram.programId,
-  //             tokenProgram: TOKEN_PROGRAM_ID,
-  //           }, remainingAccounts: [{
-  //             pubkey: bitmapLower,
-  //             isSigner: false,
-  //             isWritable: true
-  //           }, {
-  //             pubkey: tickLowerState,
-  //             isSigner: false,
-  //             isWritable: true
-  //           }, {
-  //             pubkey: tickUpperState,
-  //             isSigner: false,
-  //             isWritable: true
-  //           }]
-  //         }
-  //       )
-  //     })
-  //   })
+    describe('#exact_input_single', () => {
+      // before swapping, current tick = 10 and price = 4297115210
+      // active ticks are 0 and 10
+      // entire liquidity is in token_1
+
+      const deadline = new BN(Date.now() / 1000 + 1_000_000)
+
+      it('fails if limit price is greater than current pool price', async () => {
+        const amountIn = new BN(100_000)
+        const amountOutMinimum = new BN(0)
+        const sqrtPriceLimitX32 = new BN(4297115220)
+
+        await expect(routerProgram.rpc.exactInputSingle(
+          deadline,
+          true,
+          amountIn,
+          amountOutMinimum,
+          sqrtPriceLimitX32,
+          {
+            accounts: {
+              signer: owner,
+              poolState,
+              tokenAccount0: minterWallet0,
+              tokenAccount1: minterWallet1,
+              vault0,
+              vault1,
+              latestObservationState,
+              nextObservationState,
+              coreProgram: coreProgram.programId,
+              tokenProgram: TOKEN_PROGRAM_ID,
+            }, remainingAccounts: [{
+              pubkey: bitmapLower,
+              isSigner: false,
+              isWritable: true
+            },
+            // price moves downwards in zero for one swap
+            {
+              pubkey: tickUpperState,
+              isSigner: false,
+              isWritable: true
+            }, {
+              pubkey: tickLowerState,
+              isSigner: false,
+              isWritable: true
+            }]
+          }
+        )).to.be.rejectedWith(Error)
+      })
+
+      it('swap upto a limit price for a zero to one swap', async () => {
+        const amountIn = new BN(100_000)
+        const amountOutMinimum = new BN(0)
+        const sqrtPriceLimitX32 = new BN(4297115200) // current price is 4297115210
+
+        await routerProgram.rpc.exactInputSingle(
+          deadline,
+          true,
+          amountIn,
+          amountOutMinimum,
+          sqrtPriceLimitX32,
+          {
+            accounts: {
+              signer: owner,
+              poolState,
+              tokenAccount0: minterWallet0,
+              tokenAccount1: minterWallet1,
+              vault0,
+              vault1,
+              latestObservationState,
+              nextObservationState,
+              coreProgram: coreProgram.programId,
+              tokenProgram: TOKEN_PROGRAM_ID,
+            }, remainingAccounts: [{
+              pubkey: bitmapLower,
+              isSigner: false,
+              isWritable: true
+            },
+            // price moves downwards in zero for one swap
+            {
+              pubkey: tickUpperState,
+              isSigner: false,
+              isWritable: true
+            }, {
+              pubkey: tickLowerState,
+              isSigner: false,
+              isWritable: true
+            }]
+          }
+        )
+
+        let poolStateData = await coreProgram.account.poolState.fetch(poolState)
+        assert(poolStateData.sqrtPriceX32.eq(sqrtPriceLimitX32))
+      })
+
+      it('performs a zero for one swap without a limit price', async () => {
+        let poolStateDataBefore = await coreProgram.account.poolState.fetch(poolState)
+        console.log('pool price', poolStateDataBefore.sqrtPriceX32.toNumber())
+        console.log('pool tick', poolStateDataBefore.tick)
+
+        const amountIn = new BN(100_000)
+        const amountOutMinimum = new BN(0)
+        const sqrtPriceLimitX32 = new BN(0)
+        await routerProgram.rpc.exactInputSingle(
+          deadline,
+          true,
+          amountIn,
+          amountOutMinimum,
+          sqrtPriceLimitX32,
+          {
+            accounts: {
+              signer: owner,
+              poolState,
+              tokenAccount0: minterWallet0,
+              tokenAccount1: minterWallet1,
+              vault0,
+              vault1,
+              latestObservationState,
+              nextObservationState,
+              coreProgram: coreProgram.programId,
+              tokenProgram: TOKEN_PROGRAM_ID,
+            }, remainingAccounts: [{
+              pubkey: bitmapLower,
+              isSigner: false,
+              isWritable: true
+            },
+            // price moves downwards in zero for one swap
+            {
+              pubkey: tickUpperState,
+              isSigner: false,
+              isWritable: true
+            }, {
+              pubkey: tickLowerState,
+              isSigner: false,
+              isWritable: true
+            }]
+          }
+        )
+        const poolStateDataAfter = await coreProgram.account.poolState.fetch(poolState)
+        console.log('pool price after', poolStateDataAfter.sqrtPriceX32.toNumber())
+        console.log('pool tick after', poolStateDataAfter.tick)
+      })
+    })
 
   })
 })

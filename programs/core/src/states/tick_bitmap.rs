@@ -4,7 +4,6 @@
 ///! Although ticks are stored as i32, all tick values fit within 24 bits.
 ///! Therefore the mapping uses i16 for keys and there are 256 (2^8) values per word.
 ///!
-
 use crate::libraries::big_num::U256;
 use crate::libraries::bit_math;
 use anchor_lang::prelude::*;
@@ -102,6 +101,52 @@ pub fn position(tick_by_spacing: i32) -> Position {
 //     (word_pos, bit_pos)
 // }
 
+/// Returns the bit position for the next initialized tick contained in the same word (or adjacent word)
+/// as the tick that is either to the left (less than or equal to) or right (greater than) of the given tick
+///
+/// # Arguments
+///
+/// * `self` - The mapping in which to compute the next initialized tick
+/// * `bit_pos` - The starting bit position
+/// * `lte` - Whether to search for the next initialized tick to the left (less than or equal to the starting tick)
+///
+pub fn next_initialized_bit(word: U256, bit_pos: u8, lte: bool) -> NextBit {
+    // let word = U256(word_slice);
+    if lte {
+        // all the 1s at or to the right of the current bit_pos
+        let mask = (U256::from(1) << bit_pos) - 1 + (U256::from(1) << bit_pos);
+        let masked = word & mask;
+
+        // if there are no initialized ticks to the right of or at the current tick, return rightmost in the word
+        let initialized = mask != U256::default();
+
+        // overflow/underflow is possible, but prevented externally by limiting both tick_spacing and tick
+        let next = -(if initialized {
+            bit_pos - bit_math::most_significant_bit(masked)
+        } else {
+            bit_pos
+        } as i32);
+
+        NextBit { next, initialized }
+    } else {
+        // all the 1s at or to the left of the bit_pos
+        let mask = !((U256::from(1) << bit_pos) - 1);
+        let masked = word & mask;
+
+        // if there are no initialized ticks to the left of the current tick, return leftmost in the word
+        let initialized = mask != U256::default();
+
+        // overflow/underflow is possible, but prevented externally by limiting both tick_spacing and tick
+        let next = 1 + if initialized {
+            bit_math::least_significant_bit(masked) - bit_pos
+        } else {
+            u8::MAX - bit_pos
+        } as i32;
+
+        NextBit { next, initialized }
+    }
+}
+
 impl TickBitmapState {
     ///  Flips the initialized state for a given tick from false to true, or vice versa
     ///
@@ -142,10 +187,7 @@ impl TickBitmapState {
                 bit_pos
             } as i32);
 
-            NextBit {
-                next,
-                initialized,
-            }
+            NextBit { next, initialized }
         } else {
             // all the 1s at or to the left of the bit_pos
             let mask = !((U256::from(1) << bit_pos) - 1);
@@ -161,10 +203,7 @@ impl TickBitmapState {
                 u8::MAX - bit_pos
             } as i32;
 
-            NextBit {
-                next,
-                initialized,
-            }
+            NextBit { next, initialized }
         }
     }
 }

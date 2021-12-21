@@ -4,6 +4,7 @@ pub mod event;
 pub mod states;
 
 use anchor_lang::prelude::*;
+use anchor_spl::token::TokenAccount;
 use context::*;
 use cyclos_core::libraries::tick_math;
 use error::ErrorCode;
@@ -14,32 +15,6 @@ declare_id!("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS");
 #[program]
 pub mod swap_router {
     use super::*;
-
-    /// Callback for core.swap()
-    /// Any contract that calls core.swap() must implement this interface
-    /// Pay tokens owed for the swap to the pool
-    /// Caller must be the core program
-    ///
-    /// # Flow
-    ///
-    /// 1. exact_input_internal() / exact_output_internal(): stateless routing
-    /// 2. Core.UniswapV3Pool.swap(): transfer out resultant tokens to user
-    /// 3. Periphery.SwapRouter.uniswapV3SwapCallback(): transfer tokens from user to pool
-    ///
-    /// # Arguments
-    ///
-    /// * `ctx` - Token accounts to make payment
-    /// * `amount_0_delta`, `amount_0_delta` - Δamount to be transferred to the pool
-    /// * `data` - Arbitrary data field for third party integrators
-    ///
-    pub fn swap_callback(
-        ctx: Context<SwapCallback>,
-        amount_0_delta: i64,
-        amount_1_delta: i64,
-        data: [u128; 8],
-    ) -> ProgramResult {
-        todo!()
-    }
 
     /// Swaps as little as possible of one token for `amount_out` of another token,
     /// across a single pool
@@ -125,7 +100,7 @@ pub mod swap_router {
         amount_out_minimum: u64,
         sqrt_price_limit_x32: u64,
     ) -> ProgramResult {
-        exact_input_internal(
+        let amount_out = exact_input_internal(
             ctx.accounts.core_program.to_account_info(),
             cyclos_core::cpi::accounts::SwapContext {
                 signer: ctx.accounts.signer.to_account_info(),
@@ -137,12 +112,15 @@ pub mod swap_router {
                 latest_observation_state: ctx.accounts.latest_observation_state.to_account_info(),
                 next_observation_state: ctx.accounts.next_observation_state.to_account_info(),
                 token_program: ctx.accounts.token_program.to_account_info(),
+                callback_handler: ctx.accounts.core_program.to_account_info()
             },
             ctx.remaining_accounts,
             zero_for_one,
             amount_in,
             sqrt_price_limit_x32,
         )?;
+        msg!("amount out {}", amount_out);
+        require!(amount_out >= amount_out_minimum, ErrorCode::TooLittleReceived);
         Ok(())
     }
 }
@@ -155,9 +133,14 @@ pub fn exact_input_internal<'info>(
     zero_for_one: bool,
     amount_in: u64,
     sqrt_price_limit_x32: u64,
-) -> ProgramResult {
-    // let cpi_ctx = CpiContext::new(core_program, accounts)
-    // cpi_ctx.remaining_accounts;
+) -> Result<u64, ProgramError> {
+    let mut vault = Account::<TokenAccount>::try_from(if zero_for_one {
+        &accounts.vault_1
+    } else {
+        &accounts.vault_0
+    })?;
+    let balance_before = vault.amount;
+
     cyclos_core::cpi::swap(
         CpiContext::new(core_program, accounts)
             .with_remaining_accounts(remaining_accounts.to_vec()),
@@ -173,7 +156,9 @@ pub fn exact_input_internal<'info>(
             sqrt_price_limit_x32
         },
     )?;
-    Ok(())
+
+    vault.reload()?;
+    Ok(balance_before - vault.amount)
 }
 
 /// Common function to perform CPI for exact_output_single() and exact_output()

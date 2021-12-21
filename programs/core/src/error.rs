@@ -47,6 +47,9 @@ pub enum ErrorCode {
     #[msg("SPL")]
     SPL,
 
+    #[msg("IIA")]
+    IIA,
+
     // states/position.rs
 
     // No poke/burn for a position with 0 liquidity

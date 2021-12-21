@@ -11,38 +11,31 @@ use anchor_lang::solana_program;
 use anchor_lang::solana_program::system_instruction::create_account;
 use anchor_lang::AccountsClose;
 use anchor_lang::{solana_program::instruction::Instruction, InstructionData};
-use anchor_spl::{associated_token, token};
+use anchor_spl::token;
 use context::*;
 use libraries::liquidity_math;
 use libraries::sqrt_price_math;
+use muldiv::MulDiv;
 use states::factory::*;
 use states::fee::*;
 use states::pool::*;
 use states::position::*;
-use states::tick;
 use states::tick::*;
 use states::tick_bitmap::*;
-use std::cell::Ref;
-use std::cell::RefMut;
 use std::convert::TryFrom;
 use std::mem::size_of;
+use std::ops::Neg;
 use std::ops::{Deref, DerefMut};
+
+use crate::{
+    libraries::{fixed_point_x32, swap_math},
+    states::{oracle::OBSERVATION_SEED, tick_bitmap},
+};
 
 declare_id!("37kn8WUzihQoAnhYxueA2BnqCA7VRnrVvYoHy1hQ6Veu");
 
 #[program]
 pub mod cyclos_core {
-
-    use std::ops::Neg;
-
-    use libraries::swap_math::SwapStep;
-    use muldiv::MulDiv;
-
-    use crate::{
-        libraries::{fixed_point_x32, swap_math},
-        states::{oracle::OBSERVATION_SEED, tick_bitmap},
-    };
-
     use super::*;
 
     // ---------------------------------------------------------------------
@@ -498,6 +491,58 @@ pub mod cyclos_core {
         Ok(())
     }
 
+    /// Callback to pay the pool tokens owed for the swap.
+    /// The caller of this method must be checked to be the core program.
+    /// amount_0_delta and amount_1_delta can both be 0 if no tokens were swapped.
+    ///
+    /// # Arguments
+    ///
+    /// * `ctx` - Token accounts for payment
+    /// * `exact_input` - Whether an exact input swap or an exact output swap
+    /// * `amount_0_delta` - The amount of token_0 that was sent (negative) or must be received (positive) by the pool by
+    /// the end of the swap. If positive, the callback must send that amount of token_0 to the pool.
+    /// * `amount_1_delta` - The amount of token_1 that was sent (negative) or must be received (positive) by the pool by
+    /// the end of the swap. If positive, the callback must send that amount of token_1 to the pool.
+    ///
+    pub fn swap_callback(
+        ctx: Context<SwapCallback>,
+        exact_input: bool,
+        amount_0_delta: i64,
+        amount_1_delta: i64,
+    ) -> ProgramResult {
+        // TODO check caller address and implement for exact output swaps
+        assert!(amount_0_delta > 0 || amount_1_delta > 0); // swaps entirely within 0-liquidity regions are not supported
+
+        assert!(exact_input); // exact output not yet implemented
+        if amount_0_delta > 0 {
+            token::transfer(
+                CpiContext::new(
+                    ctx.accounts.token_program.to_account_info(),
+                    token::Transfer {
+                        from: ctx.accounts.token_account_0.to_account_info(),
+                        to: ctx.accounts.vault_0.to_account_info(),
+                        authority: ctx.accounts.signer.to_account_info(),
+                    },
+                ),
+                amount_0_delta as u64,
+            )?;
+        } else {
+            token::transfer(
+                CpiContext::new(
+                    ctx.accounts.token_program.to_account_info(),
+                    token::Transfer {
+                        from: ctx.accounts.token_account_1.to_account_info(),
+                        to: ctx.accounts.vault_1.to_account_info(),
+                        authority: ctx.accounts.signer.to_account_info(),
+                    },
+                ),
+                amount_1_delta as u64,
+            )?;
+        }
+
+        Ok(())
+    }
+
     /// Adds liquidity for the given pool/recipient/tickLower/tickUpper position
     ///
     /// # Arguments
@@ -786,7 +831,6 @@ pub mod cyclos_core {
         amount_specified: i64,
         sqrt_price_limit_x32: u64,
     ) -> ProgramResult {
-        msg!("inside swap");
         require!(amount_specified != 0, ErrorCode::AS);
 
         let mut pool_state = ctx.accounts.pool_state.load_mut()?;
@@ -837,10 +881,10 @@ pub mod cyclos_core {
         // reached the price limit
         let latest_observation = ctx.accounts.latest_observation_state.load_mut()?;
         let mut remaining_accounts = ctx.remaining_accounts.iter();
+        let mut bitmap: Option<TickBitmapState> = None;
         while state.amount_specified_remaining != 0 && state.sqrt_price_x32 != sqrt_price_limit_x32
         {
             let mut step = StepComputations::default();
-
             step.sqrt_price_start_x32 = state.sqrt_price_x32;
 
             // if zero_for_one(lte = true) start with the word containing the current tick
@@ -855,25 +899,34 @@ pub mod cyclos_core {
             }
 
             let Position { word_pos, bit_pos } = tick_bitmap::position(compressed);
-            let bitmap_loader = Loader::<TickBitmapState>::try_from(
-                &cyclos_core::id(),
-                remaining_accounts.next().unwrap(),
-            )?;
-            let bitmap = bitmap_loader.load()?;
-            let bitmap_account_seeds = [
-                BITMAP_SEED.as_bytes(),
-                pool_state.token_0.as_ref(),
-                pool_state.token_1.as_ref(),
-                &pool_state.fee.to_be_bytes(),
-                &word_pos.to_be_bytes(),
-                &[bitmap.bump],
-            ];
-            assert!(
-                bitmap_loader.key()
-                    == Pubkey::create_program_address(&bitmap_account_seeds[..], &ctx.program_id)?,
-            );
 
-            let next_initialized_bit = bitmap.next_initialized_bit(bit_pos, zero_for_one);
+            if bitmap.is_none() || bitmap.unwrap().word_pos != word_pos {
+                let bitmap_loader = Loader::<TickBitmapState>::try_from(
+                    &cyclos_core::id(),
+                    remaining_accounts.next().unwrap(),
+                )?;
+                let bitmap_state = bitmap_loader.load()?;
+
+                let bitmap_account_seeds = [
+                    BITMAP_SEED.as_bytes(),
+                    pool_state.token_0.as_ref(),
+                    pool_state.token_1.as_ref(),
+                    &pool_state.fee.to_be_bytes(),
+                    &word_pos.to_be_bytes(),
+                    &[bitmap_state.bump],
+                ];
+                assert!(
+                    bitmap_loader.key()
+                        == Pubkey::create_program_address(
+                            &bitmap_account_seeds[..],
+                            &ctx.program_id
+                        )?,
+                );
+                bitmap = Some(*bitmap_state.deref());
+                drop(bitmap_state);
+            }
+
+            let next_initialized_bit = bitmap.unwrap().next_initialized_bit(bit_pos, zero_for_one);
             step.tick_next =
                 (compressed + next_initialized_bit.next) * pool_state.tick_spacing as i32;
             step.initialized = next_initialized_bit.initialized;
@@ -943,10 +996,10 @@ pub mod cyclos_core {
                     // actual value the first time the swap crosses an initialized tick
                     if !cache.computed_latest_observation {
                         let new_observation = latest_observation.observe_latest(
-                                cache.block_timestamp,
-                                pool_state.tick,
-                                pool_state.liquidity,
-                            );
+                            cache.block_timestamp,
+                            pool_state.tick,
+                            pool_state.liquidity,
+                        );
                         cache.tick_cumulative = new_observation.0;
                         cache.seconds_per_liquidity_cumulative_x32 = new_observation.1;
                         cache.computed_latest_observation = true;
@@ -971,7 +1024,6 @@ pub mod cyclos_core {
                                 &ctx.program_id
                             )?,
                     );
-
                     let mut liquidity_net = tick_state.deref_mut().cross(
                         if zero_for_one {
                             state.fee_growth_global_x32
@@ -1007,15 +1059,18 @@ pub mod cyclos_core {
                 state.tick = tick_math::get_tick_at_sqrt_ratio(state.sqrt_price_x32)?;
             }
         }
+        let next_observation_start_time = (latest_observation.block_timestamp / 14 + 1) * 14;
+        drop(latest_observation);
         // update tick and write an oracle entry if the tick changes
         if state.tick != pool_state.tick {
-            let next_observation_start_time = (latest_observation.block_timestamp / 14 + 1) * 14;
+
             let mut next_observation = if cache.block_timestamp >= next_observation_start_time {
                 let next_observation = ctx.accounts.next_observation_state.load_mut()?;
                 pool_state.observation_index = next_observation.index;
                 next_observation
             } else {
-                latest_observation
+                ctx.accounts.latest_observation_state.load_mut()?
+                // latest_observation
             };
             pool_state.tick = state.tick;
             pool_state.observation_cardinality_next = next_observation.update(
@@ -1026,6 +1081,7 @@ pub mod cyclos_core {
                 pool_state.observation_cardinality_next,
             );
         }
+        // drop(latest_observation);
         pool_state.sqrt_price_x32 = state.sqrt_price_x32;
 
         // update liquidity if it changed
@@ -1048,9 +1104,15 @@ pub mod cyclos_core {
         }
 
         let (amount_0, amount_1) = if zero_for_one == exact_input {
-            (amount_specified - state.amount_specified_remaining, state.amount_calculated)
+            (
+                amount_specified - state.amount_specified_remaining,
+                state.amount_calculated,
+            )
         } else {
-            (state.amount_calculated, amount_specified - state.amount_specified_remaining)
+            (
+                state.amount_calculated,
+                amount_specified - state.amount_specified_remaining,
+            )
         };
 
         // do the transfers and collect payment
@@ -1061,6 +1123,7 @@ pub mod cyclos_core {
             &[pool_state.bump],
         ];
         drop(pool_state);
+
         if zero_for_one {
             if amount_1 < 0 {
                 token::transfer(
@@ -1075,11 +1138,64 @@ pub mod cyclos_core {
                     ),
                     amount_1.neg() as u64,
                 )?;
-                let balance_0_before = ctx.accounts.vault_0.amount;
-                // transfer tokens to pool in callback
             }
+            let balance_0_before = ctx.accounts.vault_0.amount;
+            // transfer tokens to pool in callback
+            let swap_callback_ix = cyclos_core::instruction::SwapCallback {
+                amount_0_delta: amount_0,
+                amount_1_delta: amount_1,
+                exact_input,
+            };
+            let ix = Instruction::new_with_bytes(
+                ctx.accounts.callback_handler.key(),
+                &swap_callback_ix.data(),
+                ctx.accounts.to_account_metas(None),
+            );
+            solana_program::program::invoke(
+                &ix,
+                &ctx.accounts.to_account_infos(),
+            )?;
+            ctx.accounts.vault_0.reload()?;
+            require!(
+                balance_0_before.checked_add(amount_0 as u64).unwrap() <= ctx.accounts.vault_0.amount,
+                ErrorCode::IIA
+            );
         } else {
-            // TODO for token 0
+            if amount_0 < 0 {
+                token::transfer(
+                    CpiContext::new_with_signer(
+                        ctx.accounts.token_program.to_account_info().clone(),
+                        token::Transfer {
+                            from: ctx.accounts.vault_0.to_account_info().clone(),
+                            to: ctx.accounts.token_account_0.to_account_info().clone(),
+                            authority: ctx.accounts.pool_state.to_account_info().clone(),
+                        },
+                        &[&pool_state_seeds[..]],
+                    ),
+                    amount_0.neg() as u64,
+                )?;
+            }
+            let balance_1_before = ctx.accounts.vault_1.amount;
+            // transfer tokens to pool in callback
+            let swap_callback_ix = cyclos_core::instruction::SwapCallback {
+                amount_0_delta: amount_0,
+                amount_1_delta: amount_1,
+                exact_input,
+            };
+            let ix = Instruction::new_with_bytes(
+                ctx.accounts.callback_handler.key(),
+                &swap_callback_ix.data(),
+                ctx.accounts.to_account_metas(None),
+            );
+            solana_program::program::invoke(
+                &ix,
+                &ctx.accounts.to_account_infos(),
+            )?;
+            ctx.accounts.vault_1.reload()?;
+            require!(
+                balance_1_before.checked_add(amount_0 as u64).unwrap() <= ctx.accounts.vault_1.amount,
+                ErrorCode::IIA
+            );
         }
 
         emit!(SwapEvent {

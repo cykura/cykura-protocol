@@ -483,6 +483,30 @@ pub struct MintCallback<'info> {
 }
 
 #[derive(Accounts)]
+pub struct SwapCallback<'info> {
+    /// Pays for the swap
+    // pub signer: UncheckedAccount<'info>,
+    pub signer: Signer<'info>,
+
+    /// The payer token account in zero for one swaps, or the recipient token account
+    /// in one for zero swaps
+    pub token_account_0: UncheckedAccount<'info>,
+
+    /// The payer token account in one for zero swaps, or the recipient token account
+    /// in zero for one swaps
+    pub token_account_1: UncheckedAccount<'info>,
+
+    /// The address that holds pool tokens for token_0
+    pub vault_0: UncheckedAccount<'info>,
+
+    /// The address that holds pool tokens for token_1
+    pub vault_1: UncheckedAccount<'info>,
+
+    /// The SPL program to perform token transfers
+    pub token_program: UncheckedAccount<'info>,
+}
+
+#[derive(Accounts)]
 pub struct BurnContext<'info> {
     /// The position owner
     pub owner: Signer<'info>,
@@ -677,10 +701,6 @@ pub struct SwapContext<'info> {
     /// The user performing the swap
     pub signer: Signer<'info>,
 
-    /// The program account of the pool in which the swap will be performed
-    #[account(mut)]
-    pub pool_state: Loader<'info, PoolState>,
-
     /// The payer token account in zero for one swaps, or the recipient token account
     /// in one for zero swaps
     #[account(mut)]
@@ -706,6 +726,13 @@ pub struct SwapContext<'info> {
         associated_token::authority = pool_state,
     )]
     pub vault_1: Box<Account<'info, TokenAccount>>,
+
+    /// SPL program for token transfers
+    pub token_program: Program<'info, Token>,
+
+    /// The program account of the pool in which the swap will be performed
+    #[account(mut)]
+    pub pool_state: Loader<'info, PoolState>,
 
     /// The program account for the most recent oracle observation
     #[account(
@@ -737,6 +764,6 @@ pub struct SwapContext<'info> {
     )]
     pub next_observation_state: Loader<'info, ObservationState>,
 
-    /// SPL program for token transfers
-    pub token_program: Program<'info, Token>,
+    /// Program which receives swap_callback
+    pub callback_handler: UncheckedAccount<'info>,
 }
