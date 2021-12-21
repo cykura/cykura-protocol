@@ -8,7 +8,7 @@ extern crate muldiv;
 use muldiv::MulDiv;
 
 /// Seed to derive account address and signature
-pub const POSITION_SEED: &str = "p";
+pub const POSITION_SEED: &str = "ps";
 
 /// Info stored for each user's position
 ///

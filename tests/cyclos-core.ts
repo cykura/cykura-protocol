@@ -12,13 +12,16 @@ import { NonFungiblePositionManager } from '../target/types/non_fungible_positio
 import { SwapRouter } from '../target/types/swap_router'
 import {
    BITMAP_SEED,
+   FEE_SEED,
    MaxU64,
    MAX_SQRT_RATIO,
    MAX_TICK,
    MIN_SQRT_RATIO,
    MIN_TICK,
    OBSERVATION_SEED,
+   POOL_SEED,
    POSITION_SEED,
+   TICK_SEED,
    u16ToSeed,
    u32ToSeed
 } from './utils'
@@ -46,7 +49,7 @@ describe('cyclos-core', async () => {
   const [posMgrState, posMgrBump] = await PublicKey.findProgramAddress([], mgrProgram.programId)
 
   const [feeState, feeStateBump] = await PublicKey.findProgramAddress(
-    [u32ToSeed(fee)],
+    [FEE_SEED, u32ToSeed(fee)],
     coreProgram.programId
   );
   console.log("Fee", feeState.toString(), feeStateBump)
@@ -128,6 +131,7 @@ describe('cyclos-core', async () => {
   it('derive pool address', async () => {
     [poolState, poolStateBump] = await PublicKey.findProgramAddress(
       [
+        POOL_SEED,
         token0.publicKey.toBuffer(),
         token1.publicKey.toBuffer(),
         u32ToSeed(fee)
@@ -309,7 +313,7 @@ describe('cyclos-core', async () => {
     it('fails if fee is too great', async () => {
       const highFee = 1_000_000
       const [highFeeState, highFeeStateBump] = await PublicKey.findProgramAddress(
-        [u32ToSeed(highFee)],
+        [FEE_SEED, u32ToSeed(highFee)],
         coreProgram.programId
       );
 
@@ -454,7 +458,7 @@ describe('cyclos-core', async () => {
 
     it('fails if fee amount is not enabled', async () => {
       const [uninitializedFeeState, _] = await PublicKey.findProgramAddress(
-        [u32ToSeed(fee + 1)],
+        [FEE_SEED, u32ToSeed(fee + 1)],
         coreProgram.programId
       );
 
@@ -1195,6 +1199,7 @@ describe('cyclos-core', async () => {
 
     it('setup position manager accounts', async () => {
       [tickLowerState, tickLowerStateBump] = await PublicKey.findProgramAddress([
+        TICK_SEED,
         token0.publicKey.toBuffer(),
         token1.publicKey.toBuffer(),
         u32ToSeed(fee),
@@ -1204,6 +1209,7 @@ describe('cyclos-core', async () => {
       );
 
       [tickUpperState, tickUpperStateBump] = await PublicKey.findProgramAddress([
+        TICK_SEED,
         token0.publicKey.toBuffer(),
         token1.publicKey.toBuffer(),
         u32ToSeed(fee),
@@ -1254,6 +1260,7 @@ describe('cyclos-core', async () => {
     describe('#init_tick_account', () => {
       it('fails if tick is lower than limit', async () => {
         const [invalidLowTickState, invalidLowTickBump] = await PublicKey.findProgramAddress([
+          TICK_SEED,
           token0.publicKey.toBuffer(),
           token1.publicKey.toBuffer(),
           u32ToSeed(fee),
@@ -1274,6 +1281,7 @@ describe('cyclos-core', async () => {
 
       it('fails if tick is higher than limit', async () => {
         const [invalidUpperTickState, invalidUpperTickBump] = await PublicKey.findProgramAddress([
+          TICK_SEED,
           token0.publicKey.toBuffer(),
           token1.publicKey.toBuffer(),
           u32ToSeed(fee),
@@ -1295,6 +1303,7 @@ describe('cyclos-core', async () => {
       it('fails if tick is not a multiple of tick spacing', async () => {
         const invalidTick = 5
         const [tickState, tickBump] = await PublicKey.findProgramAddress([
+          TICK_SEED,
           token0.publicKey.toBuffer(),
           token1.publicKey.toBuffer(),
           u32ToSeed(fee),
@@ -2483,10 +2492,6 @@ describe('cyclos-core', async () => {
             },
             // price moves downwards in zero for one swap
             {
-              pubkey: tickUpperState,
-              isSigner: false,
-              isWritable: true
-            }, {
               pubkey: tickLowerState,
               isSigner: false,
               isWritable: true

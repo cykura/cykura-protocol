@@ -1,17 +1,14 @@
 use anchor_lang::prelude::*;
-use anchor_spl::associated_token::{get_associated_token_address, AssociatedToken};
+use anchor_spl::associated_token::AssociatedToken;
 use anchor_spl::token::{Mint, Token, TokenAccount};
 use std::mem::size_of;
-use std::thread::AccessError;
-// TODO remove size_of for initializing PDAs. Use Default attribute instead
-
 use crate::error::ErrorCode;
 use crate::states::factory::FactoryState;
-use crate::states::fee::FeeState;
+use crate::states::fee::{FeeState, FEE_SEED};
 use crate::states::oracle::{ObservationState, OBSERVATION_SEED};
-use crate::states::pool::PoolState;
+use crate::states::pool::{PoolState, POOL_SEED};
 use crate::states::position::{PositionState, POSITION_SEED};
-use crate::states::tick::TickState;
+use crate::states::tick::{TickState, TICK_SEED};
 use crate::states::tick_bitmap::{TickBitmapState, BITMAP_SEED};
 
 #[derive(Accounts)]
@@ -48,7 +45,7 @@ pub struct EnableFeeAmount<'info> {
     /// Fees are paid by owner
     #[account(
         init,
-        seeds = [&fee.to_be_bytes()],
+        seeds = [FEE_SEED.as_bytes(), &fee.to_be_bytes()],
         bump = fee_state_bump,
         payer = owner,
         space = 8 + size_of::<FeeState>()
@@ -95,6 +92,7 @@ pub struct CreateAndInitPool<'info> {
     #[account(
         init,
         seeds = [
+            POOL_SEED.as_bytes(),
             token_0.key().as_ref(),
             token_1.key().as_ref(),
             &fee_state.load()?.fee.to_be_bytes()
@@ -230,6 +228,7 @@ pub struct InitTickAccount<'info> {
     #[account(
         init,
         seeds = [
+            TICK_SEED.as_bytes(),
             pool_state.load()?.token_0.key().as_ref(),
             pool_state.load()?.token_1.key().as_ref(),
             &pool_state.load()?.fee.to_be_bytes(),
@@ -358,6 +357,7 @@ pub struct MintContext<'info> {
     #[account(
         mut,
         seeds = [
+            TICK_SEED.as_bytes(),
             pool_state.load()?.token_0.key().as_ref(),
             pool_state.load()?.token_1.key().as_ref(),
             &pool_state.load()?.fee.to_be_bytes(),
@@ -371,6 +371,7 @@ pub struct MintContext<'info> {
     #[account(
         mut,
         seeds = [
+            TICK_SEED.as_bytes(),
             pool_state.load()?.token_0.key().as_ref(),
             pool_state.load()?.token_1.key().as_ref(),
             &pool_state.load()?.fee.to_be_bytes(),
@@ -522,6 +523,7 @@ pub struct BurnContext<'info> {
     #[account(
         mut,
         seeds = [
+            TICK_SEED.as_bytes(),
             pool_state.load()?.token_0.key().as_ref(),
             pool_state.load()?.token_1.key().as_ref(),
             &pool_state.load()?.fee.to_be_bytes(),
@@ -535,6 +537,7 @@ pub struct BurnContext<'info> {
     #[account(
         mut,
         seeds = [
+            TICK_SEED.as_bytes(),
             pool_state.load()?.token_0.key().as_ref(),
             pool_state.load()?.token_1.key().as_ref(),
             &pool_state.load()?.fee.to_be_bytes(),
@@ -631,6 +634,7 @@ pub struct CollectContext<'info> {
     /// The lower tick of the position for which to collect fees
     #[account(
         seeds = [
+            TICK_SEED.as_bytes(),
             pool_state.load()?.token_0.key().as_ref(),
             pool_state.load()?.token_1.key().as_ref(),
             &pool_state.load()?.fee.to_be_bytes(),
@@ -643,6 +647,7 @@ pub struct CollectContext<'info> {
     /// The upper tick of the position for which to collect fees
     #[account(
         seeds = [
+            TICK_SEED.as_bytes(),
             pool_state.load()?.token_0.key().as_ref(),
             pool_state.load()?.token_1.key().as_ref(),
             &pool_state.load()?.fee.to_be_bytes(),

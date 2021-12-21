@@ -1,11 +1,13 @@
 use anchor_lang::prelude::*;
 
+pub const FEE_SEED: &str = "f";
+
 /// Stores a fee amount and tick spacing pair enabled by the protocol owner
 ///
 /// A fee amount can never be removed, so this value should be hard coded
 /// or cached in the calling context
 ///
-/// PDA of `[fee]`
+/// PDA of `[FEE_SEED, fee]`
 ///
 #[account(zero_copy)]
 #[derive(Default)]

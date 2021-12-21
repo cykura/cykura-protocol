@@ -324,6 +324,7 @@ pub mod cyclos_core {
         let amount_1 = amount_1_requested.min(pool_state.protocol_fees_token_1);
 
         let pool_state_seeds = [
+            &POOL_SEED.as_bytes(),
             &pool_state.token_0.to_bytes() as &[u8],
             &pool_state.token_1.to_bytes() as &[u8],
             &pool_state.fee.to_be_bytes(),
@@ -705,6 +706,7 @@ pub mod cyclos_core {
         let amount_1 = amount_1_requested.min(position.tokens_owed_1);
 
         let pool_state_seeds = [
+            &POOL_SEED.as_bytes(),
             &pool_state.token_0.to_bytes() as &[u8],
             &pool_state.token_1.to_bytes() as &[u8],
             &pool_state.fee.to_be_bytes(),
@@ -831,6 +833,7 @@ pub mod cyclos_core {
         amount_specified: i64,
         sqrt_price_limit_x32: u64,
     ) -> ProgramResult {
+        msg!("in core swap");
         require!(amount_specified != 0, ErrorCode::AS);
 
         let mut pool_state = ctx.accounts.pool_state.load_mut()?;
@@ -1011,6 +1014,7 @@ pub mod cyclos_core {
                     )?;
                     let mut tick_state = tick_loader.load_mut()?;
                     let tick_account_seeds = [
+                        &TICK_SEED.as_bytes(),
                         pool_state.token_0.as_ref(),
                         pool_state.token_1.as_ref(),
                         &pool_state.fee.to_be_bytes(),
@@ -1117,6 +1121,7 @@ pub mod cyclos_core {
 
         // do the transfers and collect payment
         let pool_state_seeds = [
+            &POOL_SEED.as_bytes(),
             &pool_state.token_0.to_bytes() as &[u8],
             &pool_state.token_1.to_bytes() as &[u8],
             &pool_state.fee.to_be_bytes(),

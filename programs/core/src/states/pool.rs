@@ -1,8 +1,11 @@
 use anchor_lang::prelude::*;
 
+/// Seed to derive account address and signature
+pub const POOL_SEED: &str = "p";
+
 /// The pool state
 ///
-/// PDA of `[token_0, token_1, fee]`
+/// PDA of `[POOL_SEED, token_0, token_1, fee]`
 ///
 #[account(zero_copy)]
 #[derive(Default)]

@@ -7,8 +7,7 @@ use anchor_spl::{
     token::{self, Mint, Token, TokenAccount},
 };
 use cyclos_core::states::pool::PoolState;
-
-pub const POSITION_SEED: &str = "p";
+use cyclos_core::states::position::POSITION_SEED;
 
 #[derive(Accounts)]
 #[instruction(position_manager_state_bump: u8)]
