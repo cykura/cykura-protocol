@@ -833,7 +833,6 @@ pub mod cyclos_core {
         amount_specified: i64,
         sqrt_price_limit_x32: u64,
     ) -> ProgramResult {
-        msg!("in core swap");
         require!(amount_specified != 0, ErrorCode::AS);
 
         let mut pool_state = ctx.accounts.pool_state.load_mut()?;

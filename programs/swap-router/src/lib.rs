@@ -100,7 +100,6 @@ pub mod swap_router {
         amount_out_minimum: u64,
         sqrt_price_limit_x32: u64,
     ) -> ProgramResult {
-        msg!("in exact input single");
         let amount_out = exact_input_internal(
             ctx.accounts.core_program.to_account_info(),
             cyclos_core::cpi::accounts::SwapContext {
@@ -120,7 +119,6 @@ pub mod swap_router {
             amount_in,
             sqrt_price_limit_x32,
         )?;
-        msg!("amount out {}", amount_out);
         require!(amount_out >= amount_out_minimum, ErrorCode::TooLittleReceived);
         Ok(())
     }
@@ -135,7 +133,6 @@ pub fn exact_input_internal<'info>(
     amount_in: u64,
     sqrt_price_limit_x32: u64,
 ) -> Result<u64, ProgramError> {
-    msg!("in exact out put internal");
     let mut vault = Account::<TokenAccount>::try_from(if zero_for_one {
         &accounts.vault_1
     } else {

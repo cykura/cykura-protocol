@@ -2464,6 +2464,33 @@ describe('cyclos-core', async () => {
         console.log('pool price', poolStateDataBefore.sqrtPriceX32.toNumber())
         console.log('pool tick', poolStateDataBefore.tick)
 
+        const {
+          observationIndex,
+          observationCardinalityNext
+        } = await coreProgram.account.poolState.fetch(poolState)
+
+        latestObservationState = (await PublicKey.findProgramAddress(
+          [
+            OBSERVATION_SEED,
+            token0.publicKey.toBuffer(),
+            token1.publicKey.toBuffer(),
+            u32ToSeed(fee),
+            u16ToSeed(observationIndex)
+          ],
+          coreProgram.programId
+        ))[0]
+
+        nextObservationState = (await PublicKey.findProgramAddress(
+          [
+            OBSERVATION_SEED,
+            token0.publicKey.toBuffer(),
+            token1.publicKey.toBuffer(),
+            u32ToSeed(fee),
+            u16ToSeed((observationIndex + 1) % observationCardinalityNext)
+          ],
+          coreProgram.programId
+        ))[0]
+
         const amountIn = new BN(100_000)
         const amountOutMinimum = new BN(0)
         const sqrtPriceLimitX32 = new BN(0)
