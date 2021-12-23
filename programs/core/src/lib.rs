@@ -1,8 +1,8 @@
+pub mod access_control;
 pub mod context;
 pub mod error;
 pub mod libraries;
 pub mod states;
-pub mod access_control;
 use crate::access_control::*;
 use crate::error::ErrorCode;
 use crate::libraries::liquidity_amounts;
@@ -564,21 +564,161 @@ pub mod cyclos_core {
     ///
     pub fn mint(ctx: Context<MintContext>, amount: u64) -> ProgramResult {
         msg!("inside mint");
-        let mut pool_state = ctx.accounts.pool_state.load_mut()?;
-        require!(pool_state.unlocked, ErrorCode::LOK);
-        pool_state.unlocked = false;
+        // let pool_state =
+        //     Loader::<PoolState>::try_from(&ID, &ctx.accounts.pool_state.to_account_info())?;
+        let mut pool = ctx.accounts.pool_state.load_mut()?;
+
+        assert!(
+            ctx.accounts.vault_0.key()
+                == get_associated_token_address(&ctx.accounts.pool_state.key(), &pool.token_0)
+        );
+        assert!(
+            ctx.accounts.vault_1.key()
+                == get_associated_token_address(&ctx.accounts.pool_state.key(), &pool.token_1)
+        );
+        // let tick_lower_state =
+        //     Loader::<TickState>::try_from(&ID, &ctx.accounts.tick_lower_state.to_account_info())?;
+        let tick_lower = *ctx.accounts.tick_lower_state.load()?.deref();
+        assert!(
+            ctx.accounts.tick_lower_state.key()
+                == Pubkey::create_program_address(
+                    &[
+                        &TICK_SEED.as_bytes(),
+                        pool.token_0.as_ref(),
+                        pool.token_1.as_ref(),
+                        &pool.fee.to_be_bytes(),
+                        &tick_lower.tick.to_be_bytes(),
+                        &[tick_lower.bump],
+                    ],
+                    &ID
+                )?,
+        );
+
+        // let tick_upper_state =
+        //     Loader::<TickState>::try_from(&ID, &ctx.accounts.tick_upper_state.to_account_info())?;
+        let tick_upper = *ctx.accounts.tick_upper_state.load()?.deref();
+        assert!(
+            ctx.accounts.tick_upper_state.key()
+                == Pubkey::create_program_address(
+                    &[
+                        &TICK_SEED.as_bytes(),
+                        pool.token_0.as_ref(),
+                        pool.token_1.as_ref(),
+                        &pool.fee.to_be_bytes(),
+                        &tick_upper.tick.to_be_bytes(),
+                        &[tick_upper.bump],
+                    ],
+                    &ID
+                )?,
+        );
+
+        let bitmap_lower_state =
+            Loader::<TickBitmapState>::try_from(&ID, &ctx.accounts.bitmap_lower_state.to_account_info())?;
+        assert!(
+            bitmap_lower_state.key()
+                == Pubkey::create_program_address(
+                    &[
+                        BITMAP_SEED.as_bytes(),
+                        pool.token_0.as_ref(),
+                        pool.token_1.as_ref(),
+                        &pool.fee.to_be_bytes(),
+                        &((tick_lower.tick >> 8) as i16).to_be_bytes(),
+                        &[bitmap_lower_state.load()?.bump],
+                    ],
+                    &ID
+                )?,
+        );
+        let bitmap_upper_state =
+            Loader::<TickBitmapState>::try_from(&ID, &ctx.accounts.bitmap_upper_state.to_account_info())?;
+        assert!(
+            bitmap_upper_state.key()
+                == Pubkey::create_program_address(
+                    &[
+                        BITMAP_SEED.as_bytes(),
+                        pool.token_0.as_ref(),
+                        pool.token_1.as_ref(),
+                        &pool.fee.to_be_bytes(),
+                        &((tick_upper.tick >> 8) as i16).to_be_bytes(),
+                        &[bitmap_upper_state.load()?.bump],
+                    ],
+                    &ID
+                )?,
+        );
+
+        let position_state = Loader::<PositionState>::try_from(
+            &ID,
+            &ctx.accounts.position_state.to_account_info(),
+        )?;
+        assert!(
+            position_state.key()
+                == Pubkey::create_program_address(
+                    &[
+                        POSITION_SEED.as_bytes(),
+                        pool.token_0.as_ref(),
+                        pool.token_1.as_ref(),
+                        &pool.fee.to_be_bytes(),
+                        &ctx.accounts.recipient.key().as_ref(),
+                        &tick_lower.tick.to_be_bytes(),
+                        &tick_upper.tick.to_be_bytes(),
+                        &[position_state.load()?.bump],
+                    ],
+                    &ID
+                )?,
+        );
+
+        let latest_observation_state = Loader::<ObservationState>::try_from(
+            &ID,
+            &ctx.accounts.latest_observation_state.to_account_info(),
+        )?;
+        assert!(
+            latest_observation_state.key()
+                == Pubkey::create_program_address(
+                    &[
+                        &OBSERVATION_SEED.as_bytes(),
+                        pool.token_0.as_ref(),
+                        pool.token_1.as_ref(),
+                        &pool.fee.to_be_bytes(),
+                        &pool.observation_index.to_be_bytes(),
+                        &[latest_observation_state.load()?.bump],
+                    ],
+                    &ID
+                )?,
+        );
+
+        let next_observation_state = Loader::<ObservationState>::try_from(
+            &ID,
+            &ctx.accounts.next_observation_state.to_account_info(),
+        )?;
+        assert!(
+            next_observation_state.key()
+                == Pubkey::create_program_address(
+                    &[
+                        &OBSERVATION_SEED.as_bytes(),
+                        pool.token_0.as_ref(),
+                        pool.token_1.as_ref(),
+                        &pool.fee.to_be_bytes(),
+                        &((pool.observation_index + 1) % pool.observation_cardinality_next)
+                            .to_be_bytes(),
+                        &[next_observation_state.load()?.bump],
+                    ],
+                    &ID
+                )?,
+        );
+        // let mut pool_state = ctx.accounts.pool_state.load_mut()?;
+        require!(pool.unlocked, ErrorCode::LOK);
+        pool.unlocked = false;
 
         assert!(amount > 0);
 
         let (amount_0_int, amount_1_int) = _modify_position(
-            pool_state.deref_mut(),
-            &ctx.accounts.position_state,
+            pool.deref_mut(),
+            &position_state,
             &ctx.accounts.tick_lower_state,
             &ctx.accounts.tick_upper_state,
-            &ctx.accounts.bitmap_lower,
-            &ctx.accounts.bitmap_upper,
-            &ctx.accounts.latest_observation_state,
-            &ctx.accounts.next_observation_state,
+            &bitmap_lower_state,
+            &bitmap_upper_state,
+            &latest_observation_state,
+            &next_observation_state,
             ctx.accounts.minter.to_account_info(),
             i64::try_from(amount).unwrap(),
         )?;
@@ -597,7 +737,7 @@ pub mod cyclos_core {
             0
         };
 
-        drop(pool_state);
+        drop(pool);
 
         let mint_callback_ix = cyclos_core::instruction::MintCallback {
             amount_0_owed: amount_0,
@@ -630,8 +770,8 @@ pub mod cyclos_core {
             pool_state: ctx.accounts.pool_state.key(),
             sender: ctx.accounts.minter.key(),
             owner: ctx.accounts.recipient.key(),
-            tick_lower: ctx.accounts.tick_lower_state.load()?.tick,
-            tick_upper: ctx.accounts.tick_upper_state.load()?.tick,
+            tick_lower: tick_lower.tick,
+            tick_upper: tick_upper.tick,
             amount,
             amount_0,
             amount_1
@@ -1323,142 +1463,144 @@ pub mod cyclos_core {
         let pool_state =
             Loader::<PoolState>::try_from(&ID, &ctx.accounts.pool_state.to_account_info())?;
         let pool = *pool_state.load()?.deref();
-        assert!(
-            ctx.accounts.vault_0.key()
-                == get_associated_token_address(&pool_state.key(), &pool.token_0)
-        );
-        assert!(
-            ctx.accounts.vault_1.key()
-                == get_associated_token_address(&pool_state.key(), &pool.token_1)
-        );
+        // assert!(
+        //     ctx.accounts.vault_0.key()
+        //         == get_associated_token_address(&pool_state.key(), &pool.token_0)
+        // );
+        // assert!(
+        //     ctx.accounts.vault_1.key()
+        //         == get_associated_token_address(&pool_state.key(), &pool.token_1)
+        // );
         let tick_lower_state =
             Loader::<TickState>::try_from(&ID, &ctx.accounts.tick_lower_state.to_account_info())?;
-        let tick_lower = *tick_lower_state.load()?.deref();
-        assert!(
-            tick_lower_state.key()
-                == Pubkey::create_program_address(
-                    &[
-                        &TICK_SEED.as_bytes(),
-                        pool.token_0.as_ref(),
-                        pool.token_1.as_ref(),
-                        &pool.fee.to_be_bytes(),
-                        &tick_lower.tick.to_be_bytes(),
-                        &[tick_lower.bump],
-                    ],
-                    &ID
-                )?,
-        );
+        let tick_lower = tick_lower_state.load()?.tick;
+        // let tick_lower = *tick_lower_state.load()?.deref();
+        // assert!(
+        //     tick_lower_state.key()
+        //         == Pubkey::create_program_address(
+        //             &[
+        //                 &TICK_SEED.as_bytes(),
+        //                 pool.token_0.as_ref(),
+        //                 pool.token_1.as_ref(),
+        //                 &pool.fee.to_be_bytes(),
+        //                 &tick_lower.tick.to_be_bytes(),
+        //                 &[tick_lower.bump],
+        //             ],
+        //             &ID
+        //         )?,
+        // );
 
         let tick_upper_state =
             Loader::<TickState>::try_from(&ID, &ctx.accounts.tick_upper_state.to_account_info())?;
-        let tick_upper = *tick_upper_state.load()?.deref();
-        assert!(
-            tick_upper_state.key()
-                == Pubkey::create_program_address(
-                    &[
-                        &TICK_SEED.as_bytes(),
-                        pool.token_0.as_ref(),
-                        pool.token_1.as_ref(),
-                        &pool.fee.to_be_bytes(),
-                        &tick_upper.tick.to_be_bytes(),
-                        &[tick_upper.bump],
-                    ],
-                    &ID
-                )?,
-        );
+        let tick_upper = tick_upper_state.load()?.tick;
+        // let tick_upper = *tick_upper_state.load()?.deref();
+        // assert!(
+        //     tick_upper_state.key()
+        //         == Pubkey::create_program_address(
+        //             &[
+        //                 &TICK_SEED.as_bytes(),
+        //                 pool.token_0.as_ref(),
+        //                 pool.token_1.as_ref(),
+        //                 &pool.fee.to_be_bytes(),
+        //                 &tick_upper.tick.to_be_bytes(),
+        //                 &[tick_upper.bump],
+        //             ],
+        //             &ID
+        //         )?,
+        // );
 
-        let bitmap_lower_state =
-            Loader::<TickBitmapState>::try_from(&ID, &ctx.accounts.bitmap_lower.to_account_info())?;
-        assert!(
-            bitmap_lower_state.key()
-                == Pubkey::create_program_address(
-                    &[
-                        BITMAP_SEED.as_bytes(),
-                        pool.token_0.as_ref(),
-                        pool.token_1.as_ref(),
-                        &pool.fee.to_be_bytes(),
-                        &((tick_lower.tick >> 8) as i16).to_be_bytes(),
-                        &[bitmap_lower_state.load()?.bump],
-                    ],
-                    &ID
-                )?,
-        );
-        let bitmap_upper_state =
-            Loader::<TickBitmapState>::try_from(&ID, &ctx.accounts.bitmap_upper.to_account_info())?;
-        assert!(
-            bitmap_upper_state.key()
-                == Pubkey::create_program_address(
-                    &[
-                        BITMAP_SEED.as_bytes(),
-                        pool.token_0.as_ref(),
-                        pool.token_1.as_ref(),
-                        &pool.fee.to_be_bytes(),
-                        &((tick_upper.tick >> 8) as i16).to_be_bytes(),
-                        &[bitmap_upper_state.load()?.bump],
-                    ],
-                    &ID
-                )?,
-        );
+        // let bitmap_lower_state =
+        //     Loader::<TickBitmapState>::try_from(&ID, &ctx.accounts.bitmap_lower.to_account_info())?;
+        // assert!(
+        //     bitmap_lower_state.key()
+        //         == Pubkey::create_program_address(
+        //             &[
+        //                 BITMAP_SEED.as_bytes(),
+        //                 pool.token_0.as_ref(),
+        //                 pool.token_1.as_ref(),
+        //                 &pool.fee.to_be_bytes(),
+        //                 &((tick_lower.tick >> 8) as i16).to_be_bytes(),
+        //                 &[bitmap_lower_state.load()?.bump],
+        //             ],
+        //             &ID
+        //         )?,
+        // );
+        // let bitmap_upper_state =
+        //     Loader::<TickBitmapState>::try_from(&ID, &ctx.accounts.bitmap_upper.to_account_info())?;
+        // assert!(
+        //     bitmap_upper_state.key()
+        //         == Pubkey::create_program_address(
+        //             &[
+        //                 BITMAP_SEED.as_bytes(),
+        //                 pool.token_0.as_ref(),
+        //                 pool.token_1.as_ref(),
+        //                 &pool.fee.to_be_bytes(),
+        //                 &((tick_upper.tick >> 8) as i16).to_be_bytes(),
+        //                 &[bitmap_upper_state.load()?.bump],
+        //             ],
+        //             &ID
+        //         )?,
+        // );
 
-        let position_state = Loader::<PositionState>::try_from(
-            &ID,
-            &ctx.accounts.core_position_state.to_account_info(),
-        )?;
-        assert!(
-            position_state.key()
-                == Pubkey::create_program_address(
-                    &[
-                        POSITION_SEED.as_bytes(),
-                        pool.token_0.as_ref(),
-                        pool.token_1.as_ref(),
-                        &pool.fee.to_be_bytes(),
-                        &ctx.accounts.factory_state.key().as_ref(),
-                        &tick_lower.tick.to_be_bytes(),
-                        &tick_upper.tick.to_be_bytes(),
-                        &[position_state.load()?.bump],
-                    ],
-                    &ID
-                )?,
-        );
+        // let position_state = Loader::<PositionState>::try_from(
+        //     &ID,
+        //     &ctx.accounts.core_position_state.to_account_info(),
+        // )?;
+        // assert!(
+        //     position_state.key()
+        //         == Pubkey::create_program_address(
+        //             &[
+        //                 POSITION_SEED.as_bytes(),
+        //                 pool.token_0.as_ref(),
+        //                 pool.token_1.as_ref(),
+        //                 &pool.fee.to_be_bytes(),
+        //                 &ctx.accounts.factory_state.key().as_ref(),
+        //                 &tick_lower.tick.to_be_bytes(),
+        //                 &tick_upper.tick.to_be_bytes(),
+        //                 &[position_state.load()?.bump],
+        //             ],
+        //             &ID
+        //         )?,
+        // );
 
-        let latest_observation_state = Loader::<ObservationState>::try_from(
-            &ID,
-            &ctx.accounts.latest_observation_state.to_account_info(),
-        )?;
-        assert!(
-            latest_observation_state.key()
-                == Pubkey::create_program_address(
-                    &[
-                        &OBSERVATION_SEED.as_bytes(),
-                        pool.token_0.as_ref(),
-                        pool.token_1.as_ref(),
-                        &pool.fee.to_be_bytes(),
-                        &pool.observation_index.to_be_bytes(),
-                        &[latest_observation_state.load()?.bump],
-                    ],
-                    &ID
-                )?,
-        );
+        // let latest_observation_state = Loader::<ObservationState>::try_from(
+        //     &ID,
+        //     &ctx.accounts.latest_observation_state.to_account_info(),
+        // )?;
+        // assert!(
+        //     latest_observation_state.key()
+        //         == Pubkey::create_program_address(
+        //             &[
+        //                 &OBSERVATION_SEED.as_bytes(),
+        //                 pool.token_0.as_ref(),
+        //                 pool.token_1.as_ref(),
+        //                 &pool.fee.to_be_bytes(),
+        //                 &pool.observation_index.to_be_bytes(),
+        //                 &[latest_observation_state.load()?.bump],
+        //             ],
+        //             &ID
+        //         )?,
+        // );
 
-        let next_observation_state = Loader::<ObservationState>::try_from(
-            &ID,
-            &ctx.accounts.next_observation_state.to_account_info(),
-        )?;
-        assert!(
-            next_observation_state.key()
-                == Pubkey::create_program_address(
-                    &[
-                        &OBSERVATION_SEED.as_bytes(),
-                        pool.token_0.as_ref(),
-                        pool.token_1.as_ref(),
-                        &pool.fee.to_be_bytes(),
-                        &((pool.observation_index + 1) % pool.observation_cardinality_next)
-                            .to_be_bytes(),
-                        &[next_observation_state.load()?.bump],
-                    ],
-                    &ID
-                )?,
-        );
+        // let next_observation_state = Loader::<ObservationState>::try_from(
+        //     &ID,
+        //     &ctx.accounts.next_observation_state.to_account_info(),
+        // )?;
+        // assert!(
+        //     next_observation_state.key()
+        //         == Pubkey::create_program_address(
+        //             &[
+        //                 &OBSERVATION_SEED.as_bytes(),
+        //                 pool.token_0.as_ref(),
+        //                 pool.token_1.as_ref(),
+        //                 &pool.fee.to_be_bytes(),
+        //                 &((pool.observation_index + 1) % pool.observation_cardinality_next)
+        //                     .to_be_bytes(),
+        //                 &[next_observation_state.load()?.bump],
+        //             ],
+        //             &ID
+        //         )?,
+        // );
         let mut accs = MintContext {
             minter: ctx.accounts.minter.clone(),
             token_account_0: ctx.accounts.token_account_0.clone(),
@@ -1469,11 +1611,11 @@ pub mod cyclos_core {
             pool_state,
             tick_lower_state,
             tick_upper_state,
-            bitmap_lower: bitmap_lower_state,
-            bitmap_upper: bitmap_upper_state,
-            position_state,
-            latest_observation_state,
-            next_observation_state,
+            bitmap_lower_state: ctx.accounts.bitmap_lower_state.clone(),
+            bitmap_upper_state: ctx.accounts.bitmap_upper_state.clone(),
+            position_state: ctx.accounts.core_position_state.clone(),
+            latest_observation_state: ctx.accounts.latest_observation_state.clone(),
+            next_observation_state: ctx.accounts.next_observation_state.clone(),
             token_program: ctx.accounts.token_program.clone(),
             callback_handler: UncheckedAccount::try_from(
                 ctx.accounts.core_program.to_account_info(),
@@ -1486,8 +1628,8 @@ pub mod cyclos_core {
             amount_1_desired,
             amount_0_min,
             amount_1_min,
-            tick_lower.tick,
-            tick_upper.tick,
+            tick_lower,
+            tick_upper,
         )?;
 
         // Mint the NFT
@@ -1510,8 +1652,8 @@ pub mod cyclos_core {
         tokenized_position.mint = ctx.accounts.nft_mint.key();
         tokenized_position.pool_id = ctx.accounts.pool_state.key();
 
-        tokenized_position.tick_lower = tick_lower.tick; // can read from core position
-        tokenized_position.tick_upper = tick_upper.tick;
+        tokenized_position.tick_lower = tick_lower; // can read from core position
+        tokenized_position.tick_upper = tick_upper;
         tokenized_position.liquidity = liquidity;
         tokenized_position.fee_growth_inside_0_last_x32 = Loader::<PositionState>::try_from(
             &cyclos_core::id(),
@@ -1616,143 +1758,13 @@ pub mod cyclos_core {
     ) -> ProgramResult {
         let pool_state =
             Loader::<PoolState>::try_from(&ID, &ctx.accounts.pool_state.to_account_info())?;
-        let pool = *pool_state.load()?.deref();
-        assert!(
-            ctx.accounts.vault_0.key()
-                == get_associated_token_address(&pool_state.key(), &pool.token_0)
-        );
-        assert!(
-            ctx.accounts.vault_1.key()
-                == get_associated_token_address(&pool_state.key(), &pool.token_1)
-        );
         let tick_lower_state =
             Loader::<TickState>::try_from(&ID, &ctx.accounts.tick_lower_state.to_account_info())?;
-        let tick_lower = *tick_lower_state.load()?.deref();
-        assert!(
-            tick_lower_state.key()
-                == Pubkey::create_program_address(
-                    &[
-                        &TICK_SEED.as_bytes(),
-                        pool.token_0.as_ref(),
-                        pool.token_1.as_ref(),
-                        &pool.fee.to_be_bytes(),
-                        &tick_lower.tick.to_be_bytes(),
-                        &[tick_lower.bump],
-                    ],
-                    &ID
-                )?,
-        );
+        let tick_lower = tick_lower_state.load()?.tick;
 
         let tick_upper_state =
             Loader::<TickState>::try_from(&ID, &ctx.accounts.tick_upper_state.to_account_info())?;
-        let tick_upper = *tick_upper_state.load()?.deref();
-        assert!(
-            tick_upper_state.key()
-                == Pubkey::create_program_address(
-                    &[
-                        &TICK_SEED.as_bytes(),
-                        pool.token_0.as_ref(),
-                        pool.token_1.as_ref(),
-                        &pool.fee.to_be_bytes(),
-                        &tick_upper.tick.to_be_bytes(),
-                        &[tick_upper.bump],
-                    ],
-                    &ID
-                )?,
-        );
-
-        let bitmap_lower_state =
-            Loader::<TickBitmapState>::try_from(&ID, &ctx.accounts.bitmap_lower.to_account_info())?;
-        assert!(
-            bitmap_lower_state.key()
-                == Pubkey::create_program_address(
-                    &[
-                        BITMAP_SEED.as_bytes(),
-                        pool.token_0.as_ref(),
-                        pool.token_1.as_ref(),
-                        &pool.fee.to_be_bytes(),
-                        &((tick_lower.tick >> 8) as i16).to_be_bytes(),
-                        &[bitmap_lower_state.load()?.bump],
-                    ],
-                    &ID
-                )?,
-        );
-        let bitmap_upper_state =
-            Loader::<TickBitmapState>::try_from(&ID, &ctx.accounts.bitmap_upper.to_account_info())?;
-        assert!(
-            bitmap_upper_state.key()
-                == Pubkey::create_program_address(
-                    &[
-                        BITMAP_SEED.as_bytes(),
-                        pool.token_0.as_ref(),
-                        pool.token_1.as_ref(),
-                        &pool.fee.to_be_bytes(),
-                        &((tick_upper.tick >> 8) as i16).to_be_bytes(),
-                        &[bitmap_upper_state.load()?.bump],
-                    ],
-                    &ID
-                )?,
-        );
-
-        let position_state = Loader::<PositionState>::try_from(
-            &ID,
-            &ctx.accounts.core_position_state.to_account_info(),
-        )?;
-        assert!(
-            position_state.key()
-                == Pubkey::create_program_address(
-                    &[
-                        POSITION_SEED.as_bytes(),
-                        pool.token_0.as_ref(),
-                        pool.token_1.as_ref(),
-                        &pool.fee.to_be_bytes(),
-                        &ctx.accounts.factory_state.key().as_ref(),
-                        &tick_lower.tick.to_be_bytes(),
-                        &tick_upper.tick.to_be_bytes(),
-                        &[position_state.load()?.bump],
-                    ],
-                    &ID
-                )?,
-        );
-
-        let latest_observation_state = Loader::<ObservationState>::try_from(
-            &ID,
-            &ctx.accounts.latest_observation_state.to_account_info(),
-        )?;
-        assert!(
-            latest_observation_state.key()
-                == Pubkey::create_program_address(
-                    &[
-                        &OBSERVATION_SEED.as_bytes(),
-                        pool.token_0.as_ref(),
-                        pool.token_1.as_ref(),
-                        &pool.fee.to_be_bytes(),
-                        &pool.observation_index.to_be_bytes(),
-                        &[latest_observation_state.load()?.bump],
-                    ],
-                    &ID
-                )?,
-        );
-
-        let next_observation_state = Loader::<ObservationState>::try_from(
-            &ID,
-            &ctx.accounts.next_observation_state.to_account_info(),
-        )?;
-        assert!(
-            next_observation_state.key()
-                == Pubkey::create_program_address(
-                    &[
-                        &OBSERVATION_SEED.as_bytes(),
-                        pool.token_0.as_ref(),
-                        pool.token_1.as_ref(),
-                        &pool.fee.to_be_bytes(),
-                        &((pool.observation_index + 1) % pool.observation_cardinality_next)
-                            .to_be_bytes(),
-                        &[next_observation_state.load()?.bump],
-                    ],
-                    &ID
-                )?,
-        );
+        let tick_upper = tick_upper_state.load()?.tick;
 
         let mut accs = MintContext {
             minter: ctx.accounts.payer.clone(),
@@ -1764,11 +1776,11 @@ pub mod cyclos_core {
             pool_state,
             tick_lower_state,
             tick_upper_state,
-            bitmap_lower: bitmap_lower_state,
-            bitmap_upper: bitmap_upper_state,
-            position_state,
-            latest_observation_state,
-            next_observation_state,
+            bitmap_lower_state: ctx.accounts.bitmap_lower_state.clone(),
+            bitmap_upper_state: ctx.accounts.bitmap_upper_state.clone(),
+            position_state: ctx.accounts.core_position_state.clone(),
+            latest_observation_state: ctx.accounts.latest_observation_state.clone(),
+            next_observation_state: ctx.accounts.next_observation_state.clone(),
             token_program: ctx.accounts.token_program.clone(),
             callback_handler: UncheckedAccount::try_from(
                 ctx.accounts.core_program.to_account_info(),
@@ -1781,18 +1793,18 @@ pub mod cyclos_core {
             amount_1_desired,
             amount_0_min,
             amount_1_min,
-            tick_lower.tick,
-            tick_upper.tick,
+            tick_lower,
+            tick_upper,
         )?;
 
-        let core_position_loader = Loader::<PositionState>::try_from(
+        let core_position_state = Loader::<PositionState>::try_from(
             &cyclos_core::id(),
             &ctx.accounts.core_position_state.to_account_info(),
         )?;
         let fee_growth_inside_0_last_x32 =
-            core_position_loader.load()?.fee_growth_inside_0_last_x32;
+            core_position_state.load()?.fee_growth_inside_0_last_x32;
         let fee_growth_inside_1_last_x32 =
-            core_position_loader.load()?.fee_growth_inside_1_last_x32;
+            core_position_state.load()?.fee_growth_inside_1_last_x32;
 
         // Update tokenized position metadata
         let mut position = ctx.accounts.tokenized_position_state.load_mut()?;
@@ -2312,7 +2324,9 @@ pub mod cyclos_core {
                 pool_state: ctx.accounts.pool_state.clone(),
                 latest_observation_state: ctx.accounts.latest_observation_state.clone(),
                 next_observation_state: ctx.accounts.next_observation_state.clone(),
-                callback_handler: UncheckedAccount::try_from(ctx.accounts.core_program.to_account_info()),
+                callback_handler: UncheckedAccount::try_from(
+                    ctx.accounts.core_program.to_account_info(),
+                ),
             },
             ctx.remaining_accounts,
             zero_for_one,
@@ -2320,7 +2334,10 @@ pub mod cyclos_core {
             sqrt_price_limit_x32,
         )?;
 
-        require!(amount_out >= amount_out_minimum, ErrorCode::TooLittleReceived);
+        require!(
+            amount_out >= amount_out_minimum,
+            ErrorCode::TooLittleReceived
+        );
         Ok(())
     }
 
@@ -2384,7 +2401,6 @@ pub mod cyclos_core {
     // ) -> ProgramResult {
     //     todo!()
     // }
-
 }
 
 /// Performs a single exact input swap
@@ -2717,4 +2733,3 @@ pub fn add_liquidity(
 
     Ok((liquidity, amount_0, amount_1))
 }
-

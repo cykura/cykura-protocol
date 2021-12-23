@@ -327,26 +327,18 @@ pub struct MintContext<'info> {
 
     /// The token account spending token_0 to mint the position
     #[account(mut)]
-    pub token_account_0: Box<Account<'info, TokenAccount>>,
+    pub token_account_0: UncheckedAccount<'info>,
 
     /// The token account spending token_1 to mint the position
     #[account(mut)]
-    pub token_account_1: Box<Account<'info, TokenAccount>>,
+    pub token_account_1: UncheckedAccount<'info>,
 
     /// The address that holds pool tokens for token_0
-    #[account(
-        mut,
-        associated_token::mint = pool_state.load()?.token_0.key(),
-        associated_token::authority = pool_state,
-    )]
+    #[account(mut)]
     pub vault_0: Box<Account<'info, TokenAccount>>,
 
     /// The address that holds pool tokens for token_1
-    #[account(
-        mut,
-        associated_token::mint = pool_state.load()?.token_1.key(),
-        associated_token::authority = pool_state,
-    )]
+    #[account(mut)]
     pub vault_1: Box<Account<'info, TokenAccount>>,
 
     /// Liquidity is minted on behalf of recipient
@@ -354,109 +346,36 @@ pub struct MintContext<'info> {
 
     /// Mint liquidity for this pool
     #[account(mut)]
+    // pub pool_state: UncheckedAccount<'info>,
     pub pool_state: Loader<'info, PoolState>,
 
     /// The lower tick boundary of the position
-    #[account(
-        mut,
-        seeds = [
-            TICK_SEED.as_bytes(),
-            pool_state.load()?.token_0.key().as_ref(),
-            pool_state.load()?.token_1.key().as_ref(),
-            &pool_state.load()?.fee.to_be_bytes(),
-            &tick_lower_state.load()?.tick.to_be_bytes()
-        ],
-        bump = tick_lower_state.load()?.bump,
-    )]
+    #[account(mut)]
     pub tick_lower_state: Loader<'info, TickState>,
 
     /// The upper tick boundary of the position
-    #[account(
-        mut,
-        seeds = [
-            TICK_SEED.as_bytes(),
-            pool_state.load()?.token_0.key().as_ref(),
-            pool_state.load()?.token_1.key().as_ref(),
-            &pool_state.load()?.fee.to_be_bytes(),
-            &tick_upper_state.load()?.tick.to_be_bytes()
-        ],
-        bump = tick_upper_state.load()?.bump,
-    )]
+    #[account(mut)]
     pub tick_upper_state: Loader<'info, TickState>,
 
     /// The bitmap storing initialization state of the lower tick
-    #[account(
-        mut,
-        seeds = [
-            BITMAP_SEED.as_bytes(),
-            pool_state.load()?.token_0.key().as_ref(),
-            pool_state.load()?.token_1.key().as_ref(),
-            &pool_state.load()?.fee.to_be_bytes(),
-            &((tick_lower_state.load()?.tick >> 8) as i16).to_be_bytes()
-        ],
-        bump = bitmap_lower.load()?.bump,
-    )]
-    pub bitmap_lower: Loader<'info, TickBitmapState>,
+    #[account(mut)]
+    pub bitmap_lower_state: UncheckedAccount<'info>,
 
     /// The bitmap storing initialization state of the upper tick
-    #[account(
-        mut,
-        seeds = [
-            BITMAP_SEED.as_bytes(),
-            pool_state.load()?.token_0.key().as_ref(),
-            pool_state.load()?.token_1.key().as_ref(),
-            &pool_state.load()?.fee.to_be_bytes(),
-            &((tick_upper_state.load()?.tick >> 8) as i16).to_be_bytes()
-        ],
-        bump = bitmap_upper.load()?.bump,
-    )]
-    pub bitmap_upper: Loader<'info, TickBitmapState>,
+    #[account(mut)]
+    pub bitmap_upper_state: UncheckedAccount<'info>,
 
     /// The position into which liquidity is minted
-    #[account(
-        mut,
-        seeds = [
-            POSITION_SEED.as_bytes(),
-            pool_state.load()?.token_0.key().as_ref(),
-            pool_state.load()?.token_1.key().as_ref(),
-            &pool_state.load()?.fee.to_be_bytes(),
-            &recipient.key().as_ref(),
-            &tick_lower_state.load()?.tick.to_be_bytes(),
-            &tick_upper_state.load()?.tick.to_be_bytes(),
-        ],
-        bump = position_state.load()?.bump,
-    )]
-    pub position_state: Loader<'info, PositionState>,
+    #[account(mut)]
+    pub position_state: UncheckedAccount<'info>,
 
     /// The program account for the most recent oracle observation
-    #[account(
-        mut,
-        seeds = [
-            &OBSERVATION_SEED.as_bytes(),
-            pool_state.load()?.token_0.key().as_ref(),
-            pool_state.load()?.token_1.key().as_ref(),
-            &pool_state.load()?.fee.to_be_bytes(),
-            &pool_state.load()?.observation_index.to_be_bytes(),
-        ],
-        bump = latest_observation_state.load()?.bump
-    )]
-    pub latest_observation_state: Loader<'info, ObservationState>,
+    #[account(mut)]
+    pub latest_observation_state: UncheckedAccount<'info>,
 
     /// The observation program account one position after latest_observation_state
-    #[account(
-        mut,
-        seeds = [
-            &OBSERVATION_SEED.as_bytes(),
-            pool_state.load()?.token_0.key().as_ref(),
-            pool_state.load()?.token_1.key().as_ref(),
-            &pool_state.load()?.fee.to_be_bytes(),
-            &((pool_state.load()?.observation_index + 1)
-                % pool_state.load()?.observation_cardinality_next
-            ).to_be_bytes(),
-        ],
-        bump = next_observation_state.load()?.bump
-    )]
-    pub next_observation_state: Loader<'info, ObservationState>,
+    #[account(mut)]
+    pub next_observation_state: UncheckedAccount<'info>,
 
     /// The SPL program to perform token transfers
     pub token_program: Program<'info, Token>,
@@ -783,8 +702,7 @@ pub struct MintTokenizedPosition<'info> {
 
     /// Mint liquidity for this pool
     #[account(mut)]
-    // pub pool_state: Loader<'info, PoolState>,
-    pub pool_state: UncheckedAccount<'info>, // remove decoding in lib
+    pub pool_state: UncheckedAccount<'info>,
 
     /// Core program account to store position data
     #[account(mut)]
@@ -792,7 +710,6 @@ pub struct MintTokenizedPosition<'info> {
 
     /// Account to store data for the position's lower tick
     #[account(mut)]
-    // pub tick_lower_state: Loader<'info, TickState>, // remove
     pub tick_lower_state: UncheckedAccount<'info>,
 
     /// Account to store data for the position's upper tick
@@ -801,11 +718,11 @@ pub struct MintTokenizedPosition<'info> {
 
     /// Account to mark the lower tick as initialized
     #[account(mut)]
-    pub bitmap_lower: UncheckedAccount<'info>, // remove
+    pub bitmap_lower_state: UncheckedAccount<'info>, // remove
 
     /// Account to mark the upper tick as initialized
     #[account(mut)]
-    pub bitmap_upper: UncheckedAccount<'info>, // remove
+    pub bitmap_upper_state: UncheckedAccount<'info>, // remove
 
     /// Metadata for the tokenized position
     #[account(
@@ -818,29 +735,27 @@ pub struct MintTokenizedPosition<'info> {
 
     /// The token account spending token_0 to mint the position
     #[account(mut)]
-    pub token_account_0: Box<Account<'info, TokenAccount>>, // remove
+    pub token_account_0: UncheckedAccount<'info>,
 
     /// The token account spending token_1 to mint the position
     #[account(mut)]
-    pub token_account_1: Box<Account<'info, TokenAccount>>, // remove
+    pub token_account_1: UncheckedAccount<'info>,
 
     /// The token account owned by core to hold pool tokens for token_0
     #[account(mut)]
     pub vault_0: Box<Account<'info, TokenAccount>>,
-    // pub vault_0: UncheckedAccount<'info>,
 
     /// The token account owned by core to hold pool tokens for token_1
     #[account(mut)]
     pub vault_1: Box<Account<'info, TokenAccount>>,
-    // pub vault_1: UncheckedAccount<'info>,
 
     /// The latest observation state
     #[account(mut)]
-    pub latest_observation_state: UncheckedAccount<'info>, // remove
+    pub latest_observation_state: UncheckedAccount<'info>,
 
     /// The next observation state
     #[account(mut)]
-    pub next_observation_state: UncheckedAccount<'info>, // remove
+    pub next_observation_state: UncheckedAccount<'info>,
 
     /// Sysvar for token mint and ATA creation
     pub rent: Sysvar<'info, Rent>,
@@ -927,19 +842,19 @@ pub struct IncreaseLiquidity<'info> {
 
     /// Stores init state for the lower tick
     #[account(mut)]
-    pub bitmap_lower: UncheckedAccount<'info>,
+    pub bitmap_lower_state: UncheckedAccount<'info>,
 
     /// Stores init state for the upper tick
     #[account(mut)]
-    pub bitmap_upper: UncheckedAccount<'info>,
+    pub bitmap_upper_state: UncheckedAccount<'info>,
 
     /// The payer's token account for token_0
     #[account(mut)]
-    pub token_account_0: Box<Account<'info, TokenAccount>>,
+    pub token_account_0: UncheckedAccount<'info>,
 
     /// The payer's token account for token_1
     #[account(mut)]
-    pub token_account_1: Box<Account<'info, TokenAccount>>,
+    pub token_account_1: UncheckedAccount<'info>,
 
     /// The pool's token account for token_0
     #[account(mut)]

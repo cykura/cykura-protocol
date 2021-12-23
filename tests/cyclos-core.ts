@@ -90,9 +90,9 @@ describe('cyclos-core', async () => {
   let tickUpperStateBump: number
   let corePositionState: web3.PublicKey
   let corePositionBump: number
-  let bitmapLower: web3.PublicKey
+  let bitmapLowerState: web3.PublicKey
   let bitmapLowerBump: number
-  let bitmapUpper: web3.PublicKey
+  let bitmapUpperState: web3.PublicKey
   let bitmapUpperBump: number
   let tokenizedPositionState: web3.PublicKey
   let tokenizedPositionBump: number
@@ -1172,7 +1172,7 @@ describe('cyclos-core', async () => {
       coreProgram.programId
     );
 
-    [bitmapLower, bitmapLowerBump] = await PublicKey.findProgramAddress([
+    [bitmapLowerState, bitmapLowerBump] = await PublicKey.findProgramAddress([
       BITMAP_SEED,
       token0.publicKey.toBuffer(),
       token1.publicKey.toBuffer(),
@@ -1181,7 +1181,7 @@ describe('cyclos-core', async () => {
     ],
       coreProgram.programId
     );
-    [bitmapUpper, bitmapUpperBump] = await PublicKey.findProgramAddress([
+    [bitmapUpperState, bitmapUpperBump] = await PublicKey.findProgramAddress([
       BITMAP_SEED,
       token0.publicKey.toBuffer(),
       token1.publicKey.toBuffer(),
@@ -1384,12 +1384,12 @@ describe('cyclos-core', async () => {
         accounts: {
           signer: owner,
           poolState,
-          bitmapState: bitmapLower,
+          bitmapState: bitmapLowerState,
           systemProgram: SystemProgram.programId,
         }
       })
 
-      const bitmapLowerData = await coreProgram.account.tickBitmapState.fetch(bitmapLower)
+      const bitmapLowerData = await coreProgram.account.tickBitmapState.fetch(bitmapLowerState)
       assert.equal(bitmapLowerData.bump, bitmapLowerBump)
       assert.equal(bitmapLowerData.wordPos, wordPosLower)
 
@@ -1496,8 +1496,8 @@ describe('cyclos-core', async () => {
           corePositionState,
           tickLowerState,
           tickUpperState,
-          bitmapLower,
-          bitmapUpper,
+          bitmapLowerState,
+          bitmapUpperState,
           tokenAccount0: minterWallet0,
           tokenAccount1: minterWallet1,
           vault0,
@@ -1544,8 +1544,8 @@ describe('cyclos-core', async () => {
             corePositionState,
             tickLowerState,
             tickUpperState,
-            bitmapLower,
-            bitmapUpper,
+            bitmapLowerState,
+            bitmapUpperState,
             tokenAccount0: minterWallet0,
             tokenAccount1: minterWallet1,
             vault0,
@@ -1599,7 +1599,7 @@ describe('cyclos-core', async () => {
       console.log('Tick upper', tickUpperData)
 
       // check if ticks are correctly initialized on the bitmap
-      const tickLowerBitmapData = await coreProgram.account.tickBitmapState.fetch(bitmapLower)
+      const tickLowerBitmapData = await coreProgram.account.tickBitmapState.fetch(bitmapLowerState)
       const tickLowerPos = (tickLower / tickSpacing) % 256
       const tickUpperPos = (tickUpper / tickSpacing) % 256
       const expectedBitmap = [3, 2, 1, 0].map(x => {
@@ -1702,8 +1702,8 @@ describe('cyclos-core', async () => {
           corePositionState,
           tickLowerState,
           tickUpperState,
-          bitmapLower,
-          bitmapUpper,
+          bitmapLowerState,
+          bitmapUpperState,
           tokenAccount0: minterWallet0,
           tokenAccount1: minterWallet1,
           vault0,
@@ -1742,8 +1742,8 @@ describe('cyclos-core', async () => {
             corePositionState,
             tickLowerState,
             tickUpperState,
-            bitmapLower,
-            bitmapUpper,
+            bitmapLowerState,
+            bitmapUpperState,
             tokenAccount0: minterWallet0,
             tokenAccount1: minterWallet1,
             vault0,
@@ -1792,8 +1792,8 @@ describe('cyclos-core', async () => {
           corePositionState,
           tickLowerState,
           tickUpperState,
-          bitmapLower,
-          bitmapUpper,
+          bitmapLower: bitmapLowerState,
+          bitmapUpper: bitmapUpperState,
           latestObservationState,
           nextObservationState,
           coreProgram: coreProgram.programId
@@ -1818,8 +1818,8 @@ describe('cyclos-core', async () => {
           corePositionState,
           tickLowerState,
           tickUpperState,
-          bitmapLower,
-          bitmapUpper,
+          bitmapLower: bitmapLowerState,
+          bitmapUpper: bitmapUpperState,
           latestObservationState,
           nextObservationState,
           coreProgram: coreProgram.programId
@@ -1844,8 +1844,8 @@ describe('cyclos-core', async () => {
           corePositionState,
           tickLowerState,
           tickUpperState,
-          bitmapLower,
-          bitmapUpper,
+          bitmapLower: bitmapLowerState,
+          bitmapUpper: bitmapUpperState,
           latestObservationState,
           nextObservationState,
           coreProgram: coreProgram.programId
@@ -1889,8 +1889,8 @@ describe('cyclos-core', async () => {
           corePositionState,
           tickLowerState,
           tickUpperState,
-          bitmapLower,
-          bitmapUpper,
+          bitmapLower: bitmapLowerState,
+          bitmapUpper: bitmapUpperState,
           latestObservationState,
           nextObservationState,
           coreProgram: coreProgram.programId
@@ -1935,8 +1935,8 @@ describe('cyclos-core', async () => {
             corePositionState,
             tickLowerState,
             tickUpperState,
-            bitmapLower,
-            bitmapUpper,
+            bitmapLower: bitmapLowerState,
+            bitmapUpper: bitmapUpperState,
             latestObservationState,
             nextObservationState,
             coreProgram: coreProgram.programId
@@ -1978,8 +1978,8 @@ describe('cyclos-core', async () => {
           corePositionState,
           tickLowerState,
           tickUpperState,
-          bitmapLower,
-          bitmapUpper,
+          bitmapLower: bitmapLowerState,
+          bitmapUpper: bitmapUpperState,
           latestObservationState,
           nextObservationState,
           coreProgram: coreProgram.programId
@@ -2024,8 +2024,8 @@ describe('cyclos-core', async () => {
             corePositionState,
             tickLowerState,
             tickUpperState,
-            bitmapLower,
-            bitmapUpper,
+            bitmapLower: bitmapLowerState,
+            bitmapUpper: bitmapUpperState,
             latestObservationState,
             nextObservationState,
             coreProgram: coreProgram.programId
@@ -2063,8 +2063,8 @@ describe('cyclos-core', async () => {
           corePositionState,
           tickLowerState,
           tickUpperState,
-          bitmapLower,
-          bitmapUpper,
+          bitmapLower: bitmapLowerState,
+          bitmapUpper: bitmapUpperState,
           latestObservationState,
           nextObservationState,
           coreProgram: coreProgram.programId
@@ -2088,8 +2088,8 @@ describe('cyclos-core', async () => {
           corePositionState,
           tickLowerState,
           tickUpperState,
-          bitmapLower,
-          bitmapUpper,
+          bitmapLower: bitmapLowerState,
+          bitmapUpper: bitmapUpperState,
           latestObservationState,
           nextObservationState,
           coreProgram: coreProgram.programId,
@@ -2113,8 +2113,8 @@ describe('cyclos-core', async () => {
           corePositionState,
           tickLowerState,
           tickUpperState,
-          bitmapLower,
-          bitmapUpper,
+          bitmapLower: bitmapLowerState,
+          bitmapUpper: bitmapUpperState,
           latestObservationState,
           nextObservationState,
           coreProgram: coreProgram.programId,
@@ -2151,8 +2151,8 @@ describe('cyclos-core', async () => {
           corePositionState,
           tickLowerState,
           tickUpperState,
-          bitmapLower,
-          bitmapUpper,
+          bitmapLower: bitmapLowerState,
+          bitmapUpper: bitmapUpperState,
           latestObservationState,
           nextObservationState,
           coreProgram: coreProgram.programId,
@@ -2189,8 +2189,8 @@ describe('cyclos-core', async () => {
           corePositionState,
           tickLowerState,
           tickUpperState,
-          bitmapLower,
-          bitmapUpper,
+          bitmapLower: bitmapLowerState,
+          bitmapUpper: bitmapUpperState,
           latestObservationState,
           nextObservationState,
           coreProgram: coreProgram.programId,
@@ -2237,8 +2237,8 @@ describe('cyclos-core', async () => {
             corePositionState,
             tickLowerState,
             tickUpperState,
-            bitmapLower,
-            bitmapUpper,
+            bitmapLower: bitmapLowerState,
+            bitmapUpper: bitmapUpperState,
             latestObservationState,
             nextObservationState,
             coreProgram: coreProgram.programId,
@@ -2308,8 +2308,8 @@ describe('cyclos-core', async () => {
             corePositionState,
             tickLowerState,
             tickUpperState,
-            bitmapLower,
-            bitmapUpper,
+            bitmapLower: bitmapLowerState,
+            bitmapUpper: bitmapUpperState,
             latestObservationState,
             nextObservationState,
             coreProgram: coreProgram.programId,
@@ -2375,7 +2375,7 @@ describe('cyclos-core', async () => {
             coreProgram: coreProgram.programId,
             tokenProgram: TOKEN_PROGRAM_ID,
           }, remainingAccounts: [{
-            pubkey: bitmapLower,
+            pubkey: bitmapLowerState,
             isSigner: false,
             isWritable: true
           },
@@ -2417,7 +2417,7 @@ describe('cyclos-core', async () => {
             coreProgram: coreProgram.programId,
             tokenProgram: TOKEN_PROGRAM_ID,
           }, remainingAccounts: [{
-            pubkey: bitmapLower,
+            pubkey: bitmapLowerState,
             isSigner: false,
             isWritable: true
           },
@@ -2492,7 +2492,7 @@ describe('cyclos-core', async () => {
             coreProgram: coreProgram.programId,
             tokenProgram: TOKEN_PROGRAM_ID,
           }, remainingAccounts: [{
-            pubkey: bitmapLower,
+            pubkey: bitmapLowerState,
             isSigner: false,
             isWritable: true
           },
