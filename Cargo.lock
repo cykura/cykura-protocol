@@ -431,7 +431,9 @@ dependencies = [
  "anchor-lang",
  "anchor-spl",
  "bitmaps",
+ "metaplex-token-metadata",
  "muldiv",
+ "spl-token",
  "uint",
  "ux",
 ]
@@ -728,18 +730,6 @@ version = "1.0.0"
 source = "git+https://github.com/zkwarlock/rust-muldiv?branch=128-bit#c4dcccad085fdc8c071f6fd4972d9bc9e5fbb5fe"
 dependencies = [
  "ethnum",
-]
-
-[[package]]
-name = "non-fungible-position-manager"
-version = "0.1.0"
-dependencies = [
- "anchor-lang",
- "anchor-spl",
- "cyclos-core",
- "metaplex-token-metadata",
- "muldiv",
- "spl-token",
 ]
 
 [[package]]

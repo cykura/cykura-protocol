@@ -5,3 +5,9 @@ pub mod position;
 pub mod tick_bitmap;
 pub mod tick;
 pub mod oracle;
+
+// Non fungible position manager
+pub mod position_manager;
+pub mod tokenized_position;
+
+// Swap router

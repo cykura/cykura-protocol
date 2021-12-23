@@ -76,7 +76,7 @@ pub struct DecreaseLiquidityEvent {
 /// Emitted when tokens are collected for a position NFT
 /// The amounts reported may not be exactly equivalent to the amounts transferred, due to rounding behavior
 #[event]
-pub struct CollectEvent {
+pub struct CollectTokenizedEvent {
     /// The ID of the token for which underlying tokens were collected
     #[index]
     pub token_id: Pubkey,

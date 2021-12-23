@@ -80,4 +80,19 @@ pub enum ErrorCode {
     // Liquidity Add
     #[msg("LA")]
     LA,
+
+    // Non fungible position manager
+    #[msg("Transaction too old")]
+    TransactionTooOld,
+
+    #[msg("Price slippage check")]
+    PriceSlippageCheck,
+
+    #[msg("Not approved")]
+    NotApproved,
+
+    // Swap router
+
+    #[msg("Too little received")]
+    TooLittleReceived
 }

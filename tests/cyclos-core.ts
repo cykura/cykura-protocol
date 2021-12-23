@@ -11,19 +11,19 @@ import { CyclosCore } from '../target/types/cyclos_core'
 import { NonFungiblePositionManager } from '../target/types/non_fungible_position_manager'
 import { SwapRouter } from '../target/types/swap_router'
 import {
-   BITMAP_SEED,
-   FEE_SEED,
-   MaxU64,
-   MAX_SQRT_RATIO,
-   MAX_TICK,
-   MIN_SQRT_RATIO,
-   MIN_TICK,
-   OBSERVATION_SEED,
-   POOL_SEED,
-   POSITION_SEED,
-   TICK_SEED,
-   u16ToSeed,
-   u32ToSeed
+  BITMAP_SEED,
+  FEE_SEED,
+  MaxU64,
+  MAX_SQRT_RATIO,
+  MAX_TICK,
+  MIN_SQRT_RATIO,
+  MIN_TICK,
+  OBSERVATION_SEED,
+  POOL_SEED,
+  POSITION_SEED,
+  TICK_SEED,
+  u16ToSeed,
+  u32ToSeed
 } from './utils'
 
 const { metadata: { Metadata } } = metaplex.programs
@@ -75,6 +75,41 @@ describe('cyclos-core', async () => {
   let minterWallet1: web3.PublicKey
 
   let temporaryNftHolder: web3.PublicKey
+
+  const tickLower = 0
+  const tickUpper = 10
+  const wordPosLower = (tickLower / tickSpacing) >> 8
+  const wordPosUpper = (tickUpper / tickSpacing) >> 8
+
+  const amount0Desired = new BN(0)
+  const amount1Desired = new BN(1_000_000)
+  const amount0Minimum = new BN(0)
+  const amount1Minimum = new BN(1_000_000)
+
+  const nftMintKeypair = new Keypair()
+  let tickLowerState: web3.PublicKey
+  let tickLowerStateBump: number
+  let tickUpperState: web3.PublicKey
+  let tickUpperStateBump: number
+  let corePositionState: web3.PublicKey
+  let corePositionBump: number
+  let bitmapLower: web3.PublicKey
+  let bitmapLowerBump: number
+  let bitmapUpper: web3.PublicKey
+  let bitmapUpperBump: number
+  let tokenizedPositionState: web3.PublicKey
+  let tokenizedPositionBump: number
+  let positionNftAccount: web3.PublicKey
+  let metadataAccount: web3.PublicKey
+  let latestObservationState: web3.PublicKey
+  let nextObservationState: web3.PublicKey
+
+  const protocolFeeRecipient = new Keypair()
+  let feeRecipientWallet0: web3.PublicKey
+  let feeRecipientWallet1: web3.PublicKey
+
+  const initialPriceX32 = new BN(4297115210)
+  const initialTick = 10
 
   it('Create token mints', async () => {
     const transferSolTx = new web3.Transaction().add(
@@ -138,6 +173,7 @@ describe('cyclos-core', async () => {
       ],
       coreProgram.programId
     )
+    console.log('got pool address', poolState)
   })
 
   it('derive vault addresses', async () => {
@@ -399,9 +435,6 @@ describe('cyclos-core', async () => {
     })
   })
 
-  const initialPriceX32 = new BN(4297115210)
-  const initialTick = 10
-
   describe('#create_and_init_pool', () => {
     it('derive first observation slot address', async () => {
       [initialObservationState, initialObservationBump] = await PublicKey.findProgramAddress(
@@ -621,6 +654,8 @@ describe('cyclos-core', async () => {
       assert(observationStateData.secondsPerLiquidityCumulativeX32.eq(new BN(0)))
       assert(observationStateData.initialized)
       assert.approximately(observationStateData.blockTimestamp, Math.floor(Date.now() / 1000), 60)
+
+      console.log('got pool address', poolState.toString())
     })
 
     it('fails if already initialized', async () => {
@@ -1027,10 +1062,6 @@ describe('cyclos-core', async () => {
     })
   })
 
-  const protocolFeeRecipient = new Keypair()
-  let feeRecipientWallet0: web3.PublicKey
-  let feeRecipientWallet1: web3.PublicKey
-
   describe('#collect_protocol', () => {
     it('creates token accounts for recipient', async () => {
       feeRecipientWallet0 = await token0.createAssociatedTokenAccount(protocolFeeRecipient.publicKey)
@@ -1120,348 +1151,304 @@ describe('cyclos-core', async () => {
     })
 
     // TODO remaining tests after swap component is ready
+
   })
 
-  const nftMintKeypair = new Keypair()
-  const positionNftAccount = await Token.getAssociatedTokenAddress(
-    ASSOCIATED_TOKEN_PROGRAM_ID,
-    TOKEN_PROGRAM_ID,
-    nftMintKeypair.publicKey,
-    owner,
-  )
+  it('setup position manager accounts', async () => {
+    [tickLowerState, tickLowerStateBump] = await PublicKey.findProgramAddress([
+      TICK_SEED,
+      token0.publicKey.toBuffer(),
+      token1.publicKey.toBuffer(),
+      u32ToSeed(fee),
+      u32ToSeed(tickLower)
+    ],
+      coreProgram.programId
+    );
 
-  const nftMint = new Token(
-    connection,
-    nftMintKeypair.publicKey,
-    TOKEN_PROGRAM_ID,
-    mintAuthority
-  )
+    [tickUpperState, tickUpperStateBump] = await PublicKey.findProgramAddress([
+      TICK_SEED,
+      token0.publicKey.toBuffer(),
+      token1.publicKey.toBuffer(),
+      u32ToSeed(fee),
+      u32ToSeed(tickUpper)
+    ],
+      coreProgram.programId
+    );
 
-  const metadataAccount = (
-    await web3.PublicKey.findProgramAddress(
-      [
-        Buffer.from('metadata'),
-        metaplex.programs.metadata.MetadataProgram.PUBKEY.toBuffer(),
-        nftMintKeypair.publicKey.toBuffer(),
-      ],
-      metaplex.programs.metadata.MetadataProgram.PUBKEY,
+    [bitmapLower, bitmapLowerBump] = await PublicKey.findProgramAddress([
+      BITMAP_SEED,
+      token0.publicKey.toBuffer(),
+      token1.publicKey.toBuffer(),
+      u32ToSeed(fee),
+      u16ToSeed(wordPosLower),
+    ],
+      coreProgram.programId
+    );
+    [bitmapUpper, bitmapUpperBump] = await PublicKey.findProgramAddress([
+      BITMAP_SEED,
+      token0.publicKey.toBuffer(),
+      token1.publicKey.toBuffer(),
+      u32ToSeed(fee),
+      u16ToSeed(wordPosUpper),
+    ],
+      coreProgram.programId
+    );
+
+    [corePositionState, corePositionBump] = await PublicKey.findProgramAddress([
+      POSITION_SEED,
+      token0.publicKey.toBuffer(),
+      token1.publicKey.toBuffer(),
+      u32ToSeed(fee),
+      // posMgrState.toBuffer(),
+      factoryState.toBuffer(),
+      u32ToSeed(tickLower),
+      u32ToSeed(tickUpper)
+    ],
+      coreProgram.programId
+    );
+
+
+    positionNftAccount = await Token.getAssociatedTokenAddress(
+      ASSOCIATED_TOKEN_PROGRAM_ID,
+      TOKEN_PROGRAM_ID,
+      nftMintKeypair.publicKey,
+      owner,
     )
-  )[0];
 
-  describe('non-fungible-position-manager', async () => {
-    describe('#initialize', () => {
-      it('initializes the position manager', async () => {
-        await mgrProgram.rpc.initialize(posMgrBump, {
-          accounts: {
-            signer: owner,
-            positionManagerState: posMgrState,
-            systemProgram: SystemProgram.programId,
-          }
-        })
+    const nftMint = new Token(
+      connection,
+      nftMintKeypair.publicKey,
+      TOKEN_PROGRAM_ID,
+      mintAuthority
+    )
 
-        const posMgrStateData = await mgrProgram.account.positionManagerState.fetch(posMgrState)
-        assert.equal(posMgrStateData.bump, posMgrBump)
-      })
+    metadataAccount = (
+      await web3.PublicKey.findProgramAddress(
+        [
+          Buffer.from('metadata'),
+          metaplex.programs.metadata.MetadataProgram.PUBKEY.toBuffer(),
+          nftMintKeypair.publicKey.toBuffer(),
+        ],
+        metaplex.programs.metadata.MetadataProgram.PUBKEY,
+      )
+    )[0];
 
-      it('fails on trying to re-initialize', async () => {
-        await expect(mgrProgram.rpc.initialize(posMgrBump, {
-          accounts: {
-            signer: owner,
-            positionManagerState: posMgrState,
-            systemProgram: SystemProgram.programId,
-          }
-        })).to.be.rejectedWith(Error)
-      })
+    [tokenizedPositionState, tokenizedPositionBump] = await PublicKey.findProgramAddress([
+      POSITION_SEED,
+      nftMintKeypair.publicKey.toBuffer()
+    ],
+      coreProgram.programId
+      // mgrProgram.programId
+    );
+  })
+
+  describe('#init_tick_account', () => {
+    it('fails if tick is lower than limit', async () => {
+      const [invalidLowTickState, invalidLowTickBump] = await PublicKey.findProgramAddress([
+        TICK_SEED,
+        token0.publicKey.toBuffer(),
+        token1.publicKey.toBuffer(),
+        u32ToSeed(fee),
+        u32ToSeed(MIN_TICK - 1)
+      ],
+        coreProgram.programId
+      );
+
+      await expect(coreProgram.rpc.initTickAccount(invalidLowTickBump, MIN_TICK - 1, {
+        accounts: {
+          signer: owner,
+          poolState,
+          tickState: invalidLowTickState,
+          systemProgram: SystemProgram.programId,
+        }
+      })).to.be.rejectedWith('TLM')
     })
 
-    const tickLower = 0
-    const tickUpper = 10
-    const wordPosLower = (tickLower / tickSpacing) >> 8
-    const wordPosUpper = (tickUpper / tickSpacing) >> 8
-
-    const amount0Desired = new BN(0)
-    const amount1Desired = new BN(1_000_000)
-    const amount0Minimum = new BN(0)
-    const amount1Minimum = new BN(1_000_000)
-
-    let tickLowerState: web3.PublicKey
-    let tickLowerStateBump: number
-    let tickUpperState: web3.PublicKey
-    let tickUpperStateBump: number
-    let corePositionState: web3.PublicKey
-    let corePositionBump: number
-    let bitmapLower: web3.PublicKey
-    let bitmapLowerBump: number
-    let bitmapUpper: web3.PublicKey
-    let bitmapUpperBump: number
-    let tokenizedPositionState: web3.PublicKey
-    let tokenizedPositionBump: number
-
-    it('setup position manager accounts', async () => {
-      [tickLowerState, tickLowerStateBump] = await PublicKey.findProgramAddress([
+    it('fails if tick is higher than limit', async () => {
+      const [invalidUpperTickState, invalidUpperTickBump] = await PublicKey.findProgramAddress([
         TICK_SEED,
         token0.publicKey.toBuffer(),
         token1.publicKey.toBuffer(),
         u32ToSeed(fee),
-        u32ToSeed(tickLower)
+        u32ToSeed(MAX_TICK + 1)
       ],
         coreProgram.programId
       );
 
-      [tickUpperState, tickUpperStateBump] = await PublicKey.findProgramAddress([
+      await expect(coreProgram.rpc.initTickAccount(invalidUpperTickBump, MAX_TICK + 1, {
+        accounts: {
+          signer: owner,
+          poolState,
+          tickState: invalidUpperTickState,
+          systemProgram: SystemProgram.programId,
+        }
+      })).to.be.rejectedWith('TUM')
+    })
+
+    it('fails if tick is not a multiple of tick spacing', async () => {
+      const invalidTick = 5
+      const [tickState, tickBump] = await PublicKey.findProgramAddress([
         TICK_SEED,
         token0.publicKey.toBuffer(),
         token1.publicKey.toBuffer(),
         u32ToSeed(fee),
-        u32ToSeed(tickUpper)
+        u32ToSeed(invalidTick)
       ],
         coreProgram.programId
       );
 
-      [bitmapLower, bitmapLowerBump] = await PublicKey.findProgramAddress([
-        BITMAP_SEED,
-        token0.publicKey.toBuffer(),
-        token1.publicKey.toBuffer(),
-        u32ToSeed(fee),
-        u16ToSeed(wordPosLower),
-      ],
-        coreProgram.programId
-      );
-      [bitmapUpper, bitmapUpperBump] = await PublicKey.findProgramAddress([
-        BITMAP_SEED,
-        token0.publicKey.toBuffer(),
-        token1.publicKey.toBuffer(),
-        u32ToSeed(fee),
-        u16ToSeed(wordPosUpper),
-      ],
-        coreProgram.programId
-      );
+      await expect(coreProgram.rpc.initTickAccount(tickBump, invalidTick, {
+        accounts: {
+          signer: owner,
+          poolState,
+          tickState: tickState,
+          systemProgram: SystemProgram.programId,
+        }
+      })).to.be.rejectedWith('TMS')
+    })
 
-      [corePositionState, corePositionBump] = await PublicKey.findProgramAddress([
+    it('creates new tick accounts for lower and upper ticks', async () => {
+      await coreProgram.rpc.initTickAccount(tickLowerStateBump, tickLower, {
+        accounts: {
+          signer: owner,
+          poolState,
+          tickState: tickLowerState,
+          systemProgram: SystemProgram.programId,
+        }
+      })
+
+      await coreProgram.rpc.initTickAccount(tickUpperStateBump, tickUpper, {
+        accounts: {
+          signer: owner,
+          poolState,
+          tickState: tickUpperState,
+          systemProgram: SystemProgram.programId,
+        }
+      })
+
+      const tickStateLowerData = await coreProgram.account.tickState.fetch(tickLowerState)
+      assert.equal(tickStateLowerData.bump, tickLowerStateBump)
+      assert.equal(tickStateLowerData.tick, tickLower)
+
+      const tickStateUpperData = await coreProgram.account.tickState.fetch(tickUpperState)
+      assert.equal(tickStateUpperData.bump, tickUpperStateBump)
+      assert.equal(tickStateUpperData.tick, tickUpper)
+    })
+  })
+
+  describe('#init_bitmap_account', () => {
+    const minWordPos = (MIN_TICK / tickSpacing) >> 8
+    const maxWordPos = (MAX_TICK / tickSpacing) >> 8
+
+    it('fails if tick is lower than limit', async () => {
+      const [invalidBitmapLower, invalidBitmapLowerBump] = await PublicKey.findProgramAddress([
+        BITMAP_SEED,
+        token0.publicKey.toBuffer(),
+        token1.publicKey.toBuffer(),
+        u32ToSeed(fee),
+        u16ToSeed(minWordPos - 1),
+      ],
+        coreProgram.programId
+      )
+
+      await expect(coreProgram.rpc.initBitmapAccount(invalidBitmapLowerBump, minWordPos - 1, {
+        accounts: {
+          signer: owner,
+          poolState,
+          bitmapState: invalidBitmapLower,
+          systemProgram: SystemProgram.programId,
+        }
+      })).to.be.rejectedWith('TLM')
+    })
+
+    it('fails if tick is higher than limit', async () => {
+      const [invalidBitmapUpper, invalidBitmapUpperBump] = await PublicKey.findProgramAddress([
+        BITMAP_SEED,
+        token0.publicKey.toBuffer(),
+        token1.publicKey.toBuffer(),
+        u32ToSeed(fee),
+        u16ToSeed(maxWordPos + 1),
+      ],
+        coreProgram.programId
+      )
+
+      await expect(coreProgram.rpc.initBitmapAccount(invalidBitmapUpperBump, maxWordPos + 1, {
+        accounts: {
+          signer: owner,
+          poolState,
+          bitmapState: invalidBitmapUpper,
+          systemProgram: SystemProgram.programId,
+        }
+      })).to.be.rejectedWith('TUM')
+    })
+
+    it('creates new bitmap account for lower and upper ticks', async () => {
+      await coreProgram.rpc.initBitmapAccount(bitmapLowerBump, wordPosLower, {
+        accounts: {
+          signer: owner,
+          poolState,
+          bitmapState: bitmapLower,
+          systemProgram: SystemProgram.programId,
+        }
+      })
+
+      const bitmapLowerData = await coreProgram.account.tickBitmapState.fetch(bitmapLower)
+      assert.equal(bitmapLowerData.bump, bitmapLowerBump)
+      assert.equal(bitmapLowerData.wordPos, wordPosLower)
+
+      // bitmap upper = bitmap lower
+    })
+  })
+
+  describe('#init_position_account', () => {
+    it('fails if tick lower is not less than tick upper', async () => {
+      const [invalidPosition, invalidPositionBump] = await PublicKey.findProgramAddress([
         POSITION_SEED,
         token0.publicKey.toBuffer(),
         token1.publicKey.toBuffer(),
         u32ToSeed(fee),
-        posMgrState.toBuffer(),
+        factoryState.toBuffer(),
+        // posMgrState.toBuffer(),
+        u32ToSeed(tickUpper), // upper first
         u32ToSeed(tickLower),
-        u32ToSeed(tickUpper)
       ],
         coreProgram.programId
       );
 
-      [tokenizedPositionState, tokenizedPositionBump] = await PublicKey.findProgramAddress([
-        POSITION_SEED,
-        nftMintKeypair.publicKey.toBuffer()
-      ],
-        mgrProgram.programId
-      );
+      await expect(coreProgram.rpc.initPositionAccount(invalidPositionBump, {
+        accounts: {
+          signer: owner,
+          // recipient: posMgrState,
+          recipient: factoryState,
+          poolState,
+          tickLowerState: tickUpperState,
+          tickUpperState: tickLowerState,
+          positionState: invalidPosition,
+          systemProgram: SystemProgram.programId,
+        }
+      })).to.be.rejectedWith('TLU')
     })
 
-    describe('#init_tick_account', () => {
-      it('fails if tick is lower than limit', async () => {
-        const [invalidLowTickState, invalidLowTickBump] = await PublicKey.findProgramAddress([
-          TICK_SEED,
-          token0.publicKey.toBuffer(),
-          token1.publicKey.toBuffer(),
-          u32ToSeed(fee),
-          u32ToSeed(MIN_TICK - 1)
-        ],
-          coreProgram.programId
-        );
-
-        await expect(coreProgram.rpc.initTickAccount(invalidLowTickBump, MIN_TICK - 1, {
-          accounts: {
-            signer: owner,
-            poolState,
-            tickState: invalidLowTickState,
-            systemProgram: SystemProgram.programId,
-          }
-        })).to.be.rejectedWith('TLM')
+    it('creates a new position account', async () => {
+      await coreProgram.rpc.initPositionAccount(corePositionBump, {
+        accounts: {
+          signer: owner,
+          // recipient: posMgrState,
+          recipient: factoryState,
+          poolState,
+          tickLowerState,
+          tickUpperState,
+          positionState: corePositionState,
+          systemProgram: SystemProgram.programId,
+        }
       })
 
-      it('fails if tick is higher than limit', async () => {
-        const [invalidUpperTickState, invalidUpperTickBump] = await PublicKey.findProgramAddress([
-          TICK_SEED,
-          token0.publicKey.toBuffer(),
-          token1.publicKey.toBuffer(),
-          u32ToSeed(fee),
-          u32ToSeed(MAX_TICK + 1)
-        ],
-          coreProgram.programId
-        );
-
-        await expect(coreProgram.rpc.initTickAccount(invalidUpperTickBump, MAX_TICK + 1, {
-          accounts: {
-            signer: owner,
-            poolState,
-            tickState: invalidUpperTickState,
-            systemProgram: SystemProgram.programId,
-          }
-        })).to.be.rejectedWith('TUM')
-      })
-
-      it('fails if tick is not a multiple of tick spacing', async () => {
-        const invalidTick = 5
-        const [tickState, tickBump] = await PublicKey.findProgramAddress([
-          TICK_SEED,
-          token0.publicKey.toBuffer(),
-          token1.publicKey.toBuffer(),
-          u32ToSeed(fee),
-          u32ToSeed(invalidTick)
-        ],
-          coreProgram.programId
-        );
-
-        await expect(coreProgram.rpc.initTickAccount(tickBump, invalidTick, {
-          accounts: {
-            signer: owner,
-            poolState,
-            tickState: tickState,
-            systemProgram: SystemProgram.programId,
-          }
-        })).to.be.rejectedWith('TMS')
-      })
-
-      it('creates new tick accounts for lower and upper ticks', async () => {
-        await coreProgram.rpc.initTickAccount(tickLowerStateBump, tickLower, {
-          accounts: {
-            signer: owner,
-            poolState,
-            tickState: tickLowerState,
-            systemProgram: SystemProgram.programId,
-          }
-        })
-
-        await coreProgram.rpc.initTickAccount(tickUpperStateBump, tickUpper, {
-          accounts: {
-            signer: owner,
-            poolState,
-            tickState: tickUpperState,
-            systemProgram: SystemProgram.programId,
-          }
-        })
-
-        const tickStateLowerData = await coreProgram.account.tickState.fetch(tickLowerState)
-        assert.equal(tickStateLowerData.bump, tickLowerStateBump)
-        assert.equal(tickStateLowerData.tick, tickLower)
-
-        const tickStateUpperData = await coreProgram.account.tickState.fetch(tickUpperState)
-        assert.equal(tickStateUpperData.bump, tickUpperStateBump)
-        assert.equal(tickStateUpperData.tick, tickUpper)
-      })
+      const corePositionData = await coreProgram.account.positionState.fetch(corePositionState)
+      assert.equal(corePositionData.bump, corePositionBump)
     })
+  })
 
-    describe('#init_bitmap_account', () => {
-      const minWordPos = (MIN_TICK / tickSpacing) >> 8
-      const maxWordPos = (MAX_TICK / tickSpacing) >> 8
-
-      it('fails if tick is lower than limit', async () => {
-        const [invalidBitmapLower, invalidBitmapLowerBump] = await PublicKey.findProgramAddress([
-          BITMAP_SEED,
-          token0.publicKey.toBuffer(),
-          token1.publicKey.toBuffer(),
-          u32ToSeed(fee),
-          u16ToSeed(minWordPos - 1),
-        ],
-          coreProgram.programId
-        )
-
-        await expect(coreProgram.rpc.initBitmapAccount(invalidBitmapLowerBump, minWordPos - 1, {
-          accounts: {
-            signer: owner,
-            poolState,
-            bitmapState: invalidBitmapLower,
-            systemProgram: SystemProgram.programId,
-          }
-        })).to.be.rejectedWith('TLM')
-      })
-
-      it('fails if tick is higher than limit', async () => {
-        const [invalidBitmapUpper, invalidBitmapUpperBump] = await PublicKey.findProgramAddress([
-          BITMAP_SEED,
-          token0.publicKey.toBuffer(),
-          token1.publicKey.toBuffer(),
-          u32ToSeed(fee),
-          u16ToSeed(maxWordPos + 1),
-        ],
-          coreProgram.programId
-        )
-
-        await expect(coreProgram.rpc.initBitmapAccount(invalidBitmapUpperBump, maxWordPos + 1, {
-          accounts: {
-            signer: owner,
-            poolState,
-            bitmapState: invalidBitmapUpper,
-            systemProgram: SystemProgram.programId,
-          }
-        })).to.be.rejectedWith('TUM')
-      })
-
-      it('creates new bitmap account for lower and upper ticks', async () => {
-        await coreProgram.rpc.initBitmapAccount(bitmapLowerBump, wordPosLower, {
-          accounts: {
-            signer: owner,
-            poolState,
-            bitmapState: bitmapLower,
-            systemProgram: SystemProgram.programId,
-          }
-        })
-
-        const bitmapLowerData = await coreProgram.account.tickBitmapState.fetch(bitmapLower)
-        assert.equal(bitmapLowerData.bump, bitmapLowerBump)
-        assert.equal(bitmapLowerData.wordPos, wordPosLower)
-
-        // bitmap upper = bitmap lower
-      })
-    })
-
-    describe('#init_position_account', () => {
-      it('fails if tick lower is not less than tick upper', async () => {
-        const [invalidPosition, invalidPositionBump] = await PublicKey.findProgramAddress([
-          POSITION_SEED,
-          token0.publicKey.toBuffer(),
-          token1.publicKey.toBuffer(),
-          u32ToSeed(fee),
-          posMgrState.toBuffer(),
-          u32ToSeed(tickUpper), // upper first
-          u32ToSeed(tickLower),
-        ],
-          coreProgram.programId
-        );
-
-        await expect(coreProgram.rpc.initPositionAccount(invalidPositionBump, {
-          accounts: {
-            signer: owner,
-            recipient: posMgrState,
-            poolState,
-            tickLowerState: tickUpperState,
-            tickUpperState: tickLowerState,
-            positionState: invalidPosition,
-            systemProgram: SystemProgram.programId,
-          }
-        })).to.be.rejectedWith('TLU')
-      })
-
-      it('creates a new position account', async () => {
-        await coreProgram.rpc.initPositionAccount(corePositionBump, {
-          accounts: {
-            signer: owner,
-            recipient: posMgrState,
-            poolState,
-            tickLowerState,
-            tickUpperState,
-            positionState: corePositionState,
-            systemProgram: SystemProgram.programId,
-          }
-        })
-
-        const corePositionData = await coreProgram.account.positionState.fetch(corePositionState)
-        assert.equal(corePositionData.bump, corePositionBump)
-      })
-    })
-
-    let latestObservationState: web3.PublicKey
-    let nextObservationState: web3.PublicKey
+  describe('#mint_tokenized_position', () => {
 
     it('generate observation PDAs', async () => {
       const {
@@ -1492,13 +1479,58 @@ describe('cyclos-core', async () => {
       ))[0]
     })
 
-    describe('#mint', () => {
-      it('fails if past deadline', async () => {
-        // connection.slot
-        const deadline = new BN(Date.now() / 1000 - 10_000)
+    it('fails if past deadline', async () => {
+      // connection.slot
+      const deadline = new BN(Date.now() / 1000 - 10_000)
 
-        await expect(mgrProgram.rpc.mint(
-          tokenizedPositionBump,
+      await expect(coreProgram.rpc.mintTokenizedPosition(tokenizedPositionBump,
+        amount0Desired,
+        amount1Desired,
+        amount0Minimum,
+        amount1Minimum,
+        deadline, {
+        accounts: {
+          minter: owner,
+          recipient: owner,
+          factoryState,
+          nftMint: nftMintKeypair.publicKey,
+          nftAccount: positionNftAccount,
+          poolState,
+          corePositionState,
+          tickLowerState,
+          tickUpperState,
+          bitmapLower,
+          bitmapUpper,
+          tokenAccount0: minterWallet0,
+          tokenAccount1: minterWallet1,
+          vault0,
+          vault1,
+          latestObservationState,
+          nextObservationState,
+          tokenizedPositionState,
+          coreProgram: coreProgram.programId,
+          systemProgram: SystemProgram.programId,
+          rent: web3.SYSVAR_RENT_PUBKEY,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID
+        }, signers: [nftMintKeypair],
+      })).to.be.rejectedWith('Transaction too old')
+    })
+
+    it('mint tokenized', async () => {
+      const deadline = new BN(Date.now() / 1000 + 10_000)
+
+      let listener: number
+      let [_event, _slot] = await new Promise((resolve, _reject) => {
+        listener = coreProgram.addEventListener("IncreaseLiquidityEvent", (event, slot) => {
+          assert((event.tokenId as web3.PublicKey).equals(nftMintKeypair.publicKey))
+          assert((event.amount0 as BN).eqn(0))
+          assert((event.amount1 as BN).eq(amount1Desired))
+
+          resolve([event, slot]);
+        });
+
+        coreProgram.rpc.mintTokenizedPosition(tokenizedPositionBump,
           amount0Desired,
           amount1Desired,
           amount0Minimum,
@@ -1507,7 +1539,7 @@ describe('cyclos-core', async () => {
           accounts: {
             minter: owner,
             recipient: owner,
-            positionManagerState: posMgrState,
+            factoryState,
             nftMint: nftMintKeypair.publicKey,
             nftAccount: positionNftAccount,
             poolState,
@@ -1528,189 +1560,178 @@ describe('cyclos-core', async () => {
             rent: web3.SYSVAR_RENT_PUBKEY,
             tokenProgram: TOKEN_PROGRAM_ID,
             associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID
-          },
-          signers: [nftMintKeypair],
-        })).to.be.rejectedWith('Transaction too old')
-      })
-
-      it('creates a new position wrapped in an NFT', async () => {
-        console.log('wallet 1', minterWallet1.toString())
-        console.log('vault 1', vault1.toString())
-        const deadline = new BN(Date.now() / 1000 + 10_000)
-
-        let listener: number
-        let [_event, _slot] = await new Promise((resolve, _reject) => {
-          listener = mgrProgram.addEventListener("IncreaseLiquidityEvent", (event, slot) => {
-            assert((event.tokenId as web3.PublicKey).equals(nftMintKeypair.publicKey))
-            assert((event.amount0 as BN).eqn(0))
-            assert((event.amount1 as BN).eq(amount1Desired))
-
-            resolve([event, slot]);
-          });
-
-          mgrProgram.rpc.mint(
-            tokenizedPositionBump,
-            amount0Desired,
-            amount1Desired,
-            amount0Minimum,
-            amount1Minimum,
-            deadline, {
-            accounts: {
-              minter: owner,
-              recipient: owner,
-              positionManagerState: posMgrState,
-              nftMint: nftMintKeypair.publicKey,
-              nftAccount: positionNftAccount,
-              poolState,
-              corePositionState,
-              tickLowerState,
-              tickUpperState,
-              bitmapLower,
-              bitmapUpper,
-              tokenAccount0: minterWallet0,
-              tokenAccount1: minterWallet1,
-              vault0,
-              vault1,
-              latestObservationState,
-              nextObservationState,
-              tokenizedPositionState,
-              coreProgram: coreProgram.programId,
-              systemProgram: SystemProgram.programId,
-              rent: web3.SYSVAR_RENT_PUBKEY,
-              tokenProgram: TOKEN_PROGRAM_ID,
-              associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID
-            },
-            signers: [nftMintKeypair],
-          })
+          }, signers: [nftMintKeypair],
         })
-        await mgrProgram.removeEventListener(listener)
+      })
+      await coreProgram.removeEventListener(listener)
 
-        const nftMint = new Token(
-          connection,
-          nftMintKeypair.publicKey,
-          TOKEN_PROGRAM_ID,
-          new Keypair()
-        )
-        const nftMintInfo = await nftMint.getMintInfo()
-        assert.equal(nftMintInfo.decimals, 0)
-        const nftAccountInfo = await nftMint.getAccountInfo(positionNftAccount)
-        console.log('NFT account info', nftAccountInfo)
-        assert(nftAccountInfo.amount.eqn(1))
+      const nftMint = new Token(
+        connection,
+        nftMintKeypair.publicKey,
+        TOKEN_PROGRAM_ID,
+        new Keypair()
+      )
+      const nftMintInfo = await nftMint.getMintInfo()
+      assert.equal(nftMintInfo.decimals, 0)
+      const nftAccountInfo = await nftMint.getAccountInfo(positionNftAccount)
+      console.log('NFT account info', nftAccountInfo)
+      assert(nftAccountInfo.amount.eqn(1))
 
-        const tokenizedPositionData = await mgrProgram.account.tokenizedPositionState.fetch(tokenizedPositionState)
-        console.log('Tokenized position', tokenizedPositionData)
-        console.log('liquidity inside position', tokenizedPositionData.liquidity.toNumber())
-        assert.equal(tokenizedPositionData.bump, tokenizedPositionBump)
-        assert(tokenizedPositionData.poolId.equals(poolState))
-        assert(tokenizedPositionData.mint.equals(nftMintKeypair.publicKey))
-        assert.equal(tokenizedPositionData.tickLower, tickLower)
-        assert.equal(tokenizedPositionData.tickUpper, tickUpper)
-        assert(tokenizedPositionData.feeGrowthInside0LastX32.eqn(0))
-        assert(tokenizedPositionData.feeGrowthInside1LastX32.eqn(0))
-        assert(tokenizedPositionData.tokensOwed0.eqn(0))
-        assert(tokenizedPositionData.tokensOwed1.eqn(0))
+      const tokenizedPositionData = await coreProgram.account.tokenizedPositionState.fetch(tokenizedPositionState)
+      console.log('Tokenized position', tokenizedPositionData)
+      console.log('liquidity inside position', tokenizedPositionData.liquidity.toNumber())
+      assert.equal(tokenizedPositionData.bump, tokenizedPositionBump)
+      assert(tokenizedPositionData.poolId.equals(poolState))
+      assert(tokenizedPositionData.mint.equals(nftMintKeypair.publicKey))
+      assert.equal(tokenizedPositionData.tickLower, tickLower)
+      assert.equal(tokenizedPositionData.tickUpper, tickUpper)
+      assert(tokenizedPositionData.feeGrowthInside0LastX32.eqn(0))
+      assert(tokenizedPositionData.feeGrowthInside1LastX32.eqn(0))
+      assert(tokenizedPositionData.tokensOwed0.eqn(0))
+      assert(tokenizedPositionData.tokensOwed1.eqn(0))
 
-        const vault0State = await token0.getAccountInfo(vault0)
-        assert(vault0State.amount.eqn(0))
-        const vault1State = await token1.getAccountInfo(vault1)
-        assert(vault1State.amount.eqn(1_000_000))
+      const vault0State = await token0.getAccountInfo(vault0)
+      assert(vault0State.amount.eqn(0))
+      const vault1State = await token1.getAccountInfo(vault1)
+      assert(vault1State.amount.eqn(1_000_000))
 
-        const tickLowerData = await coreProgram.account.tickState.fetch(tickLowerState)
-        console.log('Tick lower', tickLowerData)
-        const tickUpperData = await coreProgram.account.tickState.fetch(tickUpperState)
-        console.log('Tick upper', tickUpperData)
+      const tickLowerData = await coreProgram.account.tickState.fetch(tickLowerState)
+      console.log('Tick lower', tickLowerData)
+      const tickUpperData = await coreProgram.account.tickState.fetch(tickUpperState)
+      console.log('Tick upper', tickUpperData)
 
-        // check if ticks are correctly initialized on the bitmap
-        const tickLowerBitmapData = await coreProgram.account.tickBitmapState.fetch(bitmapLower)
-        const tickLowerPos = (tickLower / tickSpacing) % 256
-        const tickUpperPos = (tickUpper / tickSpacing) % 256
-        const expectedBitmap = [3, 2, 1, 0].map(x => {
-          let word = new BN(0)
-          if (tickLowerPos >= x * 64) {
-            const newWord = new BN(1).shln(tickLowerPos - x * 64)
-            word = word.add(newWord)
-          }
-          if (tickUpperPos >= x * 64) {
-            word = word.setn(tickUpperPos - x * 64)
-            const newWord = new BN(1).shln(tickUpperPos - x * 64)
-            word = word.add(newWord)
-          }
-          return word
-        }).reverse()
-        for (let i = 0; i < 4; i++) {
-          assert(tickLowerBitmapData.word[i].eq(expectedBitmap[i]))
+      // check if ticks are correctly initialized on the bitmap
+      const tickLowerBitmapData = await coreProgram.account.tickBitmapState.fetch(bitmapLower)
+      const tickLowerPos = (tickLower / tickSpacing) % 256
+      const tickUpperPos = (tickUpper / tickSpacing) % 256
+      const expectedBitmap = [3, 2, 1, 0].map(x => {
+        let word = new BN(0)
+        if (tickLowerPos >= x * 64) {
+          const newWord = new BN(1).shln(tickLowerPos - x * 64)
+          word = word.add(newWord)
         }
+        if (tickUpperPos >= x * 64) {
+          word = word.setn(tickUpperPos - x * 64)
+          const newWord = new BN(1).shln(tickUpperPos - x * 64)
+          word = word.add(newWord)
+        }
+        return word
+      }).reverse()
+      for (let i = 0; i < 4; i++) {
+        assert(tickLowerBitmapData.word[i].eq(expectedBitmap[i]))
+      }
 
-        const corePositionData = await coreProgram.account.positionState.fetch(corePositionState)
-        console.log('Core position data', corePositionData)
+      const corePositionData = await coreProgram.account.positionState.fetch(corePositionState)
+      console.log('Core position data', corePositionData)
 
-        // TODO test remaining fields later
-        // Look at uniswap tests for reference
-      })
+      // TODO test remaining fields later
+      // Look at uniswap tests for reference
     })
+  })
 
-    describe('#add_metaplex_metadata', () => {
-      it('Add metadata to a generated position', async () => {
-        await mgrProgram.rpc.addMetaplexMetadata({
-          accounts: {
-            payer: owner,
-            positionManagerState: posMgrState,
-            nftMint: nftMintKeypair.publicKey,
-            tokenizedPositionState,
-            metadataAccount,
-            systemProgram: SystemProgram.programId,
-            rent: web3.SYSVAR_RENT_PUBKEY,
-            tokenProgram: TOKEN_PROGRAM_ID,
-            metadataProgram: metaplex.programs.metadata.MetadataProgram.PUBKEY,
-          }
-        })
+  const nftMint = new Token(
+    connection,
+    nftMintKeypair.publicKey,
+    TOKEN_PROGRAM_ID,
+    notOwner
+  )
 
-        const nftMint = new Token(
-          connection,
-          nftMintKeypair.publicKey,
-          TOKEN_PROGRAM_ID,
-          new Keypair()
-        )
-        const nftMintInfo = await nftMint.getMintInfo()
-        assert.isNull(nftMintInfo.mintAuthority)
-        const metadata = await Metadata.load(connection, metadataAccount)
-        assert.equal(metadata.data.mint, nftMint.publicKey.toString())
-        assert.equal(metadata.data.updateAuthority, posMgrState.toString())
-        assert.equal(metadata.data.data.name, 'Cyclos Positions NFT-V1')
-        assert.equal(metadata.data.data.symbol, 'CYS-POS')
-        assert.equal(metadata.data.data.uri, 'https://api.cyclos.io/mint=' + nftMint.publicKey.toString())
-        assert.deepEqual(metadata.data.data.creators, [{
-          address: posMgrState.toString(),
-          // @ts-ignore
-          verified: 1,
-          share: 100,
-        }])
-        assert.equal(metadata.data.data.sellerFeeBasisPoints, 0)
+  describe('#add_metaplex_metadata', () => {
+    it('Add metadata to a generated position', async () => {
+      await coreProgram.rpc.addMetaplexMetadata({
+        accounts: {
+          payer: owner,
+          factoryState,
+          nftMint: nftMintKeypair.publicKey,
+          tokenizedPositionState,
+          metadataAccount,
+          systemProgram: SystemProgram.programId,
+          rent: web3.SYSVAR_RENT_PUBKEY,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          metadataProgram: metaplex.programs.metadata.MetadataProgram.PUBKEY,
+        }
+      })
+
+      const nftMintInfo = await nftMint.getMintInfo()
+      assert.isNull(nftMintInfo.mintAuthority)
+      const metadata = await Metadata.load(connection, metadataAccount)
+      assert.equal(metadata.data.mint, nftMint.publicKey.toString())
+      assert.equal(metadata.data.updateAuthority, factoryState.toString())
+      assert.equal(metadata.data.data.name, 'Cyclos Positions NFT-V1')
+      assert.equal(metadata.data.data.symbol, 'CYS-POS')
+      assert.equal(metadata.data.data.uri, 'https://api.cyclos.io/mint=' + nftMint.publicKey.toString())
+      assert.deepEqual(metadata.data.data.creators, [{
+        address: factoryState.toString(),
         // @ts-ignore
-        assert.equal(metadata.data.isMutable, 0)
-      })
-
-      it('fails if metadata is already set', async () => {
-        await expect(mgrProgram.rpc.addMetaplexMetadata({
-          accounts: {
-            payer: owner,
-            positionManagerState: posMgrState,
-            nftMint: nftMintKeypair.publicKey,
-            tokenizedPositionState,
-            metadataAccount,
-            systemProgram: SystemProgram.programId,
-            rent: web3.SYSVAR_RENT_PUBKEY,
-            tokenProgram: TOKEN_PROGRAM_ID,
-            metadataProgram: metaplex.programs.metadata.MetadataProgram.PUBKEY,
-          }
-        })).to.be.rejectedWith(Error)
-      })
+        verified: 1,
+        share: 100,
+      }])
+      assert.equal(metadata.data.data.sellerFeeBasisPoints, 0)
+      // @ts-ignore
+      assert.equal(metadata.data.isMutable, 0)
     })
 
-    describe('#increase_liquidity', () => {
-      it('fails if past deadline', async () => {
-        const deadline = new BN(Date.now() / 1000 - 100_000)
-        await expect(mgrProgram.rpc.increaseLiquidity(
+    it('fails if metadata is already set', async () => {
+      await expect(coreProgram.rpc.addMetaplexMetadata({
+        accounts: {
+          payer: owner,
+          factoryState,
+          nftMint: nftMintKeypair.publicKey,
+          tokenizedPositionState,
+          metadataAccount,
+          systemProgram: SystemProgram.programId,
+          rent: web3.SYSVAR_RENT_PUBKEY,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          metadataProgram: metaplex.programs.metadata.MetadataProgram.PUBKEY,
+        }
+      })).to.be.rejectedWith(Error)
+    })
+  })
+
+  describe('#increase_liquidity', () => {
+    it('fails if past deadline', async () => {
+      const deadline = new BN(Date.now() / 1000 - 100_000)
+      await expect(coreProgram.rpc.increaseLiquidity(
+        amount0Desired,
+        amount1Desired,
+        amount0Minimum,
+        amount1Minimum,
+        deadline, {
+        accounts: {
+          payer: owner,
+          factoryState,
+          poolState,
+          corePositionState,
+          tickLowerState,
+          tickUpperState,
+          bitmapLower,
+          bitmapUpper,
+          tokenAccount0: minterWallet0,
+          tokenAccount1: minterWallet1,
+          vault0,
+          vault1,
+          latestObservationState,
+          nextObservationState,
+          tokenizedPositionState,
+          coreProgram: coreProgram.programId,
+          tokenProgram: TOKEN_PROGRAM_ID,
+        },
+      }
+      )).to.be.rejectedWith('Transaction too old')
+    })
+    it('Add token 1 to the position', async () => {
+      const deadline = new BN(Date.now() / 1000 + 10_000)
+      let listener: number
+      let [_event, _slot] = await new Promise((resolve, _reject) => {
+        listener = coreProgram.addEventListener("IncreaseLiquidityEvent", (event, slot) => {
+          assert((event.tokenId as web3.PublicKey).equals(nftMintKeypair.publicKey))
+          assert((event.amount0 as BN).eqn(0))
+          assert((event.amount1 as BN).eq(amount1Desired))
+
+          resolve([event, slot]);
+        });
+
+        coreProgram.rpc.increaseLiquidity(
           amount0Desired,
           amount1Desired,
           amount0Minimum,
@@ -1718,7 +1739,7 @@ describe('cyclos-core', async () => {
           deadline, {
           accounts: {
             payer: owner,
-            positionManagerState: posMgrState,
+            factoryState,
             poolState,
             corePositionState,
             tickLowerState,
@@ -1736,70 +1757,173 @@ describe('cyclos-core', async () => {
             tokenProgram: TOKEN_PROGRAM_ID,
           },
         }
-        )).to.be.rejectedWith('Transaction too old')
+        )
       })
-      it('Add token 1 to the position', async () => {
-        const deadline = new BN(Date.now() / 1000 + 10_000)
-        let listener: number
-        let [_event, _slot] = await new Promise((resolve, _reject) => {
-          listener = mgrProgram.addEventListener("IncreaseLiquidityEvent", (event, slot) => {
-            assert((event.tokenId as web3.PublicKey).equals(nftMintKeypair.publicKey))
-            assert((event.amount0 as BN).eqn(0))
-            assert((event.amount1 as BN).eq(amount1Desired))
+      await coreProgram.removeEventListener(listener)
 
-            resolve([event, slot]);
-          });
+      const vault0State = await token0.getAccountInfo(vault0)
+      assert(vault0State.amount.eqn(0))
+      const vault1State = await token1.getAccountInfo(vault1)
+      assert(vault1State.amount.eqn(2_000_000))
 
-          mgrProgram.rpc.increaseLiquidity(
-            amount0Desired,
-            amount1Desired,
-            amount0Minimum,
-            amount1Minimum,
-            deadline, {
-            accounts: {
-              payer: owner,
-              positionManagerState: posMgrState,
-              poolState,
-              corePositionState,
-              tickLowerState,
-              tickUpperState,
-              bitmapLower,
-              bitmapUpper,
-              tokenAccount0: minterWallet0,
-              tokenAccount1: minterWallet1,
-              vault0,
-              vault1,
-              latestObservationState,
-              nextObservationState,
-              tokenizedPositionState,
-              coreProgram: coreProgram.programId,
-              tokenProgram: TOKEN_PROGRAM_ID,
-            },
-          }
-          )
-        })
-        await mgrProgram.removeEventListener(listener)
-
-        const vault0State = await token0.getAccountInfo(vault0)
-        assert(vault0State.amount.eqn(0))
-        const vault1State = await token1.getAccountInfo(vault1)
-        assert(vault1State.amount.eqn(2_000_000))
-
-        // TODO test remaining fields later
-        // Look at uniswap tests for reference
-      })
-
-      // To check slippage, we must add liquidity in a price range around
-      // current price
+      // TODO test remaining fields later
+      // Look at uniswap tests for reference
     })
 
-    describe('#decrease_liquidity', () => {
-      const liquidity = new BN(1999599283)
-      const amount1Desired = new BN(999999)
+    // To check slippage, we must add liquidity in a price range around
+    // current price
+  })
 
-      it('fails if past deadline', async () => {
-        const deadline = new BN(Date.now() / 1000 - 100_000)
-        await expect(mgrProgram.rpc.decreaseLiquidity(
+  describe('#decrease_liquidity', () => {
+    const liquidity = new BN(1999599283)
+    const amount1Desired = new BN(999999)
+
+    it('fails if past deadline', async () => {
+      const deadline = new BN(Date.now() / 1000 - 100_000)
+      await expect(coreProgram.rpc.decreaseLiquidity(
+        liquidity,
+        new BN(0),
+        amount1Desired,
+        deadline, {
+        accounts: {
+          ownerOrDelegate: owner,
+          nftAccount: positionNftAccount,
+          tokenizedPositionState,
+          factoryState,
+          poolState,
+          corePositionState,
+          tickLowerState,
+          tickUpperState,
+          bitmapLower,
+          bitmapUpper,
+          latestObservationState,
+          nextObservationState,
+          coreProgram: coreProgram.programId
+        }
+      }
+      )).to.be.rejectedWith('Transaction too old')
+    })
+
+    it('fails if not called by the owner', async () => {
+      const deadline = new BN(Date.now() / 1000 + 10_000)
+      await expect(coreProgram.rpc.decreaseLiquidity(
+        liquidity,
+        new BN(0),
+        amount1Desired,
+        deadline, {
+        accounts: {
+          ownerOrDelegate: notOwner,
+          nftAccount: positionNftAccount,
+          tokenizedPositionState,
+          factoryState,
+          poolState,
+          corePositionState,
+          tickLowerState,
+          tickUpperState,
+          bitmapLower,
+          bitmapUpper,
+          latestObservationState,
+          nextObservationState,
+          coreProgram: coreProgram.programId
+        }
+      }
+      )).to.be.rejectedWith(Error)
+    })
+
+    it('fails if past slippage tolerance', async () => {
+      const deadline = new BN(Date.now() / 1000 + 10_000)
+      await expect(coreProgram.rpc.decreaseLiquidity(
+        liquidity,
+        new BN(0),
+        new BN(1_000_000), // 999_999 available
+        deadline, {
+        accounts: {
+          ownerOrDelegate: owner,
+          nftAccount: positionNftAccount,
+          tokenizedPositionState,
+          factoryState,
+          poolState,
+          corePositionState,
+          tickLowerState,
+          tickUpperState,
+          bitmapLower,
+          bitmapUpper,
+          latestObservationState,
+          nextObservationState,
+          coreProgram: coreProgram.programId
+        }
+      }
+      )).to.be.rejectedWith('Price slippage check')
+    })
+
+
+
+    it('generate a temporary NFT account for testing', async () => {
+      temporaryNftHolder = await nftMint.createAssociatedTokenAccount(mintAuthority.publicKey)
+    })
+
+    it('fails if NFT token account for the user is empty', async () => {
+      const transferTx = new web3.Transaction()
+      transferTx.recentBlockhash = (await connection.getRecentBlockhash()).blockhash
+      transferTx.add(Token.createTransferInstruction(
+        TOKEN_PROGRAM_ID,
+        positionNftAccount,
+        temporaryNftHolder,
+        owner,
+        [],
+        1
+      ))
+
+      await anchor.getProvider().send(transferTx)
+
+      const deadline = new BN(Date.now() / 1000 + 10_000)
+      await expect(coreProgram.rpc.decreaseLiquidity(
+        liquidity,
+        new BN(0),
+        amount1Desired,
+        deadline, {
+        accounts: {
+          ownerOrDelegate: owner,
+          nftAccount: positionNftAccount, // no balance
+          tokenizedPositionState,
+          factoryState,
+          poolState,
+          corePositionState,
+          tickLowerState,
+          tickUpperState,
+          bitmapLower,
+          bitmapUpper,
+          latestObservationState,
+          nextObservationState,
+          coreProgram: coreProgram.programId
+        }
+      }
+      )).to.be.rejectedWith('Not approved')
+
+      // send the NFT back to the original owner
+      await nftMint.transfer(
+        temporaryNftHolder,
+        positionNftAccount,
+        mintAuthority,
+        [],
+        1
+      )
+    })
+
+    it('burn half of the position liquidity as owner', async () => {
+      const deadline = new BN(Date.now() / 1000 + 10_000)
+      let listener: number
+      let [_event, _slot] = await new Promise((resolve, _reject) => {
+        listener = coreProgram.addEventListener("DecreaseLiquidityEvent", (event, slot) => {
+          assert((event.tokenId as web3.PublicKey).equals(nftMintKeypair.publicKey))
+          assert((event.liquidity as BN).eq(liquidity))
+          assert((event.amount0 as BN).eqn(0))
+          assert((event.amount1 as BN).eq(amount1Desired))
+
+          resolve([event, slot]);
+        });
+
+        coreProgram.rpc.decreaseLiquidity(
           liquidity,
           new BN(0),
           amount1Desired,
@@ -1808,193 +1932,7 @@ describe('cyclos-core', async () => {
             ownerOrDelegate: owner,
             nftAccount: positionNftAccount,
             tokenizedPositionState,
-            positionManagerState: posMgrState,
-            poolState,
-            corePositionState,
-            tickLowerState,
-            tickUpperState,
-            bitmapLower,
-            bitmapUpper,
-            latestObservationState,
-            nextObservationState,
-            coreProgram: coreProgram.programId
-          }
-        }
-        )).to.be.rejectedWith('Transaction too old')
-      })
-
-      it('fails if not called by the owner', async () => {
-        const deadline = new BN(Date.now() / 1000 + 10_000)
-        await expect(mgrProgram.rpc.decreaseLiquidity(
-          liquidity,
-          new BN(0),
-          amount1Desired,
-          deadline, {
-          accounts: {
-            ownerOrDelegate: notOwner,
-            nftAccount: positionNftAccount,
-            tokenizedPositionState,
-            positionManagerState: posMgrState,
-            poolState,
-            corePositionState,
-            tickLowerState,
-            tickUpperState,
-            bitmapLower,
-            bitmapUpper,
-            latestObservationState,
-            nextObservationState,
-            coreProgram: coreProgram.programId
-          }
-        }
-        )).to.be.rejectedWith(Error)
-      })
-
-      it('fails if past slippage tolerance', async () => {
-        const deadline = new BN(Date.now() / 1000 + 10_000)
-        await expect(mgrProgram.rpc.decreaseLiquidity(
-          liquidity,
-          new BN(0),
-          new BN(1_000_000), // 999_999 available
-          deadline, {
-          accounts: {
-            ownerOrDelegate: owner,
-            nftAccount: positionNftAccount,
-            tokenizedPositionState,
-            positionManagerState: posMgrState,
-            poolState,
-            corePositionState,
-            tickLowerState,
-            tickUpperState,
-            bitmapLower,
-            bitmapUpper,
-            latestObservationState,
-            nextObservationState,
-            coreProgram: coreProgram.programId
-          }
-        }
-        )).to.be.rejectedWith('Price slippage check')
-      })
-
-
-
-      it('generate a temporary NFT account for testing', async () => {
-        temporaryNftHolder = await nftMint.createAssociatedTokenAccount(mintAuthority.publicKey)
-      })
-
-      it('fails if NFT token account for the user is empty', async () => {
-        const transferTx = new web3.Transaction()
-        transferTx.recentBlockhash = (await connection.getRecentBlockhash()).blockhash
-        transferTx.add(Token.createTransferInstruction(
-          TOKEN_PROGRAM_ID,
-          positionNftAccount,
-          temporaryNftHolder,
-          owner,
-          [],
-          1
-        ))
-
-        await anchor.getProvider().send(transferTx)
-
-        const deadline = new BN(Date.now() / 1000 + 10_000)
-        await expect(mgrProgram.rpc.decreaseLiquidity(
-          liquidity,
-          new BN(0),
-          amount1Desired,
-          deadline, {
-          accounts: {
-            ownerOrDelegate: owner,
-            nftAccount: positionNftAccount, // no balance
-            tokenizedPositionState,
-            positionManagerState: posMgrState,
-            poolState,
-            corePositionState,
-            tickLowerState,
-            tickUpperState,
-            bitmapLower,
-            bitmapUpper,
-            latestObservationState,
-            nextObservationState,
-            coreProgram: coreProgram.programId
-          }
-        }
-        )).to.be.rejectedWith('Not approved')
-
-        // send the NFT back to the original owner
-        await nftMint.transfer(
-          temporaryNftHolder,
-          positionNftAccount,
-          mintAuthority,
-          [],
-          1
-        )
-      })
-
-      it('burn half of the position liquidity as owner', async () => {
-        const deadline = new BN(Date.now() / 1000 + 10_000)
-        let listener: number
-        let [_event, _slot] = await new Promise((resolve, _reject) => {
-          listener = mgrProgram.addEventListener("DecreaseLiquidityEvent", (event, slot) => {
-            assert((event.tokenId as web3.PublicKey).equals(nftMintKeypair.publicKey))
-            assert((event.liquidity as BN).eq(liquidity))
-            assert((event.amount0 as BN).eqn(0))
-            assert((event.amount1 as BN).eq(amount1Desired))
-
-            resolve([event, slot]);
-          });
-
-          mgrProgram.rpc.decreaseLiquidity(
-            liquidity,
-            new BN(0),
-            amount1Desired,
-            deadline, {
-            accounts: {
-              ownerOrDelegate: owner,
-              nftAccount: positionNftAccount,
-              tokenizedPositionState,
-              positionManagerState: posMgrState,
-              poolState,
-              corePositionState,
-              tickLowerState,
-              tickUpperState,
-              bitmapLower,
-              bitmapUpper,
-              latestObservationState,
-              nextObservationState,
-              coreProgram: coreProgram.programId
-            }
-          }
-          )
-        })
-        await mgrProgram.removeEventListener(listener)
-        const tokenizedPositionData = await mgrProgram.account.tokenizedPositionState.fetch(tokenizedPositionState)
-        assert(tokenizedPositionData.tokensOwed0.eqn(0))
-        assert(tokenizedPositionData.tokensOwed1.eqn(999999))
-      })
-
-      it('fails if 0 tokens are delegated', async () => {
-        const approveTx = new web3.Transaction()
-        approveTx.recentBlockhash = (await connection.getRecentBlockhash()).blockhash
-        approveTx.add(Token.createApproveInstruction(
-          TOKEN_PROGRAM_ID,
-          positionNftAccount,
-          mintAuthority.publicKey,
-          owner,
-          [],
-          0
-        ))
-        await anchor.getProvider().send(approveTx)
-
-        const deadline = new BN(Date.now() / 1000 + 10_000)
-        const tx = mgrProgram.transaction.decreaseLiquidity(
-          new BN(1_000),
-          new BN(0),
-          new BN(0),
-          deadline, {
-          accounts: {
-            ownerOrDelegate: mintAuthority.publicKey,
-            nftAccount: positionNftAccount,
-            tokenizedPositionState,
-            positionManagerState: posMgrState,
+            factoryState,
             poolState,
             corePositionState,
             tickLowerState,
@@ -2007,70 +1945,74 @@ describe('cyclos-core', async () => {
           }
         }
         )
-        await expect(connection.sendTransaction(tx, [mintAuthority])).to.be.rejectedWith(Error)
-        // TODO see why errors inside functions are not propagating outside
       })
+      await coreProgram.removeEventListener(listener)
+      const tokenizedPositionData = await coreProgram.account.tokenizedPositionState.fetch(tokenizedPositionState)
+      assert(tokenizedPositionData.tokensOwed0.eqn(0))
+      assert(tokenizedPositionData.tokensOwed1.eqn(999999))
+    })
 
-      it('burn liquidity as the delegated authority', async () => {
-        const approveTx = new web3.Transaction()
-        approveTx.recentBlockhash = (await connection.getRecentBlockhash()).blockhash
-        approveTx.add(Token.createApproveInstruction(
-          TOKEN_PROGRAM_ID,
-          positionNftAccount,
-          mintAuthority.publicKey,
-          owner,
-          [],
-          1
-        ))
-        await anchor.getProvider().send(approveTx)
+    it('fails if 0 tokens are delegated', async () => {
+      const approveTx = new web3.Transaction()
+      approveTx.recentBlockhash = (await connection.getRecentBlockhash()).blockhash
+      approveTx.add(Token.createApproveInstruction(
+        TOKEN_PROGRAM_ID,
+        positionNftAccount,
+        mintAuthority.publicKey,
+        owner,
+        [],
+        0
+      ))
+      await anchor.getProvider().send(approveTx)
 
-        const deadline = new BN(Date.now() / 1000 + 10_000)
-        let listener: number
-        let [_event, _slot] = await new Promise((resolve, _reject) => {
-          listener = mgrProgram.addEventListener("DecreaseLiquidityEvent", (event, slot) => {
-            resolve([event, slot]);
-          });
+      const deadline = new BN(Date.now() / 1000 + 10_000)
+      const tx = coreProgram.transaction.decreaseLiquidity(
+        new BN(1_000),
+        new BN(0),
+        new BN(0),
+        deadline, {
+        accounts: {
+          ownerOrDelegate: mintAuthority.publicKey,
+          nftAccount: positionNftAccount,
+          tokenizedPositionState,
+          factoryState,
+          poolState,
+          corePositionState,
+          tickLowerState,
+          tickUpperState,
+          bitmapLower,
+          bitmapUpper,
+          latestObservationState,
+          nextObservationState,
+          coreProgram: coreProgram.programId
+        }
+      }
+      )
+      await expect(connection.sendTransaction(tx, [mintAuthority])).to.be.rejectedWith(Error)
+      // TODO see why errors inside functions are not propagating outside
+    })
 
-          const tx = mgrProgram.transaction.decreaseLiquidity(
-            new BN(1_000_000),
-            new BN(0),
-            new BN(0),
-            deadline, {
-            accounts: {
-              ownerOrDelegate: mintAuthority.publicKey,
-              nftAccount: positionNftAccount,
-              tokenizedPositionState,
-              positionManagerState: posMgrState,
-              poolState,
-              corePositionState,
-              tickLowerState,
-              tickUpperState,
-              bitmapLower,
-              bitmapUpper,
-              latestObservationState,
-              nextObservationState,
-              coreProgram: coreProgram.programId
-            }
-          }
-          )
-          connection.sendTransaction(tx, [mintAuthority])
-        })
-        await mgrProgram.removeEventListener(listener)
-      })
+    it('burn liquidity as the delegated authority', async () => {
+      const approveTx = new web3.Transaction()
+      approveTx.recentBlockhash = (await connection.getRecentBlockhash()).blockhash
+      approveTx.add(Token.createApproveInstruction(
+        TOKEN_PROGRAM_ID,
+        positionNftAccount,
+        mintAuthority.publicKey,
+        owner,
+        [],
+        1
+      ))
+      await anchor.getProvider().send(approveTx)
 
-      it('fails if delegation is revoked', async () => {
-        const revokeTx = new web3.Transaction()
-        revokeTx.recentBlockhash = (await connection.getRecentBlockhash()).blockhash
-        revokeTx.add(Token.createRevokeInstruction(
-          TOKEN_PROGRAM_ID,
-          positionNftAccount,
-          owner,
-          [],
-        ))
-        await anchor.getProvider().send(revokeTx)
+      const deadline = new BN(Date.now() / 1000 + 10_000)
+      let listener: number
+      let [_event, _slot] = await new Promise((resolve, _reject) => {
+        listener = coreProgram.addEventListener("DecreaseLiquidityEvent", (event, slot) => {
+          resolve([event, slot]);
+        });
 
-        const deadline = new BN(Date.now() / 1000 + 10_000)
-        const tx = mgrProgram.transaction.decreaseLiquidity(
+        const tx = coreProgram.transaction.decreaseLiquidity(
           new BN(1_000_000),
           new BN(0),
           new BN(0),
@@ -2079,7 +2021,7 @@ describe('cyclos-core', async () => {
             ownerOrDelegate: mintAuthority.publicKey,
             nftAccount: positionNftAccount,
             tokenizedPositionState,
-            positionManagerState: posMgrState,
+            factoryState,
             poolState,
             corePositionState,
             tickLowerState,
@@ -2092,44 +2034,207 @@ describe('cyclos-core', async () => {
           }
         }
         )
-        // TODO check for 'Not approved' error
-        await expect(connection.sendTransaction(tx, [mintAuthority])).to.be.rejectedWith(Error)
+        connection.sendTransaction(tx, [mintAuthority])
       })
+      await coreProgram.removeEventListener(listener)
     })
 
-    describe('#collect', () => {
-      it('fails if both amounts are set as 0', async () => {
-        await expect(mgrProgram.rpc.collect(new BN(0), new BN(0), {
+    it('fails if delegation is revoked', async () => {
+      const revokeTx = new web3.Transaction()
+      revokeTx.recentBlockhash = (await connection.getRecentBlockhash()).blockhash
+      revokeTx.add(Token.createRevokeInstruction(
+        TOKEN_PROGRAM_ID,
+        positionNftAccount,
+        owner,
+        [],
+      ))
+      await anchor.getProvider().send(revokeTx)
+
+      const deadline = new BN(Date.now() / 1000 + 10_000)
+      const tx = coreProgram.transaction.decreaseLiquidity(
+        new BN(1_000_000),
+        new BN(0),
+        new BN(0),
+        deadline, {
+        accounts: {
+          ownerOrDelegate: mintAuthority.publicKey,
+          nftAccount: positionNftAccount,
+          tokenizedPositionState,
+          factoryState,
+          poolState,
+          corePositionState,
+          tickLowerState,
+          tickUpperState,
+          bitmapLower,
+          bitmapUpper,
+          latestObservationState,
+          nextObservationState,
+          coreProgram: coreProgram.programId
+        }
+      }
+      )
+      // TODO check for 'Not approved' error
+      await expect(connection.sendTransaction(tx, [mintAuthority])).to.be.rejectedWith(Error)
+    })
+  })
+
+  describe('#collect', () => {
+    it('fails if both amounts are set as 0', async () => {
+      await expect(coreProgram.rpc.collectFromTokenized(new BN(0), new BN(0), {
+        accounts: {
+          ownerOrDelegate: owner,
+          nftAccount: positionNftAccount,
+          tokenizedPositionState,
+          factoryState,
+          poolState,
+          corePositionState,
+          tickLowerState,
+          tickUpperState,
+          bitmapLower,
+          bitmapUpper,
+          latestObservationState,
+          nextObservationState,
+          coreProgram: coreProgram.programId,
+          vault0,
+          vault1,
+          recipientWallet0: feeRecipientWallet0,
+          recipientWallet1: feeRecipientWallet1,
+          tokenProgram: TOKEN_PROGRAM_ID,
+        }
+      })).to.be.rejectedWith(Error)
+    })
+
+    it('fails if signer is not the owner or a delegated authority', async () => {
+      const tx = coreProgram.transaction.collectFromTokenized(new BN(0), new BN(10), {
+        accounts: {
+          ownerOrDelegate: notOwner.publicKey,
+          nftAccount: positionNftAccount,
+          tokenizedPositionState,
+          factoryState,
+          poolState,
+          corePositionState,
+          tickLowerState,
+          tickUpperState,
+          bitmapLower,
+          bitmapUpper,
+          latestObservationState,
+          nextObservationState,
+          coreProgram: coreProgram.programId,
+          vault0,
+          vault1,
+          recipientWallet0: feeRecipientWallet0,
+          recipientWallet1: feeRecipientWallet1,
+          tokenProgram: TOKEN_PROGRAM_ID,
+        }
+      })
+      await expect(connection.sendTransaction(tx, [notOwner])).to.be.rejectedWith(Error)
+    })
+
+    it('fails delegated amount is 0', async () => {
+      const approveTx = new web3.Transaction()
+      approveTx.recentBlockhash = (await connection.getRecentBlockhash()).blockhash
+      approveTx.add(Token.createApproveInstruction(
+        TOKEN_PROGRAM_ID,
+        positionNftAccount,
+        mintAuthority.publicKey,
+        owner,
+        [],
+        0
+      ))
+      await anchor.getProvider().send(approveTx)
+
+      const tx = coreProgram.transaction.collectFromTokenized(new BN(0), new BN(10), {
+        accounts: {
+          ownerOrDelegate: mintAuthority.publicKey,
+          nftAccount: positionNftAccount,
+          tokenizedPositionState,
+          factoryState,
+          poolState,
+          corePositionState,
+          tickLowerState,
+          tickUpperState,
+          bitmapLower,
+          bitmapUpper,
+          latestObservationState,
+          nextObservationState,
+          coreProgram: coreProgram.programId,
+          vault0,
+          vault1,
+          recipientWallet0: feeRecipientWallet0,
+          recipientWallet1: feeRecipientWallet1,
+          tokenProgram: TOKEN_PROGRAM_ID,
+        }
+      })
+      await expect(connection.sendTransaction(tx, [mintAuthority])).to.be.rejectedWith(Error)
+    })
+
+    it('fails if NFT token account is empty', async () => {
+      const transferTx = new web3.Transaction()
+      transferTx.recentBlockhash = (await connection.getRecentBlockhash()).blockhash
+      transferTx.add(Token.createTransferInstruction(
+        TOKEN_PROGRAM_ID,
+        positionNftAccount,
+        temporaryNftHolder,
+        owner,
+        [],
+        1
+      ))
+      await anchor.getProvider().send(transferTx)
+
+      await expect(coreProgram.rpc.collectFromTokenized(new BN(0), new BN(10), {
+        accounts: {
+          ownerOrDelegate: owner,
+          nftAccount: positionNftAccount,
+          tokenizedPositionState,
+          factoryState,
+          poolState,
+          corePositionState,
+          tickLowerState,
+          tickUpperState,
+          bitmapLower,
+          bitmapUpper,
+          latestObservationState,
+          nextObservationState,
+          coreProgram: coreProgram.programId,
+          vault0,
+          vault1,
+          recipientWallet0: feeRecipientWallet0,
+          recipientWallet1: feeRecipientWallet1,
+          tokenProgram: TOKEN_PROGRAM_ID,
+        }
+      })).to.be.rejectedWith('Not approved')
+
+      // send the NFT back to the original owner
+      await nftMint.transfer(
+        temporaryNftHolder,
+        positionNftAccount,
+        mintAuthority,
+        [],
+        1
+      )
+    })
+
+    it('collect a portion of owed tokens as owner', async () => {
+      const amount0Max = new BN(0)
+      const amount1Max = new BN(10)
+      let listener: number
+      let [_event, _slot] = await new Promise((resolve, _reject) => {
+        listener = coreProgram.addEventListener("CollectTokenizedEvent", (event, slot) => {
+          assert((event.tokenId as web3.PublicKey).equals(nftMintKeypair.publicKey))
+          assert((event.amount0 as BN).eq(amount0Max))
+          assert((event.amount1 as BN).eq(amount1Max))
+          assert((event.recipientWallet0 as web3.PublicKey).equals(feeRecipientWallet0))
+          assert((event.recipientWallet1 as web3.PublicKey).equals(feeRecipientWallet1))
+
+          resolve([event, slot]);
+        });
+
+        coreProgram.rpc.collectFromTokenized(amount0Max, amount1Max, {
           accounts: {
             ownerOrDelegate: owner,
             nftAccount: positionNftAccount,
             tokenizedPositionState,
-            positionManagerState: posMgrState,
-            poolState,
-            corePositionState,
-            tickLowerState,
-            tickUpperState,
-            bitmapLower,
-            bitmapUpper,
-            latestObservationState,
-            nextObservationState,
-            coreProgram: coreProgram.programId,
-            vault0,
-            vault1,
-            recipientWallet0: feeRecipientWallet0,
-            recipientWallet1: feeRecipientWallet1,
-            tokenProgram: TOKEN_PROGRAM_ID,
-          }
-        })).to.be.rejectedWith(Error)
-      })
-
-      it('fails if signer is not the owner or a delegated authority', async () => {
-        const tx = mgrProgram.transaction.collect(new BN(0), new BN(10), {
-          accounts: {
-            ownerOrDelegate: notOwner.publicKey,
-            nftAccount: positionNftAccount,
-            tokenizedPositionState,
-            positionManagerState: posMgrState,
+            factoryState,
             poolState,
             corePositionState,
             tickLowerState,
@@ -2146,28 +2251,61 @@ describe('cyclos-core', async () => {
             tokenProgram: TOKEN_PROGRAM_ID,
           }
         })
-        await expect(connection.sendTransaction(tx, [notOwner])).to.be.rejectedWith(Error)
       })
+      await coreProgram.removeEventListener(listener)
 
-      it('fails delegated amount is 0', async () => {
-        const approveTx = new web3.Transaction()
-        approveTx.recentBlockhash = (await connection.getRecentBlockhash()).blockhash
-        approveTx.add(Token.createApproveInstruction(
-          TOKEN_PROGRAM_ID,
-          positionNftAccount,
-          mintAuthority.publicKey,
-          owner,
-          [],
-          0
-        ))
-        await anchor.getProvider().send(approveTx)
+      const corePositionData = await coreProgram.account.positionState.fetch(corePositionState)
+      assert(corePositionData.tokensOwed0.eqn(0))
+      assert(corePositionData.tokensOwed1.eqn(1000489)) // minus 10
 
-        const tx = mgrProgram.transaction.collect(new BN(0), new BN(10), {
+      const tokenizedPositionData = await coreProgram.account.tokenizedPositionState.fetch(tokenizedPositionState)
+      assert(tokenizedPositionData.tokensOwed0.eqn(0))
+      assert(tokenizedPositionData.tokensOwed1.eqn(1000489))
+
+      const recipientWallet0Info = await token0.getAccountInfo(feeRecipientWallet0)
+      const recipientWallet1Info = await token1.getAccountInfo(feeRecipientWallet1)
+      assert(recipientWallet0Info.amount.eqn(0))
+      assert(recipientWallet1Info.amount.eqn(10))
+
+      const vault0Info = await token0.getAccountInfo(vault0)
+      const vault1Info = await token1.getAccountInfo(vault1)
+      assert(vault0Info.amount.eqn(0))
+      assert(vault1Info.amount.eqn(1999990)) // minus 10
+    })
+
+    it('collect a portion of owed tokens as the delegated authority', async () => {
+      const approveTx = new web3.Transaction()
+      approveTx.recentBlockhash = (await connection.getRecentBlockhash()).blockhash
+      approveTx.add(Token.createApproveInstruction(
+        TOKEN_PROGRAM_ID,
+        positionNftAccount,
+        mintAuthority.publicKey,
+        owner,
+        [],
+        1
+      ))
+      await anchor.getProvider().send(approveTx)
+
+      const amount0Max = new BN(0)
+      const amount1Max = new BN(10)
+      let listener: number
+      let [_event, _slot] = await new Promise((resolve, _reject) => {
+        listener = coreProgram.addEventListener("CollectTokenizedEvent", (event, slot) => {
+          assert((event.tokenId as web3.PublicKey).equals(nftMintKeypair.publicKey))
+          assert((event.amount0 as BN).eq(amount0Max))
+          assert((event.amount1 as BN).eq(amount1Max))
+          assert((event.recipientWallet0 as web3.PublicKey).equals(feeRecipientWallet0))
+          assert((event.recipientWallet1 as web3.PublicKey).equals(feeRecipientWallet1))
+
+          resolve([event, slot]);
+        });
+
+        const tx = coreProgram.transaction.collectFromTokenized(new BN(0), new BN(10), {
           accounts: {
             ownerOrDelegate: mintAuthority.publicKey,
             nftAccount: positionNftAccount,
             tokenizedPositionState,
-            positionManagerState: posMgrState,
+            factoryState,
             poolState,
             corePositionState,
             tickLowerState,
@@ -2184,352 +2322,195 @@ describe('cyclos-core', async () => {
             tokenProgram: TOKEN_PROGRAM_ID,
           }
         })
-        await expect(connection.sendTransaction(tx, [mintAuthority])).to.be.rejectedWith(Error)
+        connection.sendTransaction(tx, [mintAuthority])
       })
+      await coreProgram.removeEventListener(listener)
 
-      it('fails if NFT token account is empty', async () => {
-        const transferTx = new web3.Transaction()
-        transferTx.recentBlockhash = (await connection.getRecentBlockhash()).blockhash
-        transferTx.add(Token.createTransferInstruction(
-          TOKEN_PROGRAM_ID,
-          positionNftAccount,
-          temporaryNftHolder,
-          owner,
-          [],
-          1
-        ))
-        await anchor.getProvider().send(transferTx)
+      const corePositionData = await coreProgram.account.positionState.fetch(corePositionState)
+      assert(corePositionData.tokensOwed0.eqn(0))
+      assert(corePositionData.tokensOwed1.eqn(1000479))
 
-        await expect(mgrProgram.rpc.collect(new BN(0), new BN(10), {
-          accounts: {
-            ownerOrDelegate: owner,
-            nftAccount: positionNftAccount,
-            tokenizedPositionState,
-            positionManagerState: posMgrState,
-            poolState,
-            corePositionState,
-            tickLowerState,
-            tickUpperState,
-            bitmapLower,
-            bitmapUpper,
-            latestObservationState,
-            nextObservationState,
-            coreProgram: coreProgram.programId,
-            vault0,
-            vault1,
-            recipientWallet0: feeRecipientWallet0,
-            recipientWallet1: feeRecipientWallet1,
-            tokenProgram: TOKEN_PROGRAM_ID,
-          }
-        })).to.be.rejectedWith('Not approved')
+      const tokenizedPositionData = await coreProgram.account.tokenizedPositionState.fetch(tokenizedPositionState)
+      assert(tokenizedPositionData.tokensOwed0.eqn(0))
+      assert(tokenizedPositionData.tokensOwed1.eqn(1000479))
 
-        // send the NFT back to the original owner
-        await nftMint.transfer(
-          temporaryNftHolder,
-          positionNftAccount,
-          mintAuthority,
-          [],
-          1
-        )
-      })
+      const recipientWallet0Info = await token0.getAccountInfo(feeRecipientWallet0)
+      const recipientWallet1Info = await token1.getAccountInfo(feeRecipientWallet1)
+      assert(recipientWallet0Info.amount.eqn(0))
+      assert(recipientWallet1Info.amount.eqn(20))
 
-      it('collect a portion of owed tokens as owner', async () => {
-        const amount0Max = new BN(0)
-        const amount1Max = new BN(10)
-        let listener: number
-        let [_event, _slot] = await new Promise((resolve, _reject) => {
-          listener = mgrProgram.addEventListener("CollectEvent", (event, slot) => {
-            assert((event.tokenId as web3.PublicKey).equals(nftMintKeypair.publicKey))
-            assert((event.amount0 as BN).eq(amount0Max))
-            assert((event.amount1 as BN).eq(amount1Max))
-            assert((event.recipientWallet0 as web3.PublicKey).equals(feeRecipientWallet0))
-            assert((event.recipientWallet1 as web3.PublicKey).equals(feeRecipientWallet1))
-
-            resolve([event, slot]);
-          });
-
-          mgrProgram.rpc.collect(amount0Max, amount1Max, {
-            accounts: {
-              ownerOrDelegate: owner,
-              nftAccount: positionNftAccount,
-              tokenizedPositionState,
-              positionManagerState: posMgrState,
-              poolState,
-              corePositionState,
-              tickLowerState,
-              tickUpperState,
-              bitmapLower,
-              bitmapUpper,
-              latestObservationState,
-              nextObservationState,
-              coreProgram: coreProgram.programId,
-              vault0,
-              vault1,
-              recipientWallet0: feeRecipientWallet0,
-              recipientWallet1: feeRecipientWallet1,
-              tokenProgram: TOKEN_PROGRAM_ID,
-            }
-          })
-        })
-        await mgrProgram.removeEventListener(listener)
-
-        const corePositionData = await coreProgram.account.positionState.fetch(corePositionState)
-        assert(corePositionData.tokensOwed0.eqn(0))
-        assert(corePositionData.tokensOwed1.eqn(1000489)) // minus 10
-
-        const tokenizedPositionData = await mgrProgram.account.tokenizedPositionState.fetch(tokenizedPositionState)
-        assert(tokenizedPositionData.tokensOwed0.eqn(0))
-        assert(tokenizedPositionData.tokensOwed1.eqn(1000489))
-
-        const recipientWallet0Info = await token0.getAccountInfo(feeRecipientWallet0)
-        const recipientWallet1Info = await token1.getAccountInfo(feeRecipientWallet1)
-        assert(recipientWallet0Info.amount.eqn(0))
-        assert(recipientWallet1Info.amount.eqn(10))
-
-        const vault0Info = await token0.getAccountInfo(vault0)
-        const vault1Info = await token1.getAccountInfo(vault1)
-        assert(vault0Info.amount.eqn(0))
-        assert(vault1Info.amount.eqn(1999990)) // minus 10
-      })
-
-      it('collect a portion of owed tokens as the delegated authority', async () => {
-        const approveTx = new web3.Transaction()
-        approveTx.recentBlockhash = (await connection.getRecentBlockhash()).blockhash
-        approveTx.add(Token.createApproveInstruction(
-          TOKEN_PROGRAM_ID,
-          positionNftAccount,
-          mintAuthority.publicKey,
-          owner,
-          [],
-          1
-        ))
-        await anchor.getProvider().send(approveTx)
-
-        const amount0Max = new BN(0)
-        const amount1Max = new BN(10)
-        let listener: number
-        let [_event, _slot] = await new Promise((resolve, _reject) => {
-          listener = mgrProgram.addEventListener("CollectEvent", (event, slot) => {
-            assert((event.tokenId as web3.PublicKey).equals(nftMintKeypair.publicKey))
-            assert((event.amount0 as BN).eq(amount0Max))
-            assert((event.amount1 as BN).eq(amount1Max))
-            assert((event.recipientWallet0 as web3.PublicKey).equals(feeRecipientWallet0))
-            assert((event.recipientWallet1 as web3.PublicKey).equals(feeRecipientWallet1))
-
-            resolve([event, slot]);
-          });
-
-          const tx = mgrProgram.transaction.collect(new BN(0), new BN(10), {
-            accounts: {
-              ownerOrDelegate: mintAuthority.publicKey,
-              nftAccount: positionNftAccount,
-              tokenizedPositionState,
-              positionManagerState: posMgrState,
-              poolState,
-              corePositionState,
-              tickLowerState,
-              tickUpperState,
-              bitmapLower,
-              bitmapUpper,
-              latestObservationState,
-              nextObservationState,
-              coreProgram: coreProgram.programId,
-              vault0,
-              vault1,
-              recipientWallet0: feeRecipientWallet0,
-              recipientWallet1: feeRecipientWallet1,
-              tokenProgram: TOKEN_PROGRAM_ID,
-            }
-          })
-          connection.sendTransaction(tx, [mintAuthority])
-        })
-        await mgrProgram.removeEventListener(listener)
-
-        const corePositionData = await coreProgram.account.positionState.fetch(corePositionState)
-        assert(corePositionData.tokensOwed0.eqn(0))
-        assert(corePositionData.tokensOwed1.eqn(1000479))
-
-        const tokenizedPositionData = await mgrProgram.account.tokenizedPositionState.fetch(tokenizedPositionState)
-        assert(tokenizedPositionData.tokensOwed0.eqn(0))
-        assert(tokenizedPositionData.tokensOwed1.eqn(1000479))
-
-        const recipientWallet0Info = await token0.getAccountInfo(feeRecipientWallet0)
-        const recipientWallet1Info = await token1.getAccountInfo(feeRecipientWallet1)
-        assert(recipientWallet0Info.amount.eqn(0))
-        assert(recipientWallet1Info.amount.eqn(20))
-
-        const vault0Info = await token0.getAccountInfo(vault0)
-        const vault1Info = await token1.getAccountInfo(vault1)
-        assert(vault0Info.amount.eqn(0))
-        assert(vault1Info.amount.eqn(1999980))
-      })
+      const vault0Info = await token0.getAccountInfo(vault0)
+      const vault1Info = await token1.getAccountInfo(vault1)
+      assert(vault0Info.amount.eqn(0))
+      assert(vault1Info.amount.eqn(1999980))
     })
-
-    describe('#exact_input_single', () => {
-      // before swapping, current tick = 10 and price = 4297115210
-      // active ticks are 0 and 10
-      // entire liquidity is in token_1
-
-      const deadline = new BN(Date.now() / 1000 + 1_000_000)
-
-      it('fails if limit price is greater than current pool price', async () => {
-        const amountIn = new BN(100_000)
-        const amountOutMinimum = new BN(0)
-        const sqrtPriceLimitX32 = new BN(4297115220)
-
-        await expect(routerProgram.rpc.exactInputSingle(
-          deadline,
-          true,
-          amountIn,
-          amountOutMinimum,
-          sqrtPriceLimitX32,
-          {
-            accounts: {
-              signer: owner,
-              poolState,
-              tokenAccount0: minterWallet0,
-              tokenAccount1: minterWallet1,
-              vault0,
-              vault1,
-              latestObservationState,
-              nextObservationState,
-              coreProgram: coreProgram.programId,
-              tokenProgram: TOKEN_PROGRAM_ID,
-            }, remainingAccounts: [{
-              pubkey: bitmapLower,
-              isSigner: false,
-              isWritable: true
-            },
-            // price moves downwards in zero for one swap
-            {
-              pubkey: tickUpperState,
-              isSigner: false,
-              isWritable: true
-            }, {
-              pubkey: tickLowerState,
-              isSigner: false,
-              isWritable: true
-            }]
-          }
-        )).to.be.rejectedWith(Error)
-      })
-
-      it('swap upto a limit price for a zero to one swap', async () => {
-        const amountIn = new BN(100_000)
-        const amountOutMinimum = new BN(0)
-        const sqrtPriceLimitX32 = new BN(4297115200) // current price is 4297115210
-
-        await routerProgram.rpc.exactInputSingle(
-          deadline,
-          true,
-          amountIn,
-          amountOutMinimum,
-          sqrtPriceLimitX32,
-          {
-            accounts: {
-              signer: owner,
-              poolState,
-              tokenAccount0: minterWallet0,
-              tokenAccount1: minterWallet1,
-              vault0,
-              vault1,
-              latestObservationState,
-              nextObservationState,
-              coreProgram: coreProgram.programId,
-              tokenProgram: TOKEN_PROGRAM_ID,
-            }, remainingAccounts: [{
-              pubkey: bitmapLower,
-              isSigner: false,
-              isWritable: true
-            },
-            // price moves downwards in zero for one swap
-            {
-              pubkey: tickUpperState,
-              isSigner: false,
-              isWritable: true
-            }, {
-              pubkey: tickLowerState,
-              isSigner: false,
-              isWritable: true
-            }]
-          }
-        )
-
-        let poolStateData = await coreProgram.account.poolState.fetch(poolState)
-        assert(poolStateData.sqrtPriceX32.eq(sqrtPriceLimitX32))
-      })
-
-      it('performs a zero for one swap without a limit price', async () => {
-        let poolStateDataBefore = await coreProgram.account.poolState.fetch(poolState)
-        console.log('pool price', poolStateDataBefore.sqrtPriceX32.toNumber())
-        console.log('pool tick', poolStateDataBefore.tick)
-
-        const {
-          observationIndex,
-          observationCardinalityNext
-        } = await coreProgram.account.poolState.fetch(poolState)
-
-        latestObservationState = (await PublicKey.findProgramAddress(
-          [
-            OBSERVATION_SEED,
-            token0.publicKey.toBuffer(),
-            token1.publicKey.toBuffer(),
-            u32ToSeed(fee),
-            u16ToSeed(observationIndex)
-          ],
-          coreProgram.programId
-        ))[0]
-
-        nextObservationState = (await PublicKey.findProgramAddress(
-          [
-            OBSERVATION_SEED,
-            token0.publicKey.toBuffer(),
-            token1.publicKey.toBuffer(),
-            u32ToSeed(fee),
-            u16ToSeed((observationIndex + 1) % observationCardinalityNext)
-          ],
-          coreProgram.programId
-        ))[0]
-
-        const amountIn = new BN(100_000)
-        const amountOutMinimum = new BN(0)
-        const sqrtPriceLimitX32 = new BN(0)
-        await routerProgram.rpc.exactInputSingle(
-          deadline,
-          true,
-          amountIn,
-          amountOutMinimum,
-          sqrtPriceLimitX32,
-          {
-            accounts: {
-              signer: owner,
-              poolState,
-              tokenAccount0: minterWallet0,
-              tokenAccount1: minterWallet1,
-              vault0,
-              vault1,
-              latestObservationState,
-              nextObservationState,
-              coreProgram: coreProgram.programId,
-              tokenProgram: TOKEN_PROGRAM_ID,
-            }, remainingAccounts: [{
-              pubkey: bitmapLower,
-              isSigner: false,
-              isWritable: true
-            },
-            // price moves downwards in zero for one swap
-            {
-              pubkey: tickLowerState,
-              isSigner: false,
-              isWritable: true
-            }]
-          }
-        )
-        const poolStateDataAfter = await coreProgram.account.poolState.fetch(poolState)
-        console.log('pool price after', poolStateDataAfter.sqrtPriceX32.toNumber())
-        console.log('pool tick after', poolStateDataAfter.tick)
-      })
-    })
-
   })
+
+  //   describe('#exact_input_single', () => {
+  //     // before swapping, current tick = 10 and price = 4297115210
+  //     // active ticks are 0 and 10
+  //     // entire liquidity is in token_1
+
+  //     const deadline = new BN(Date.now() / 1000 + 1_000_000)
+
+  //     it('fails if limit price is greater than current pool price', async () => {
+  //       const amountIn = new BN(100_000)
+  //       const amountOutMinimum = new BN(0)
+  //       const sqrtPriceLimitX32 = new BN(4297115220)
+
+  //       await expect(routerProgram.rpc.exactInputSingle(
+  //         deadline,
+  //         true,
+  //         amountIn,
+  //         amountOutMinimum,
+  //         sqrtPriceLimitX32,
+  //         {
+  //           accounts: {
+  //             signer: owner,
+  //             poolState,
+  //             tokenAccount0: minterWallet0,
+  //             tokenAccount1: minterWallet1,
+  //             vault0,
+  //             vault1,
+  //             latestObservationState,
+  //             nextObservationState,
+  //             coreProgram: coreProgram.programId,
+  //             tokenProgram: TOKEN_PROGRAM_ID,
+  //           }, remainingAccounts: [{
+  //             pubkey: bitmapLower,
+  //             isSigner: false,
+  //             isWritable: true
+  //           },
+  //           // price moves downwards in zero for one swap
+  //           {
+  //             pubkey: tickUpperState,
+  //             isSigner: false,
+  //             isWritable: true
+  //           }, {
+  //             pubkey: tickLowerState,
+  //             isSigner: false,
+  //             isWritable: true
+  //           }]
+  //         }
+  //       )).to.be.rejectedWith(Error)
+  //     })
+
+  //     it('swap upto a limit price for a zero to one swap', async () => {
+  //       const amountIn = new BN(100_000)
+  //       const amountOutMinimum = new BN(0)
+  //       const sqrtPriceLimitX32 = new BN(4297115200) // current price is 4297115210
+
+  //       await routerProgram.rpc.exactInputSingle(
+  //         deadline,
+  //         true,
+  //         amountIn,
+  //         amountOutMinimum,
+  //         sqrtPriceLimitX32,
+  //         {
+  //           accounts: {
+  //             signer: owner,
+  //             poolState,
+  //             tokenAccount0: minterWallet0,
+  //             tokenAccount1: minterWallet1,
+  //             vault0,
+  //             vault1,
+  //             latestObservationState,
+  //             nextObservationState,
+  //             coreProgram: coreProgram.programId,
+  //             tokenProgram: TOKEN_PROGRAM_ID,
+  //           }, remainingAccounts: [{
+  //             pubkey: bitmapLower,
+  //             isSigner: false,
+  //             isWritable: true
+  //           },
+  //           // price moves downwards in zero for one swap
+  //           {
+  //             pubkey: tickUpperState,
+  //             isSigner: false,
+  //             isWritable: true
+  //           }, {
+  //             pubkey: tickLowerState,
+  //             isSigner: false,
+  //             isWritable: true
+  //           }]
+  //         }
+  //       )
+
+  //       let poolStateData = await coreProgram.account.poolState.fetch(poolState)
+  //       assert(poolStateData.sqrtPriceX32.eq(sqrtPriceLimitX32))
+  //     })
+
+  //     it('performs a zero for one swap without a limit price', async () => {
+  //       let poolStateDataBefore = await coreProgram.account.poolState.fetch(poolState)
+  //       console.log('pool price', poolStateDataBefore.sqrtPriceX32.toNumber())
+  //       console.log('pool tick', poolStateDataBefore.tick)
+
+  //       const {
+  //         observationIndex,
+  //         observationCardinalityNext
+  //       } = await coreProgram.account.poolState.fetch(poolState)
+
+  //       latestObservationState = (await PublicKey.findProgramAddress(
+  //         [
+  //           OBSERVATION_SEED,
+  //           token0.publicKey.toBuffer(),
+  //           token1.publicKey.toBuffer(),
+  //           u32ToSeed(fee),
+  //           u16ToSeed(observationIndex)
+  //         ],
+  //         coreProgram.programId
+  //       ))[0]
+
+  //       nextObservationState = (await PublicKey.findProgramAddress(
+  //         [
+  //           OBSERVATION_SEED,
+  //           token0.publicKey.toBuffer(),
+  //           token1.publicKey.toBuffer(),
+  //           u32ToSeed(fee),
+  //           u16ToSeed((observationIndex + 1) % observationCardinalityNext)
+  //         ],
+  //         coreProgram.programId
+  //       ))[0]
+
+  //       const amountIn = new BN(100_000)
+  //       const amountOutMinimum = new BN(0)
+  //       const sqrtPriceLimitX32 = new BN(0)
+  //       await routerProgram.rpc.exactInputSingle(
+  //         deadline,
+  //         true,
+  //         amountIn,
+  //         amountOutMinimum,
+  //         sqrtPriceLimitX32,
+  //         {
+  //           accounts: {
+  //             signer: owner,
+  //             poolState,
+  //             tokenAccount0: minterWallet0,
+  //             tokenAccount1: minterWallet1,
+  //             vault0,
+  //             vault1,
+  //             latestObservationState,
+  //             nextObservationState,
+  //             coreProgram: coreProgram.programId,
+  //             tokenProgram: TOKEN_PROGRAM_ID,
+  //           }, remainingAccounts: [{
+  //             pubkey: bitmapLower,
+  //             isSigner: false,
+  //             isWritable: true
+  //           },
+  //           // price moves downwards in zero for one swap
+  //           {
+  //             pubkey: tickLowerState,
+  //             isSigner: false,
+  //             isWritable: true
+  //           }]
+  //         }
+  //       )
+  //       const poolStateDataAfter = await coreProgram.account.poolState.fetch(poolState)
+  //       console.log('pool price after', poolStateDataAfter.sqrtPriceX32.toNumber())
+  //       console.log('pool tick after', poolStateDataAfter.tick)
+  //     })
+  //   })
+
+  // })
 })

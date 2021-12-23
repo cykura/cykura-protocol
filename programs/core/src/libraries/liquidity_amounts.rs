@@ -2,8 +2,8 @@
 ///! Provides functions for computing liquidity amounts from token amounts and prices
 ///! Implements formula 6.29 and 6.30
 ///
-use cyclos_core::libraries::fixed_point_x32;
 use muldiv::MulDiv;
+use super::fixed_point_x32;
 
 /// Computes the amount of liquidity received for a given amount of token_0 and price range
 /// Calculates ΔL = Δx (√P_upper x √P_lower)/(√P_upper - √P_lower)
