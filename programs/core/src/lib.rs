@@ -2,6 +2,8 @@ pub mod context;
 pub mod error;
 pub mod libraries;
 pub mod states;
+pub mod access_control;
+use crate::access_control::*;
 use crate::error::ErrorCode;
 use crate::libraries::liquidity_amounts;
 use crate::libraries::tick_math;
@@ -17,7 +19,6 @@ use anchor_lang::AccountsClose;
 use anchor_lang::{solana_program::instruction::Instruction, InstructionData};
 use anchor_spl::associated_token::get_associated_token_address;
 use anchor_spl::token;
-use anchor_spl::token::TokenAccount;
 use context::*;
 use libraries::liquidity_math;
 use libraries::sqrt_price_math;
@@ -586,12 +587,12 @@ pub mod cyclos_core {
         let amount_1 = amount_1_int as u64;
 
         let balance_0_before = if amount_0 > 0 {
-            ctx.accounts.token_account_0.amount
+            ctx.accounts.vault_0.amount
         } else {
             0
         };
         let balance_1_before = if amount_0 > 0 {
-            ctx.accounts.token_account_1.amount
+            ctx.accounts.vault_1.amount
         } else {
             0
         };
@@ -609,18 +610,18 @@ pub mod cyclos_core {
         );
         solana_program::program::invoke(&ix, &ctx.accounts.to_account_infos())?;
 
-        ctx.accounts.token_account_0.reload()?;
-        ctx.accounts.token_account_1.reload()?;
+        ctx.accounts.vault_0.reload()?;
+        ctx.accounts.vault_1.reload()?;
 
         if amount_0 > 0 {
             require!(
-                balance_0_before + amount_0 <= ctx.accounts.token_account_0.amount,
+                balance_0_before + amount_0 <= ctx.accounts.vault_0.amount,
                 ErrorCode::M0
             );
         }
         if amount_1 > 0 {
             require!(
-                balance_1_before + amount_1 <= ctx.accounts.token_account_1.amount,
+                balance_1_before + amount_1 <= ctx.accounts.vault_1.amount,
                 ErrorCode::M1
             );
         }
@@ -846,9 +847,6 @@ pub mod cyclos_core {
         require!(amount_specified != 0, ErrorCode::AS);
 
         assert!(ctx.accounts.signer.is_signer);
-        // let token_account_0 = Account::<TokenAccount>::try_from(&ctx.accounts.token_account_0)?;
-
-        // let pool_state_loader =
         let pool_loader =
             Loader::<PoolState>::try_from(&ID, &ctx.accounts.pool_state.to_account_info())?;
         let mut pool = pool_loader.load_mut()?;
@@ -1511,7 +1509,8 @@ pub mod cyclos_core {
         tokenized_position.bump = bump;
         tokenized_position.mint = ctx.accounts.nft_mint.key();
         tokenized_position.pool_id = ctx.accounts.pool_state.key();
-        tokenized_position.tick_lower = tick_lower.tick;
+
+        tokenized_position.tick_lower = tick_lower.tick; // can read from core position
         tokenized_position.tick_upper = tick_upper.tick;
         tokenized_position.liquidity = liquidity;
         tokenized_position.fee_growth_inside_0_last_x32 = Loader::<PositionState>::try_from(
@@ -1595,7 +1594,7 @@ pub mod cyclos_core {
         Ok(())
     }
 
-    /// Increases liquidity in a position, with amount paid by `payer`
+    /// Increases liquidity in a tokenized position, with amount paid by `payer`
     ///
     /// # Arguments
     ///
@@ -2702,15 +2701,15 @@ pub fn add_liquidity(
         amount_1_desired,
     );
 
-    let balance_0_before = accounts.token_account_0.amount;
-    let balance_1_before = accounts.token_account_1.amount;
+    let balance_0_before = accounts.vault_0.amount;
+    let balance_1_before = accounts.vault_1.amount;
 
     mint(Context::new(&ID, accounts, &[]), liquidity)?;
 
-    accounts.token_account_0.reload()?;
-    accounts.token_account_1.reload()?;
-    let amount_0 = balance_0_before - accounts.token_account_0.amount;
-    let amount_1 = balance_1_before - accounts.token_account_1.amount;
+    accounts.vault_0.reload()?;
+    accounts.vault_1.reload()?;
+    let amount_0 = accounts.vault_0.amount - balance_0_before;
+    let amount_1 = accounts.vault_1.amount - balance_1_before;
     require!(
         amount_0 >= amount_0_min && amount_1 >= amount_1_min,
         ErrorCode::PriceSlippageCheck
@@ -2719,37 +2718,3 @@ pub fn add_liquidity(
     Ok((liquidity, amount_0, amount_1))
 }
 
-/// Checks whether the transaction time has not crossed the deadline
-///
-/// # Arguments
-///
-/// * `deadline` - The deadline specified by a user
-///
-pub fn check_deadline(deadline: i64) -> ProgramResult {
-    require!(
-        Clock::get()?.unix_timestamp <= deadline,
-        ErrorCode::TransactionTooOld
-    );
-    Ok(())
-}
-
-/// Ensures that the signer is the owner or a delgated authority for the position NFT
-///
-/// # Arguments
-///
-/// * `signer` - The signer address
-/// * `token_account` - The token account holding the position NFT
-///
-pub fn is_authorized_for_token<'info>(
-    signer: &Signer<'info>,
-    token_account: &Box<Account<'info, TokenAccount>>,
-) -> ProgramResult {
-    require!(
-        token_account.amount == 1
-            && (token_account.owner == signer.key()
-                || (token_account.delegate.contains(&signer.key())
-                    && token_account.delegated_amount > 0)),
-        ErrorCode::NotApproved
-    );
-    Ok(())
-}

@@ -707,36 +707,23 @@ pub struct CollectContext<'info> {
 #[derive(Accounts)]
 pub struct SwapContext<'info> {
     /// The user performing the swap
-    // pub signer: Signer<'info>,
     pub signer: UncheckedAccount<'info>,
 
     /// The payer token account in zero for one swaps, or the recipient token account
     /// in one for zero swaps
     #[account(mut)]
     pub token_account_0: UncheckedAccount<'info>,
-    // pub token_account_0: Box<Account<'info, TokenAccount>>,
 
     /// The payer token account in one for zero swaps, or the recipient token account
     /// in zero for one swaps
     #[account(mut)]
     pub token_account_1: UncheckedAccount<'info>,
-    // pub token_account_1: Box<Account<'info, TokenAccount>>,
 
     /// The account holding pool tokens for token_0
-    // #[account(
-    //     mut,
-    //     associated_token::mint = pool_state.load()?.token_0.key(),
-    //     associated_token::authority = pool_state,
-    // )]
     #[account(mut)]
     pub vault_0: Box<Account<'info, TokenAccount>>,
 
     /// The account holding pool tokens for token_1
-    // #[account(
-    //     mut,
-    //     associated_token::mint = pool_state.load()?.token_1.key(),
-    //     associated_token::authority = pool_state,
-    // )]
     #[account(mut)]
     pub vault_1: Box<Account<'info, TokenAccount>>,
 
@@ -755,36 +742,6 @@ pub struct SwapContext<'info> {
     /// The observation program account one position after latest_observation_state
     #[account(mut)]
     pub next_observation_state: UncheckedAccount<'info>,
-
-    // /// The program account for the most recent oracle observation
-    // #[account(
-    //     mut,
-    //     seeds = [
-    //         &OBSERVATION_SEED.as_bytes(),
-    //         pool_state.load()?.token_0.key().as_ref(),
-    //         pool_state.load()?.token_1.key().as_ref(),
-    //         &pool_state.load()?.fee.to_be_bytes(),
-    //         &pool_state.load()?.observation_index.to_be_bytes(),
-    //     ],
-    //     bump = latest_observation_state.load()?.bump
-    // )]
-    // pub latest_observation_state: Loader<'info, ObservationState>,
-
-    // /// The observation program account one position after latest_observation_state
-    // #[account(
-    //     mut,
-    //     seeds = [
-    //         &OBSERVATION_SEED.as_bytes(),
-    //         pool_state.load()?.token_0.key().as_ref(),
-    //         pool_state.load()?.token_1.key().as_ref(),
-    //         &pool_state.load()?.fee.to_be_bytes(),
-    //         &((pool_state.load()?.observation_index + 1)
-    //             % pool_state.load()?.observation_cardinality_next
-    //         ).to_be_bytes(),
-    //     ],
-    //     bump = next_observation_state.load()?.bump
-    // )]
-    // pub next_observation_state: Loader<'info, ObservationState>,
 
     /// Program which receives swap_callback
     pub callback_handler: UncheckedAccount<'info>,
@@ -827,7 +784,7 @@ pub struct MintTokenizedPosition<'info> {
     /// Mint liquidity for this pool
     #[account(mut)]
     // pub pool_state: Loader<'info, PoolState>,
-    pub pool_state: UncheckedAccount<'info>,
+    pub pool_state: UncheckedAccount<'info>, // remove decoding in lib
 
     /// Core program account to store position data
     #[account(mut)]
@@ -835,8 +792,8 @@ pub struct MintTokenizedPosition<'info> {
 
     /// Account to store data for the position's lower tick
     #[account(mut)]
-    pub tick_lower_state: Loader<'info, TickState>,
-    // pub tick_lower_state: UncheckedAccount<'info>,
+    // pub tick_lower_state: Loader<'info, TickState>, // remove
+    pub tick_lower_state: UncheckedAccount<'info>,
 
     /// Account to store data for the position's upper tick
     #[account(mut)]
@@ -844,11 +801,11 @@ pub struct MintTokenizedPosition<'info> {
 
     /// Account to mark the lower tick as initialized
     #[account(mut)]
-    pub bitmap_lower: UncheckedAccount<'info>,
+    pub bitmap_lower: UncheckedAccount<'info>, // remove
 
     /// Account to mark the upper tick as initialized
     #[account(mut)]
-    pub bitmap_upper: UncheckedAccount<'info>,
+    pub bitmap_upper: UncheckedAccount<'info>, // remove
 
     /// Metadata for the tokenized position
     #[account(
@@ -861,11 +818,11 @@ pub struct MintTokenizedPosition<'info> {
 
     /// The token account spending token_0 to mint the position
     #[account(mut)]
-    pub token_account_0: Box<Account<'info, TokenAccount>>,
+    pub token_account_0: Box<Account<'info, TokenAccount>>, // remove
 
     /// The token account spending token_1 to mint the position
     #[account(mut)]
-    pub token_account_1: Box<Account<'info, TokenAccount>>,
+    pub token_account_1: Box<Account<'info, TokenAccount>>, // remove
 
     /// The token account owned by core to hold pool tokens for token_0
     #[account(mut)]
@@ -879,11 +836,11 @@ pub struct MintTokenizedPosition<'info> {
 
     /// The latest observation state
     #[account(mut)]
-    pub latest_observation_state: UncheckedAccount<'info>,
+    pub latest_observation_state: UncheckedAccount<'info>, // remove
 
     /// The next observation state
     #[account(mut)]
-    pub next_observation_state: UncheckedAccount<'info>,
+    pub next_observation_state: UncheckedAccount<'info>, // remove
 
     /// Sysvar for token mint and ATA creation
     pub rent: Sysvar<'info, Rent>,

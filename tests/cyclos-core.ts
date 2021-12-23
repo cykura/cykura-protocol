@@ -1515,6 +1515,7 @@ describe('cyclos-core', async () => {
     })
 
     it('mint tokenized', async () => {
+      console.log('minting tokenized position')
       const deadline = new BN(Date.now() / 1000 + 10_000)
 
       let listener: number
