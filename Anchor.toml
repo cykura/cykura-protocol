@@ -1,6 +1,5 @@
 [programs.localnet]
 cyclos_core = "37kn8WUzihQoAnhYxueA2BnqCA7VRnrVvYoHy1hQ6Veu"
-swap_router = "A16PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS"
 
 [registry]
 url = "https://anchor.projectserum.com"

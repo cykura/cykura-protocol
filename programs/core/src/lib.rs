@@ -7,23 +7,23 @@ use crate::libraries::liquidity_amounts;
 use crate::libraries::tick_math;
 use crate::states::oracle;
 use crate::states::oracle::ObservationState;
+use crate::states::tokenized_position::{
+    CollectTokenizedEvent, DecreaseLiquidityEvent, IncreaseLiquidityEvent,
+};
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program;
 use anchor_lang::solana_program::system_instruction::create_account;
 use anchor_lang::AccountsClose;
 use anchor_lang::{solana_program::instruction::Instruction, InstructionData};
 use anchor_spl::associated_token::get_associated_token_address;
-use metaplex_token_metadata::{instruction::create_metadata_accounts, state::Creator};
-use spl_token::instruction::AuthorityType;
-use crate::states::tokenized_position::{
-    CollectTokenizedEvent, DecreaseLiquidityEvent, IncreaseLiquidityEvent,
-};
 use anchor_spl::token;
 use anchor_spl::token::TokenAccount;
 use context::*;
 use libraries::liquidity_math;
 use libraries::sqrt_price_math;
+use metaplex_token_metadata::{instruction::create_metadata_accounts, state::Creator};
 use muldiv::MulDiv;
+use spl_token::instruction::AuthorityType;
 use states::factory::*;
 use states::fee::*;
 use states::pool::*;
@@ -845,28 +845,83 @@ pub mod cyclos_core {
     ) -> ProgramResult {
         require!(amount_specified != 0, ErrorCode::AS);
 
-        let mut pool_state = ctx.accounts.pool_state.load_mut()?;
-        require!(pool_state.unlocked, ErrorCode::LOK);
+        assert!(ctx.accounts.signer.is_signer);
+        // let token_account_0 = Account::<TokenAccount>::try_from(&ctx.accounts.token_account_0)?;
+
+        // let pool_state_loader =
+        let pool_loader =
+            Loader::<PoolState>::try_from(&ID, &ctx.accounts.pool_state.to_account_info())?;
+        let mut pool = pool_loader.load_mut()?;
+
+        assert!(
+            ctx.accounts.vault_0.key()
+                == get_associated_token_address(&pool_loader.key(), &pool.token_0)
+        );
+        assert!(
+            ctx.accounts.vault_1.key()
+                == get_associated_token_address(&pool_loader.key(), &pool.token_1)
+        );
+
+        let latest_observation_state = Loader::<ObservationState>::try_from(
+            &ID,
+            &ctx.accounts.latest_observation_state.to_account_info(),
+        )?;
+        assert!(
+            latest_observation_state.key()
+                == Pubkey::create_program_address(
+                    &[
+                        &OBSERVATION_SEED.as_bytes(),
+                        pool.token_0.as_ref(),
+                        pool.token_1.as_ref(),
+                        &pool.fee.to_be_bytes(),
+                        &pool.observation_index.to_be_bytes(),
+                        &[latest_observation_state.load()?.bump],
+                    ],
+                    &ID
+                )?,
+        );
+
+        let next_observation_state = Loader::<ObservationState>::try_from(
+            &ID,
+            &ctx.accounts.next_observation_state.to_account_info(),
+        )?;
+        assert!(
+            next_observation_state.key()
+                == Pubkey::create_program_address(
+                    &[
+                        &OBSERVATION_SEED.as_bytes(),
+                        pool.token_0.as_ref(),
+                        pool.token_1.as_ref(),
+                        &pool.fee.to_be_bytes(),
+                        &((pool.observation_index + 1) % pool.observation_cardinality_next)
+                            .to_be_bytes(),
+                        &[next_observation_state.load()?.bump],
+                    ],
+                    &ID
+                )?,
+        );
+
+        require!(pool.unlocked, ErrorCode::LOK);
         require!(
             if zero_for_one {
-                sqrt_price_limit_x32 < pool_state.sqrt_price_x32
+                sqrt_price_limit_x32 < pool.sqrt_price_x32
                     && sqrt_price_limit_x32 > tick_math::MIN_SQRT_RATIO
             } else {
-                sqrt_price_limit_x32 > pool_state.sqrt_price_x32
+                sqrt_price_limit_x32 > pool.sqrt_price_x32
                     && sqrt_price_limit_x32 < tick_math::MAX_SQRT_RATIO
             },
             ErrorCode::SPL
         );
 
-        pool_state.unlocked = false;
+        pool.unlocked = false;
 
         let mut cache = SwapCache {
-            liquidity_start: pool_state.liquidity,
+            liquidity_start: pool.liquidity,
             block_timestamp: oracle::_block_timestamp(),
             fee_protocol: if zero_for_one {
-                pool_state.fee_protocol % 16
+                pool.fee_protocol % 16
             } else {
-                pool_state.fee_protocol >> 4
+                pool.fee_protocol >> 4
             },
             seconds_per_liquidity_cumulative_x32: 0,
             tick_cumulative: 0,
@@ -878,12 +933,12 @@ pub mod cyclos_core {
         let mut state = SwapState {
             amount_specified_remaining: amount_specified,
             amount_calculated: 0,
-            sqrt_price_x32: pool_state.sqrt_price_x32,
-            tick: pool_state.tick,
+            sqrt_price_x32: pool.sqrt_price_x32,
+            tick: pool.tick,
             fee_growth_global_x32: if zero_for_one {
-                pool_state.fee_growth_global_0_x32
+                pool.fee_growth_global_0_x32
             } else {
-                pool_state.fee_growth_global_1_x32
+                pool.fee_growth_global_1_x32
             },
             protocol_fee: 0,
             liquidity: cache.liquidity_start,
@@ -891,7 +946,7 @@ pub mod cyclos_core {
 
         // continue swapping as long as we haven't used the entire input/output and haven't
         // reached the price limit
-        let latest_observation = ctx.accounts.latest_observation_state.load_mut()?;
+        let latest_observation = latest_observation_state.load_mut()?;
         let mut remaining_accounts = ctx.remaining_accounts.iter();
         let mut bitmap: Option<TickBitmapState> = None;
         while state.amount_specified_remaining != 0 && state.sqrt_price_x32 != sqrt_price_limit_x32
@@ -902,8 +957,8 @@ pub mod cyclos_core {
             // if zero_for_one(lte = true) start with the word containing the current tick
             // else use the word of the next tick
             // what about looping?
-            let mut compressed = state.tick / pool_state.tick_spacing as i32;
-            if state.tick < 0 && state.tick % pool_state.tick_spacing as i32 != 0 {
+            let mut compressed = state.tick / pool.tick_spacing as i32;
+            if state.tick < 0 && state.tick % pool.tick_spacing as i32 != 0 {
                 compressed -= 1;
             }
             if !zero_for_one {
@@ -921,9 +976,9 @@ pub mod cyclos_core {
 
                 let bitmap_account_seeds = [
                     BITMAP_SEED.as_bytes(),
-                    pool_state.token_0.as_ref(),
-                    pool_state.token_1.as_ref(),
-                    &pool_state.fee.to_be_bytes(),
+                    pool.token_0.as_ref(),
+                    pool.token_1.as_ref(),
+                    &pool.fee.to_be_bytes(),
                     &word_pos.to_be_bytes(),
                     &[bitmap_state.bump],
                 ];
@@ -939,8 +994,7 @@ pub mod cyclos_core {
             }
 
             let next_initialized_bit = bitmap.unwrap().next_initialized_bit(bit_pos, zero_for_one);
-            step.tick_next =
-                (compressed + next_initialized_bit.next) * pool_state.tick_spacing as i32;
+            step.tick_next = (compressed + next_initialized_bit.next) * pool.tick_spacing as i32;
             step.initialized = next_initialized_bit.initialized;
 
             // ensure that we do not overshoot the min/max tick, as the tick bitmap is not aware of these bounds
@@ -963,7 +1017,7 @@ pub mod cyclos_core {
                 },
                 state.liquidity,
                 state.amount_specified_remaining,
-                pool_state.fee,
+                pool.fee,
             );
             state.sqrt_price_x32 = swap_step.sqrt_ratio_next_x32;
             step.amount_in = swap_step.amount_in;
@@ -1009,8 +1063,8 @@ pub mod cyclos_core {
                     if !cache.computed_latest_observation {
                         let new_observation = latest_observation.observe_latest(
                             cache.block_timestamp,
-                            pool_state.tick,
-                            pool_state.liquidity,
+                            pool.tick,
+                            pool.liquidity,
                         );
                         cache.tick_cumulative = new_observation.0;
                         cache.seconds_per_liquidity_cumulative_x32 = new_observation.1;
@@ -1024,9 +1078,9 @@ pub mod cyclos_core {
                     let mut tick_state = tick_loader.load_mut()?;
                     let tick_account_seeds = [
                         &TICK_SEED.as_bytes(),
-                        pool_state.token_0.as_ref(),
-                        pool_state.token_1.as_ref(),
-                        &pool_state.fee.to_be_bytes(),
+                        pool.token_0.as_ref(),
+                        pool.token_1.as_ref(),
+                        &pool.fee.to_be_bytes(),
                         &step.tick_next.to_be_bytes(),
                         &[tick_state.bump],
                     ];
@@ -1041,10 +1095,10 @@ pub mod cyclos_core {
                         if zero_for_one {
                             state.fee_growth_global_x32
                         } else {
-                            pool_state.fee_growth_global_0_x32
+                            pool.fee_growth_global_0_x32
                         },
                         if zero_for_one {
-                            pool_state.fee_growth_global_1_x32
+                            pool.fee_growth_global_1_x32
                         } else {
                             state.fee_growth_global_x32
                         },
@@ -1075,43 +1129,43 @@ pub mod cyclos_core {
         let next_observation_start_time = (latest_observation.block_timestamp / 14 + 1) * 14;
         drop(latest_observation);
         // update tick and write an oracle entry if the tick changes
-        if state.tick != pool_state.tick {
+        if state.tick != pool.tick {
             let mut next_observation = if cache.block_timestamp >= next_observation_start_time {
-                let next_observation = ctx.accounts.next_observation_state.load_mut()?;
-                pool_state.observation_index = next_observation.index;
+                let next_observation = next_observation_state.load_mut()?;
+                pool.observation_index = next_observation.index;
                 next_observation
             } else {
-                ctx.accounts.latest_observation_state.load_mut()?
+                latest_observation_state.load_mut()?
                 // latest_observation
             };
-            pool_state.tick = state.tick;
-            pool_state.observation_cardinality_next = next_observation.update(
+            pool.tick = state.tick;
+            pool.observation_cardinality_next = next_observation.update(
                 cache.block_timestamp,
-                pool_state.tick,
+                pool.tick,
                 cache.liquidity_start,
-                pool_state.observation_cardinality,
-                pool_state.observation_cardinality_next,
+                pool.observation_cardinality,
+                pool.observation_cardinality_next,
             );
         }
         // drop(latest_observation);
-        pool_state.sqrt_price_x32 = state.sqrt_price_x32;
+        pool.sqrt_price_x32 = state.sqrt_price_x32;
 
         // update liquidity if it changed
         if cache.liquidity_start != state.liquidity {
-            pool_state.liquidity = state.liquidity;
+            pool.liquidity = state.liquidity;
         }
 
         // update fee growth global and, if necessary, protocol fees
         // overflow is acceptable, protocol has to withdraw before it hit u64::MAX fees
         if zero_for_one {
-            pool_state.fee_growth_global_0_x32 = state.fee_growth_global_x32;
+            pool.fee_growth_global_0_x32 = state.fee_growth_global_x32;
             if state.protocol_fee > 0 {
-                pool_state.protocol_fees_token_0 += state.protocol_fee;
+                pool.protocol_fees_token_0 += state.protocol_fee;
             }
         } else {
-            pool_state.fee_growth_global_1_x32 = state.fee_growth_global_x32;
+            pool.fee_growth_global_1_x32 = state.fee_growth_global_x32;
             if state.protocol_fee > 0 {
-                pool_state.protocol_fees_token_1 += state.protocol_fee;
+                pool.protocol_fees_token_1 += state.protocol_fee;
             }
         }
 
@@ -1130,12 +1184,12 @@ pub mod cyclos_core {
         // do the transfers and collect payment
         let pool_state_seeds = [
             &POOL_SEED.as_bytes(),
-            &pool_state.token_0.to_bytes() as &[u8],
-            &pool_state.token_1.to_bytes() as &[u8],
-            &pool_state.fee.to_be_bytes(),
-            &[pool_state.bump],
+            &pool.token_0.to_bytes() as &[u8],
+            &pool.token_1.to_bytes() as &[u8],
+            &pool.fee.to_be_bytes(),
+            &[pool.bump],
         ];
-        drop(pool_state);
+        drop(pool);
 
         if zero_for_one {
             if amount_1 < 0 {
@@ -1208,7 +1262,7 @@ pub mod cyclos_core {
         }
 
         emit!(SwapEvent {
-            pool_state: ctx.accounts.pool_state.key(),
+            pool_state: pool_loader.key(),
             sender: ctx.accounts.signer.key(),
             token_account_0: ctx.accounts.token_account_0.key(),
             token_account_1: ctx.accounts.token_account_1.key(),
@@ -1218,7 +1272,7 @@ pub mod cyclos_core {
             liquidity: state.liquidity,
             tick: state.tick
         });
-        ctx.accounts.pool_state.load_mut()?.unlocked = true;
+        pool_loader.load_mut()?.unlocked = true;
         Ok(())
     }
 
@@ -2224,6 +2278,154 @@ pub mod cyclos_core {
 
         Ok(())
     }
+
+    /// Swaps `amount_in` of one token for as much as possible of another token,
+    /// across a single pool
+    ///
+    /// # Arguments
+    ///
+    /// * `ctx` - Accounts required for the swap
+    /// * `zero_for_one` -  The direction of the swap, true for token_0 to token_1, false for token_1 to token_0
+    /// * `deadline` - The time by which the transaction must be included to effect the change
+    /// * `amount_in` - Token amount to be swapped in
+    /// * `amount_out_minimum` - The minimum amount to swap out, which serves as a slippage check
+    /// * `sqrt_price_limit` - The Q32.32 sqrt price √P limit. If zero for one, the price cannot
+    /// be less than this value after the swap.  If one for zero, the price cannot be greater than
+    /// this value after the swap.
+    ///
+    #[access_control(check_deadline(deadline))]
+    pub fn exact_input_single<'a, 'b, 'c, 'info>(
+        ctx: Context<'a, 'b, 'c, 'info, ExactInputSingle<'info>>,
+        deadline: i64,
+        zero_for_one: bool,
+        amount_in: u64,
+        amount_out_minimum: u64,
+        sqrt_price_limit_x32: u64,
+    ) -> ProgramResult {
+        let amount_out = exact_input_internal(
+            &mut SwapContext {
+                signer: ctx.accounts.signer.clone(),
+                token_account_0: ctx.accounts.token_account_0.clone(),
+                token_account_1: ctx.accounts.token_account_1.clone(),
+                vault_0: ctx.accounts.vault_0.clone(),
+                vault_1: ctx.accounts.vault_1.clone(),
+                token_program: ctx.accounts.token_program.clone(),
+                pool_state: ctx.accounts.pool_state.clone(),
+                latest_observation_state: ctx.accounts.latest_observation_state.clone(),
+                next_observation_state: ctx.accounts.next_observation_state.clone(),
+                callback_handler: UncheckedAccount::try_from(ctx.accounts.core_program.to_account_info()),
+            },
+            ctx.remaining_accounts,
+            zero_for_one,
+            amount_in,
+            sqrt_price_limit_x32,
+        )?;
+
+        require!(amount_out >= amount_out_minimum, ErrorCode::TooLittleReceived);
+        Ok(())
+    }
+
+    // /// Swaps `amount_in` of one token for as much as possible of another token,
+    // /// across the path provided
+    // ///
+    // /// # Arguments
+    // ///
+    // /// * `ctx` - Accounts for token transfer and swap route
+    // /// * `deadline` - Swap should if fail if past deadline
+    // /// * `amount_in` - Token amount to be swapped in
+    // /// * `amount_out_minimum` - Panic if output amount is below minimum amount. For slippage.
+    // ///
+    // pub fn exact_input(
+    //     ctx: Context<ExactInput>,
+    //     deadline: u64,
+    //     amount_in: u64,
+    //     amount_out_minimum: u64,
+    // ) -> ProgramResult {
+    //     todo!()
+    // }
+
+    //  /// Swaps as little as possible of one token for `amount_out` of another token,
+    // /// across a single pool
+    // ///
+    // /// # Arguments
+    // ///
+    // /// * `ctx` - Token and pool accounts for swap
+    // /// * `zero_for_one` - Direction of swap. Swap token_0 for token_1 if true
+    // /// * `deadline` - Swap should if fail if past deadline
+    // /// * `amount_out` - Token amount to be swapped out
+    // /// * `amount_in_maximum` - For slippage. Panic if required input exceeds max limit.
+    // /// * `sqrt_price_limit` - Limit price √P for slippage
+    // ///
+    // pub fn exact_output_single(
+    //     ctx: Context<ExactInputSingle>,
+    //     zero_for_one: bool,
+    //     deadline: u64,
+    //     amount_out: u64,
+    //     amount_in_maximum: u64,
+    //     sqrt_price_limit_x32: u64,
+    // ) -> ProgramResult {
+    //     todo!()
+    // }
+
+    // /// Swaps as little as possible of one token for `amount_out` of another
+    // /// along the specified path (reversed)
+    // ///
+    // /// # Arguments
+    // ///
+    // /// * `ctx` - Accounts for token transfer and swap route
+    // /// * `deadline` - Swap should if fail if past deadline
+    // /// * `amount_out` - Token amount to be swapped out
+    // /// * `amount_in_maximum` - For slippage. Panic if required input exceeds max limit.
+    // ///
+    // pub fn exact_output(
+    //     ctx: Context<ExactInput>,
+    //     deadline: u64,
+    //     amount_out: u64,
+    //     amount_out_maximum: u64,
+    // ) -> ProgramResult {
+    //     todo!()
+    // }
+
+}
+
+/// Performs a single exact input swap
+pub fn exact_input_internal<'info>(
+    // core_program: AccountInfo<'info>,
+    accounts: &mut SwapContext<'info>,
+    remaining_accounts: &[AccountInfo<'info>],
+    zero_for_one: bool,
+    amount_in: u64,
+    sqrt_price_limit_x32: u64,
+) -> Result<u64, ProgramError> {
+    let balance_before = if zero_for_one {
+        accounts.vault_1.amount
+    } else {
+        accounts.vault_0.amount
+    };
+
+    swap(
+        Context::new(&ID, accounts, remaining_accounts),
+        zero_for_one,
+        i64::try_from(amount_in).unwrap(),
+        if sqrt_price_limit_x32 == 0 {
+            if zero_for_one {
+                tick_math::MIN_SQRT_RATIO + 1
+            } else {
+                tick_math::MAX_SQRT_RATIO - 1
+            }
+        } else {
+            sqrt_price_limit_x32
+        },
+    )?;
+
+    let balance_after = if zero_for_one {
+        accounts.vault_1.reload()?;
+        accounts.vault_1.amount
+    } else {
+        accounts.vault_0.reload()?;
+        accounts.vault_0.amount
+    };
+    Ok(balance_before - balance_after)
 }
 
 /// Common checks for a valid tick input.

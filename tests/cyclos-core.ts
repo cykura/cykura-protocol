@@ -36,8 +36,6 @@ describe('cyclos-core', async () => {
   anchor.setProvider(anchor.Provider.env());
 
   const coreProgram = anchor.workspace.CyclosCore as Program<CyclosCore>
-  const mgrProgram = anchor.workspace.NonFungiblePositionManager as Program<NonFungiblePositionManager>
-  const routerProgram = anchor.workspace.SwapRouter as Program<SwapRouter>
   const { connection, wallet } = anchor.getProvider()
   const owner = anchor.getProvider().wallet.publicKey
   const notOwner = new Keypair()
@@ -45,8 +43,7 @@ describe('cyclos-core', async () => {
   const fee = 500;
   const tickSpacing = 10;
 
-  const [factoryState, factoryStateBump] = await PublicKey.findProgramAddress([], coreProgram.programId);
-  const [posMgrState, posMgrBump] = await PublicKey.findProgramAddress([], mgrProgram.programId)
+  const [factoryState, factoryStateBump] = await PublicKey.findProgramAddress([], coreProgram.programId)
 
   const [feeState, feeStateBump] = await PublicKey.findProgramAddress(
     [FEE_SEED, u32ToSeed(fee)],
@@ -2346,171 +2343,169 @@ describe('cyclos-core', async () => {
     })
   })
 
-  //   describe('#exact_input_single', () => {
-  //     // before swapping, current tick = 10 and price = 4297115210
-  //     // active ticks are 0 and 10
-  //     // entire liquidity is in token_1
+  describe('#exact_input_single', () => {
+    // before swapping, current tick = 10 and price = 4297115210
+    // active ticks are 0 and 10
+    // entire liquidity is in token_1
 
-  //     const deadline = new BN(Date.now() / 1000 + 1_000_000)
+    const deadline = new BN(Date.now() / 1000 + 1_000_000)
 
-  //     it('fails if limit price is greater than current pool price', async () => {
-  //       const amountIn = new BN(100_000)
-  //       const amountOutMinimum = new BN(0)
-  //       const sqrtPriceLimitX32 = new BN(4297115220)
+    it('fails if limit price is greater than current pool price', async () => {
+      const amountIn = new BN(100_000)
+      const amountOutMinimum = new BN(0)
+      const sqrtPriceLimitX32 = new BN(4297115220)
 
-  //       await expect(routerProgram.rpc.exactInputSingle(
-  //         deadline,
-  //         true,
-  //         amountIn,
-  //         amountOutMinimum,
-  //         sqrtPriceLimitX32,
-  //         {
-  //           accounts: {
-  //             signer: owner,
-  //             poolState,
-  //             tokenAccount0: minterWallet0,
-  //             tokenAccount1: minterWallet1,
-  //             vault0,
-  //             vault1,
-  //             latestObservationState,
-  //             nextObservationState,
-  //             coreProgram: coreProgram.programId,
-  //             tokenProgram: TOKEN_PROGRAM_ID,
-  //           }, remainingAccounts: [{
-  //             pubkey: bitmapLower,
-  //             isSigner: false,
-  //             isWritable: true
-  //           },
-  //           // price moves downwards in zero for one swap
-  //           {
-  //             pubkey: tickUpperState,
-  //             isSigner: false,
-  //             isWritable: true
-  //           }, {
-  //             pubkey: tickLowerState,
-  //             isSigner: false,
-  //             isWritable: true
-  //           }]
-  //         }
-  //       )).to.be.rejectedWith(Error)
-  //     })
+      await expect(coreProgram.rpc.exactInputSingle(
+        deadline,
+        true,
+        amountIn,
+        amountOutMinimum,
+        sqrtPriceLimitX32,
+        {
+          accounts: {
+            signer: owner,
+            poolState,
+            tokenAccount0: minterWallet0,
+            tokenAccount1: minterWallet1,
+            vault0,
+            vault1,
+            latestObservationState,
+            nextObservationState,
+            coreProgram: coreProgram.programId,
+            tokenProgram: TOKEN_PROGRAM_ID,
+          }, remainingAccounts: [{
+            pubkey: bitmapLower,
+            isSigner: false,
+            isWritable: true
+          },
+          // price moves downwards in zero for one swap
+          {
+            pubkey: tickUpperState,
+            isSigner: false,
+            isWritable: true
+          }, {
+            pubkey: tickLowerState,
+            isSigner: false,
+            isWritable: true
+          }]
+        }
+      )).to.be.rejectedWith(Error)
+    })
 
-  //     it('swap upto a limit price for a zero to one swap', async () => {
-  //       const amountIn = new BN(100_000)
-  //       const amountOutMinimum = new BN(0)
-  //       const sqrtPriceLimitX32 = new BN(4297115200) // current price is 4297115210
+    it('swap upto a limit price for a zero to one swap', async () => {
+      const amountIn = new BN(100_000)
+      const amountOutMinimum = new BN(0)
+      const sqrtPriceLimitX32 = new BN(4297115200) // current price is 4297115210
 
-  //       await routerProgram.rpc.exactInputSingle(
-  //         deadline,
-  //         true,
-  //         amountIn,
-  //         amountOutMinimum,
-  //         sqrtPriceLimitX32,
-  //         {
-  //           accounts: {
-  //             signer: owner,
-  //             poolState,
-  //             tokenAccount0: minterWallet0,
-  //             tokenAccount1: minterWallet1,
-  //             vault0,
-  //             vault1,
-  //             latestObservationState,
-  //             nextObservationState,
-  //             coreProgram: coreProgram.programId,
-  //             tokenProgram: TOKEN_PROGRAM_ID,
-  //           }, remainingAccounts: [{
-  //             pubkey: bitmapLower,
-  //             isSigner: false,
-  //             isWritable: true
-  //           },
-  //           // price moves downwards in zero for one swap
-  //           {
-  //             pubkey: tickUpperState,
-  //             isSigner: false,
-  //             isWritable: true
-  //           }, {
-  //             pubkey: tickLowerState,
-  //             isSigner: false,
-  //             isWritable: true
-  //           }]
-  //         }
-  //       )
+      await coreProgram.rpc.exactInputSingle(
+        deadline,
+        true,
+        amountIn,
+        amountOutMinimum,
+        sqrtPriceLimitX32,
+        {
+          accounts: {
+            signer: owner,
+            poolState,
+            tokenAccount0: minterWallet0,
+            tokenAccount1: minterWallet1,
+            vault0,
+            vault1,
+            latestObservationState,
+            nextObservationState,
+            coreProgram: coreProgram.programId,
+            tokenProgram: TOKEN_PROGRAM_ID,
+          }, remainingAccounts: [{
+            pubkey: bitmapLower,
+            isSigner: false,
+            isWritable: true
+          },
+          // price moves downwards in zero for one swap
+          {
+            pubkey: tickUpperState,
+            isSigner: false,
+            isWritable: true
+          }, {
+            pubkey: tickLowerState,
+            isSigner: false,
+            isWritable: true
+          }]
+        }
+      )
 
-  //       let poolStateData = await coreProgram.account.poolState.fetch(poolState)
-  //       assert(poolStateData.sqrtPriceX32.eq(sqrtPriceLimitX32))
-  //     })
+      let poolStateData = await coreProgram.account.poolState.fetch(poolState)
+      assert(poolStateData.sqrtPriceX32.eq(sqrtPriceLimitX32))
+    })
 
-  //     it('performs a zero for one swap without a limit price', async () => {
-  //       let poolStateDataBefore = await coreProgram.account.poolState.fetch(poolState)
-  //       console.log('pool price', poolStateDataBefore.sqrtPriceX32.toNumber())
-  //       console.log('pool tick', poolStateDataBefore.tick)
+    it('performs a zero for one swap without a limit price', async () => {
+      let poolStateDataBefore = await coreProgram.account.poolState.fetch(poolState)
+      console.log('pool price', poolStateDataBefore.sqrtPriceX32.toNumber())
+      console.log('pool tick', poolStateDataBefore.tick)
 
-  //       const {
-  //         observationIndex,
-  //         observationCardinalityNext
-  //       } = await coreProgram.account.poolState.fetch(poolState)
+      const {
+        observationIndex,
+        observationCardinalityNext
+      } = await coreProgram.account.poolState.fetch(poolState)
 
-  //       latestObservationState = (await PublicKey.findProgramAddress(
-  //         [
-  //           OBSERVATION_SEED,
-  //           token0.publicKey.toBuffer(),
-  //           token1.publicKey.toBuffer(),
-  //           u32ToSeed(fee),
-  //           u16ToSeed(observationIndex)
-  //         ],
-  //         coreProgram.programId
-  //       ))[0]
+      latestObservationState = (await PublicKey.findProgramAddress(
+        [
+          OBSERVATION_SEED,
+          token0.publicKey.toBuffer(),
+          token1.publicKey.toBuffer(),
+          u32ToSeed(fee),
+          u16ToSeed(observationIndex)
+        ],
+        coreProgram.programId
+      ))[0]
 
-  //       nextObservationState = (await PublicKey.findProgramAddress(
-  //         [
-  //           OBSERVATION_SEED,
-  //           token0.publicKey.toBuffer(),
-  //           token1.publicKey.toBuffer(),
-  //           u32ToSeed(fee),
-  //           u16ToSeed((observationIndex + 1) % observationCardinalityNext)
-  //         ],
-  //         coreProgram.programId
-  //       ))[0]
+      nextObservationState = (await PublicKey.findProgramAddress(
+        [
+          OBSERVATION_SEED,
+          token0.publicKey.toBuffer(),
+          token1.publicKey.toBuffer(),
+          u32ToSeed(fee),
+          u16ToSeed((observationIndex + 1) % observationCardinalityNext)
+        ],
+        coreProgram.programId
+      ))[0]
 
-  //       const amountIn = new BN(100_000)
-  //       const amountOutMinimum = new BN(0)
-  //       const sqrtPriceLimitX32 = new BN(0)
-  //       await routerProgram.rpc.exactInputSingle(
-  //         deadline,
-  //         true,
-  //         amountIn,
-  //         amountOutMinimum,
-  //         sqrtPriceLimitX32,
-  //         {
-  //           accounts: {
-  //             signer: owner,
-  //             poolState,
-  //             tokenAccount0: minterWallet0,
-  //             tokenAccount1: minterWallet1,
-  //             vault0,
-  //             vault1,
-  //             latestObservationState,
-  //             nextObservationState,
-  //             coreProgram: coreProgram.programId,
-  //             tokenProgram: TOKEN_PROGRAM_ID,
-  //           }, remainingAccounts: [{
-  //             pubkey: bitmapLower,
-  //             isSigner: false,
-  //             isWritable: true
-  //           },
-  //           // price moves downwards in zero for one swap
-  //           {
-  //             pubkey: tickLowerState,
-  //             isSigner: false,
-  //             isWritable: true
-  //           }]
-  //         }
-  //       )
-  //       const poolStateDataAfter = await coreProgram.account.poolState.fetch(poolState)
-  //       console.log('pool price after', poolStateDataAfter.sqrtPriceX32.toNumber())
-  //       console.log('pool tick after', poolStateDataAfter.tick)
-  //     })
-  //   })
-
-  // })
+      const amountIn = new BN(100_000)
+      const amountOutMinimum = new BN(0)
+      const sqrtPriceLimitX32 = new BN(0)
+      await coreProgram.rpc.exactInputSingle(
+        deadline,
+        true,
+        amountIn,
+        amountOutMinimum,
+        sqrtPriceLimitX32,
+        {
+          accounts: {
+            signer: owner,
+            poolState,
+            tokenAccount0: minterWallet0,
+            tokenAccount1: minterWallet1,
+            vault0,
+            vault1,
+            latestObservationState,
+            nextObservationState,
+            coreProgram: coreProgram.programId,
+            tokenProgram: TOKEN_PROGRAM_ID,
+          }, remainingAccounts: [{
+            pubkey: bitmapLower,
+            isSigner: false,
+            isWritable: true
+          },
+          // price moves downwards in zero for one swap
+          {
+            pubkey: tickLowerState,
+            isSigner: false,
+            isWritable: true
+          }]
+        }
+      )
+      const poolStateDataAfter = await coreProgram.account.poolState.fetch(poolState)
+      console.log('pool price after', poolStateDataAfter.sqrtPriceX32.toNumber())
+      console.log('pool tick after', poolStateDataAfter.tick)
+    })
+  })
 })

@@ -707,32 +707,37 @@ pub struct CollectContext<'info> {
 #[derive(Accounts)]
 pub struct SwapContext<'info> {
     /// The user performing the swap
-    pub signer: Signer<'info>,
+    // pub signer: Signer<'info>,
+    pub signer: UncheckedAccount<'info>,
 
     /// The payer token account in zero for one swaps, or the recipient token account
     /// in one for zero swaps
     #[account(mut)]
-    pub token_account_0: Box<Account<'info, TokenAccount>>,
+    pub token_account_0: UncheckedAccount<'info>,
+    // pub token_account_0: Box<Account<'info, TokenAccount>>,
 
     /// The payer token account in one for zero swaps, or the recipient token account
     /// in zero for one swaps
     #[account(mut)]
-    pub token_account_1: Box<Account<'info, TokenAccount>>,
+    pub token_account_1: UncheckedAccount<'info>,
+    // pub token_account_1: Box<Account<'info, TokenAccount>>,
 
     /// The account holding pool tokens for token_0
-    #[account(
-        mut,
-        associated_token::mint = pool_state.load()?.token_0.key(),
-        associated_token::authority = pool_state,
-    )]
+    // #[account(
+    //     mut,
+    //     associated_token::mint = pool_state.load()?.token_0.key(),
+    //     associated_token::authority = pool_state,
+    // )]
+    #[account(mut)]
     pub vault_0: Box<Account<'info, TokenAccount>>,
 
     /// The account holding pool tokens for token_1
-    #[account(
-        mut,
-        associated_token::mint = pool_state.load()?.token_1.key(),
-        associated_token::authority = pool_state,
-    )]
+    // #[account(
+    //     mut,
+    //     associated_token::mint = pool_state.load()?.token_1.key(),
+    //     associated_token::authority = pool_state,
+    // )]
+    #[account(mut)]
     pub vault_1: Box<Account<'info, TokenAccount>>,
 
     /// SPL program for token transfers
@@ -740,37 +745,46 @@ pub struct SwapContext<'info> {
 
     /// The program account of the pool in which the swap will be performed
     #[account(mut)]
-    pub pool_state: Loader<'info, PoolState>,
+    pub pool_state: UncheckedAccount<'info>,
+    // pub pool_state: Loader<'info, PoolState>,
 
     /// The program account for the most recent oracle observation
-    #[account(
-        mut,
-        seeds = [
-            &OBSERVATION_SEED.as_bytes(),
-            pool_state.load()?.token_0.key().as_ref(),
-            pool_state.load()?.token_1.key().as_ref(),
-            &pool_state.load()?.fee.to_be_bytes(),
-            &pool_state.load()?.observation_index.to_be_bytes(),
-        ],
-        bump = latest_observation_state.load()?.bump
-    )]
-    pub latest_observation_state: Loader<'info, ObservationState>,
+    #[account(mut)]
+    pub latest_observation_state: UncheckedAccount<'info>,
 
     /// The observation program account one position after latest_observation_state
-    #[account(
-        mut,
-        seeds = [
-            &OBSERVATION_SEED.as_bytes(),
-            pool_state.load()?.token_0.key().as_ref(),
-            pool_state.load()?.token_1.key().as_ref(),
-            &pool_state.load()?.fee.to_be_bytes(),
-            &((pool_state.load()?.observation_index + 1)
-                % pool_state.load()?.observation_cardinality_next
-            ).to_be_bytes(),
-        ],
-        bump = next_observation_state.load()?.bump
-    )]
-    pub next_observation_state: Loader<'info, ObservationState>,
+    #[account(mut)]
+    pub next_observation_state: UncheckedAccount<'info>,
+
+    // /// The program account for the most recent oracle observation
+    // #[account(
+    //     mut,
+    //     seeds = [
+    //         &OBSERVATION_SEED.as_bytes(),
+    //         pool_state.load()?.token_0.key().as_ref(),
+    //         pool_state.load()?.token_1.key().as_ref(),
+    //         &pool_state.load()?.fee.to_be_bytes(),
+    //         &pool_state.load()?.observation_index.to_be_bytes(),
+    //     ],
+    //     bump = latest_observation_state.load()?.bump
+    // )]
+    // pub latest_observation_state: Loader<'info, ObservationState>,
+
+    // /// The observation program account one position after latest_observation_state
+    // #[account(
+    //     mut,
+    //     seeds = [
+    //         &OBSERVATION_SEED.as_bytes(),
+    //         pool_state.load()?.token_0.key().as_ref(),
+    //         pool_state.load()?.token_1.key().as_ref(),
+    //         &pool_state.load()?.fee.to_be_bytes(),
+    //         &((pool_state.load()?.observation_index + 1)
+    //             % pool_state.load()?.observation_cardinality_next
+    //         ).to_be_bytes(),
+    //     ],
+    //     bump = next_observation_state.load()?.bump
+    // )]
+    // pub next_observation_state: Loader<'info, ObservationState>,
 
     /// Program which receives swap_callback
     pub callback_handler: UncheckedAccount<'info>,
@@ -1119,5 +1133,51 @@ pub struct CollectFromTokenized<'info> {
     pub core_program: Program<'info, CyclosCore>,
 
     /// SPL program to transfer out tokens
+    pub token_program: Program<'info, Token>,
+}
+
+#[derive(Accounts)]
+pub struct ExactInputSingle<'info> {
+    /// The user performing the swap
+    #[account(mut)]
+    pub signer: UncheckedAccount<'info>,
+    // pub signer: Signer<'info>,
+
+    /// The program account of the pool in which the swap will be performed
+    #[account(mut)]
+    pub pool_state: UncheckedAccount<'info>,
+
+    /// The payer token account in zero for one swaps, or the recipient token account
+    /// in one for zero swaps
+    #[account(mut)]
+    pub token_account_0: UncheckedAccount<'info>,
+
+    /// The payer token account in one for zero swaps, or the recipient token account
+    /// in zero for one swaps
+    #[account(mut)]
+    pub token_account_1: UncheckedAccount<'info>,
+
+    /// The pool vault token account for token_0
+    #[account(mut)]
+    pub vault_0: Box<Account<'info, TokenAccount>>,
+    // pub vault_0: UncheckedAccount<'info>,
+
+    /// The pool vault token account for token_1
+    #[account(mut)]
+    pub vault_1: Box<Account<'info, TokenAccount>>,
+    // pub vault_1: UncheckedAccount<'info>,
+
+    /// The program account for the most recent oracle observation
+    #[account(mut)]
+    pub latest_observation_state: UncheckedAccount<'info>,
+
+    /// The observation program account one position after latest_observation_state
+    #[account(mut)]
+    pub next_observation_state: UncheckedAccount<'info>,
+
+    /// The core program where swap is performed
+    pub core_program: Program<'info, CyclosCore>,
+
+    /// SPL program for token transfers
     pub token_program: Program<'info, Token>,
 }
