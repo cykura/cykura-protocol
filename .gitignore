@@ -6,3 +6,5 @@ target
 node_modules
 test-ledger
 whiteboard.tldr
+.env
+keypair.json
