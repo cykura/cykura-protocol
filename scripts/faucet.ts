@@ -1,25 +1,19 @@
-import { Keypair, Connection, Transaction, SystemProgram } from "@solana/web3.js";
-
+import * as anchor from '@project-serum/anchor'
+import { Keypair, Transaction, SystemProgram } from "@solana/web3.js";
+import { web3 } from '@project-serum/anchor'
+import keypairFile from './keypair.json'
 import * as SPLToken from "@solana/spl-token";
-
-export const FEE_PAYER = Keypair.fromSecretKey(
-  Uint8Array.from([166, 35, 198, 106, 198, 244, 143, 224, 64, 125, 232, 144, 28, 45, 178, 146, 56, 92, 99, 244, 25, 75, 104, 247, 215, 33, 62, 30, 186, 249, 163, 48, 185, 210, 115, 123, 192, 235, 130, 28, 35, 27, 9, 65, 38, 210, 100, 190, 62, 225, 55, 90, 209, 0, 227, 160, 141, 54, 132, 242, 98, 240, 212, 95])
-);
-
-export const CONNECTION = new Connection("http://localhost:8899");
-// export const CONNECTION = new Connection("https://api.devnet.solana.com");
-
-// Only One Time run
-
-// Airdrop FIRST 
-(async () => {
-  // 1e9 lamports = 10^9 lamports = 1 SOL
-  let txhash = await CONNECTION.requestAirdrop(FEE_PAYER.publicKey, 1e9);
-  console.log(`txhash: ${txhash}`);
-})();
 
 // may fail because airdrop not completed
 async function main() {
+
+  const keypair = web3.Keypair.fromSeed(Uint8Array.from(keypairFile.slice(0, 32)))
+  console.log('pubkey', keypair.publicKey.toString())
+  const wallet = new anchor.Wallet(keypair)
+  const owner = wallet.publicKey
+  const connection = new web3.Connection('http://127.0.0.1:8899')
+  const provider = new anchor.Provider(connection, wallet, {})
+  anchor.setProvider(provider)
 
   let tx = new Transaction()
 
@@ -32,10 +26,10 @@ async function main() {
   tx.add(
     // create account
     SystemProgram.createAccount({
-      fromPubkey: FEE_PAYER.publicKey,
+      fromPubkey: owner,
       newAccountPubkey: USDCmint.publicKey,
       space: SPLToken.MintLayout.span,
-      lamports: await SPLToken.Token.getMinBalanceRentForExemptMint(CONNECTION),
+      lamports: await SPLToken.Token.getMinBalanceRentForExemptMint(connection),
       programId: SPLToken.TOKEN_PROGRAM_ID,
     }),
     // init mint
@@ -43,7 +37,7 @@ async function main() {
       SPLToken.TOKEN_PROGRAM_ID, // program id, always token program id
       USDCmint.publicKey, // mint account public key
       6, // decimals
-      FEE_PAYER.publicKey, // mint authority (an auth to mint token)
+      owner, // mint authority (an auth to mint token)
       null // freeze authority (we use null first, the auth can let you freeze user's token account)
     )
   );
@@ -56,10 +50,10 @@ async function main() {
   tx.add(
     // create account
     SystemProgram.createAccount({
-      fromPubkey: FEE_PAYER.publicKey,
+      fromPubkey: owner,
       newAccountPubkey: USDTmint.publicKey,
       space: SPLToken.MintLayout.span,
-      lamports: await SPLToken.Token.getMinBalanceRentForExemptMint(CONNECTION),
+      lamports: await SPLToken.Token.getMinBalanceRentForExemptMint(connection),
       programId: SPLToken.TOKEN_PROGRAM_ID,
     }),
     // init mint
@@ -67,7 +61,7 @@ async function main() {
       SPLToken.TOKEN_PROGRAM_ID, // program id, always token program id
       USDTmint.publicKey, // mint account public key
       6, // decimals
-      FEE_PAYER.publicKey, // mint authority (an auth to mint token)
+      owner, // mint authority (an auth to mint token)
       null // freeze authority (we use null first, the auth can let you freeze user's token account)
     )
   );
@@ -80,10 +74,10 @@ async function main() {
   tx.add(
     // create account
     SystemProgram.createAccount({
-      fromPubkey: FEE_PAYER.publicKey,
+      fromPubkey: owner,
       newAccountPubkey: SOLmint.publicKey,
       space: SPLToken.MintLayout.span,
-      lamports: await SPLToken.Token.getMinBalanceRentForExemptMint(CONNECTION),
+      lamports: await SPLToken.Token.getMinBalanceRentForExemptMint(connection),
       programId: SPLToken.TOKEN_PROGRAM_ID,
     }),
     // init mint
@@ -91,13 +85,13 @@ async function main() {
       SPLToken.TOKEN_PROGRAM_ID, // program id, always token program id
       SOLmint.publicKey, // mint account public key
       9, // decimals
-      FEE_PAYER.publicKey, // mint authority (an auth to mint token)
+      owner, // mint authority (an auth to mint token)
       null // freeze authority (we use null first, the auth can let you freeze user's token account)
     )
   );
-  tx.feePayer = FEE_PAYER.publicKey;
+  tx.feePayer = owner;
 
-  let txhash = await CONNECTION.sendTransaction(tx, [USDCmint, USDTmint, SOLmint, FEE_PAYER]);
+  const txhash = await provider.send(tx, [USDCmint, USDTmint, SOLmint])
   console.log(`txhash: ${txhash}`);
 }
 
