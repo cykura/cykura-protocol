@@ -8,8 +8,6 @@ import chaiAsPromised from 'chai-as-promised'
 chai.use(chaiAsPromised)
 
 import { CyclosCore } from '../target/types/cyclos_core'
-import { NonFungiblePositionManager } from '../target/types/non_fungible_position_manager'
-import { SwapRouter } from '../target/types/swap_router'
 import {
   BITMAP_SEED,
   FEE_SEED,
@@ -190,121 +188,121 @@ describe('cyclos-core', async () => {
     )
   })
 
-  describe('#init_factory', () => {
+  // describe('#init_factory', () => {
 
-    // Test for event and owner value
-    it('initializes factory and emits an event', async () => {
-      let listener: number
-      let [_event, _slot] = await new Promise((resolve, _reject) => {
-        listener = coreProgram.addEventListener("OwnerChanged", (event, slot) => {
-          assert((event.oldOwner as web3.PublicKey).equals(new PublicKey(0)))
-          assert((event.newOwner as web3.PublicKey).equals(owner))
+  //   // Test for event and owner value
+  //   it('initializes factory and emits an event', async () => {
+  //     let listener: number
+  //     let [_event, _slot] = await new Promise((resolve, _reject) => {
+  //       listener = coreProgram.addEventListener("OwnerChanged", (event, slot) => {
+  //         assert((event.oldOwner as web3.PublicKey).equals(new PublicKey(0)))
+  //         assert((event.newOwner as web3.PublicKey).equals(owner))
 
-          resolve([event, slot]);
-        });
+  //         resolve([event, slot]);
+  //       });
 
-        coreProgram.rpc.initFactory(factoryStateBump, {
-          accounts: {
-            owner,
-            factoryState,
-            systemProgram: SystemProgram.programId,
-          }
-        });
-      });
-      await coreProgram.removeEventListener(listener);
+  //       coreProgram.rpc.initFactory(factoryStateBump, {
+  //         accounts: {
+  //           owner,
+  //           factoryState,
+  //           systemProgram: SystemProgram.programId,
+  //         }
+  //       });
+  //     });
+  //     await coreProgram.removeEventListener(listener);
 
-      const factoryStateData = await coreProgram.account.factoryState.fetch(factoryState)
-      assert.equal(factoryStateData.bump, factoryStateBump)
-      assert(factoryStateData.owner.equals(owner))
-    });
+  //     const factoryStateData = await coreProgram.account.factoryState.fetch(factoryState)
+  //     assert.equal(factoryStateData.bump, factoryStateBump)
+  //     assert(factoryStateData.owner.equals(owner))
+  //   });
 
-    it('Trying to re-initialize factory fails', async () => {
-      await expect(coreProgram.rpc.initFactory(factoryStateBump, {
-        accounts: {
-          owner,
-          factoryState,
-          systemProgram: anchor.web3.SystemProgram.programId,
-        }
-      })).to.be.rejectedWith(Error)
-    });
-  })
+  //   it('Trying to re-initialize factory fails', async () => {
+  //     await expect(coreProgram.rpc.initFactory(factoryStateBump, {
+  //       accounts: {
+  //         owner,
+  //         factoryState,
+  //         systemProgram: anchor.web3.SystemProgram.programId,
+  //       }
+  //     })).to.be.rejectedWith(Error)
+  //   });
+  // })
 
-  describe('#set_owner', () => {
-    const newOwner = new Keypair()
+  // describe('#set_owner', () => {
+  //   const newOwner = new Keypair()
 
-    it('fails if owner does not sign', async () => {
-      const tx = coreProgram.transaction.setOwner({
-        accounts: {
-          owner,
-          newOwner: newOwner.publicKey,
-          factoryState,
-        }
-      });
-      tx.recentBlockhash = (await connection.getRecentBlockhash()).blockhash
+  //   it('fails if owner does not sign', async () => {
+  //     const tx = coreProgram.transaction.setOwner({
+  //       accounts: {
+  //         owner,
+  //         newOwner: newOwner.publicKey,
+  //         factoryState,
+  //       }
+  //     });
+  //     tx.recentBlockhash = (await connection.getRecentBlockhash()).blockhash
 
-      await expect(connection.sendTransaction(tx, [])).to.be.rejectedWith(Error)
-    })
+  //     await expect(connection.sendTransaction(tx, [])).to.be.rejectedWith(Error)
+  //   })
 
-    it('fails if caller is not owner', async () => {
-      const tx = coreProgram.transaction.setOwner({
-        accounts: {
-          owner,
-          newOwner: newOwner.publicKey,
-          factoryState,
-        }
-      });
-      tx.recentBlockhash = (await connection.getRecentBlockhash()).blockhash
+  //   it('fails if caller is not owner', async () => {
+  //     const tx = coreProgram.transaction.setOwner({
+  //       accounts: {
+  //         owner,
+  //         newOwner: newOwner.publicKey,
+  //         factoryState,
+  //       }
+  //     });
+  //     tx.recentBlockhash = (await connection.getRecentBlockhash()).blockhash
 
-      await expect(connection.sendTransaction(tx, [notOwner])).to.be.rejectedWith(Error)
-    })
+  //     await expect(connection.sendTransaction(tx, [notOwner])).to.be.rejectedWith(Error)
+  //   })
 
-    it('fails if correct signer but incorrect owner field', async () => {
-      await expect(coreProgram.rpc.setOwner({
-        accounts: {
-          owner: notOwner.publicKey,
-          newOwner: newOwner.publicKey,
-          factoryState,
-        }
-      })).to.be.rejectedWith(Error)
-    })
+  //   it('fails if correct signer but incorrect owner field', async () => {
+  //     await expect(coreProgram.rpc.setOwner({
+  //       accounts: {
+  //         owner: notOwner.publicKey,
+  //         newOwner: newOwner.publicKey,
+  //         factoryState,
+  //       }
+  //     })).to.be.rejectedWith(Error)
+  //   })
 
-    // Test for event and updated owner value
-    it('updates owner and emits an event', async function () {
-      let listener: number
-      let [_event, _slot] = await new Promise((resolve, _reject) => {
-        listener = coreProgram.addEventListener("OwnerChanged", (event, slot) => {
-          assert((event.oldOwner as web3.PublicKey).equals(owner))
-          assert((event.newOwner as web3.PublicKey).equals(newOwner.publicKey))
+  //   // Test for event and updated owner value
+  //   it('updates owner and emits an event', async function () {
+  //     let listener: number
+  //     let [_event, _slot] = await new Promise((resolve, _reject) => {
+  //       listener = coreProgram.addEventListener("OwnerChanged", (event, slot) => {
+  //         assert((event.oldOwner as web3.PublicKey).equals(owner))
+  //         assert((event.newOwner as web3.PublicKey).equals(newOwner.publicKey))
 
-          resolve([event, slot]);
-        });
+  //         resolve([event, slot]);
+  //       });
 
-        coreProgram.rpc.setOwner({
-          accounts: {
-            owner,
-            newOwner: newOwner.publicKey,
-            factoryState,
-          }
-        });
-      });
-      await coreProgram.removeEventListener(listener);
+  //       coreProgram.rpc.setOwner({
+  //         accounts: {
+  //           owner,
+  //           newOwner: newOwner.publicKey,
+  //           factoryState,
+  //         }
+  //       });
+  //     });
+  //     await coreProgram.removeEventListener(listener);
 
-      const factoryStateData = await coreProgram.account.factoryState.fetch(factoryState)
-      assert(factoryStateData.owner.equals(newOwner.publicKey))
-    })
+  //     const factoryStateData = await coreProgram.account.factoryState.fetch(factoryState)
+  //     assert(factoryStateData.owner.equals(newOwner.publicKey))
+  //   })
 
-    it('reverts to original owner when signed by the new owner', async () => {
-      await coreProgram.rpc.setOwner({
-        accounts: {
-          owner: newOwner.publicKey,
-          newOwner: owner,
-          factoryState,
-        }, signers: [newOwner]
-      });
-      const factoryStateData = await coreProgram.account.factoryState.fetch(factoryState)
-      assert(factoryStateData.owner.equals(owner))
-    })
-  })
+  //   it('reverts to original owner when signed by the new owner', async () => {
+  //     await coreProgram.rpc.setOwner({
+  //       accounts: {
+  //         owner: newOwner.publicKey,
+  //         newOwner: owner,
+  //         factoryState,
+  //       }, signers: [newOwner]
+  //     });
+  //     const factoryStateData = await coreProgram.account.factoryState.fetch(factoryState)
+  //     assert(factoryStateData.owner.equals(owner))
+  //   })
+  // })
 
   describe('#enable_fee_amount', () => {
     it('fails if PDA seeds do not match', async () => {

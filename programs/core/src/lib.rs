@@ -41,7 +41,7 @@ use crate::{
     states::{oracle::OBSERVATION_SEED, tick_bitmap},
 };
 
-declare_id!("37kn8WUzihQoAnhYxueA2BnqCA7VRnrVvYoHy1hQ6Veu");
+declare_id!("cysonxupBUVurvLe3Kz9mYrwmNfh43gEP4MgXwHmsUk");
 
 #[program]
 pub mod cyclos_core {
@@ -2186,7 +2186,6 @@ pub mod cyclos_core {
 
 /// Performs a single exact input swap
 pub fn exact_input_internal<'info>(
-    // core_program: AccountInfo<'info>,
     accounts: &mut SwapContext<'info>,
     remaining_accounts: &[AccountInfo<'info>],
     zero_for_one: bool,

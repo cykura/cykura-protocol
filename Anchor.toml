@@ -1,5 +1,5 @@
 [programs.localnet]
-cyclos_core = "37kn8WUzihQoAnhYxueA2BnqCA7VRnrVvYoHy1hQ6Veu"
+cyclos_core = "cysonxupBUVurvLe3Kz9mYrwmNfh43gEP4MgXwHmsUk"
 
 [registry]
 url = "https://anchor.projectserum.com"
@@ -17,3 +17,11 @@ startup_wait = 20000
 [[test.genesis]]
 address = "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s"
 program = "./spl_token_metadata/spl_token_metadata.so"
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+[profile.release.build-override]
+opt-level = 3
+incremental = false
+codegen-units = 1
