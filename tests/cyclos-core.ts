@@ -2355,7 +2355,7 @@ describe('cyclos-core', async () => {
 
       await expect(coreProgram.rpc.exactInputSingle(
         deadline,
-        true,
+        // true,
         amountIn,
         amountOutMinimum,
         sqrtPriceLimitX32,
@@ -2363,10 +2363,14 @@ describe('cyclos-core', async () => {
           accounts: {
             signer: owner,
             poolState,
-            tokenAccount0: minterWallet0,
-            tokenAccount1: minterWallet1,
-            vault0,
-            vault1,
+            inputTokenAccount: minterWallet0,
+            outputTokenAccount: minterWallet1,
+            inputVault: vault0,
+            outputVault: vault1,
+            // tokenAccount0: minterWallet0,
+            // tokenAccount1: minterWallet1,
+            // vault0,
+            // vault1,
             latestObservationState,
             nextObservationState,
             coreProgram: coreProgram.programId,
@@ -2397,7 +2401,6 @@ describe('cyclos-core', async () => {
 
       await coreProgram.rpc.exactInputSingle(
         deadline,
-        true,
         amountIn,
         amountOutMinimum,
         sqrtPriceLimitX32,
@@ -2405,10 +2408,10 @@ describe('cyclos-core', async () => {
           accounts: {
             signer: owner,
             poolState,
-            tokenAccount0: minterWallet0,
-            tokenAccount1: minterWallet1,
-            vault0,
-            vault1,
+            inputTokenAccount: minterWallet0,
+            outputTokenAccount: minterWallet1,
+            inputVault: vault0,
+            outputVault: vault1,
             latestObservationState,
             nextObservationState,
             coreProgram: coreProgram.programId,
@@ -2472,7 +2475,7 @@ describe('cyclos-core', async () => {
       const sqrtPriceLimitX32 = new BN(0)
       await coreProgram.rpc.exactInputSingle(
         deadline,
-        true,
+        // true,
         amountIn,
         amountOutMinimum,
         sqrtPriceLimitX32,
@@ -2480,10 +2483,14 @@ describe('cyclos-core', async () => {
           accounts: {
             signer: owner,
             poolState,
-            tokenAccount0: minterWallet0,
-            tokenAccount1: minterWallet1,
-            vault0,
-            vault1,
+            inputTokenAccount: minterWallet0,
+            outputTokenAccount: minterWallet1,
+            inputVault: vault0,
+            outputVault: vault1,
+            // tokenAccount0: minterWallet0,
+            // tokenAccount1: minterWallet1,
+            // vault0,
+            // vault1,
             latestObservationState,
             nextObservationState,
             coreProgram: coreProgram.programId,

@@ -2,7 +2,6 @@ use anchor_lang::prelude::*;
 use anchor_spl::associated_token::AssociatedToken;
 use anchor_spl::token::{Mint, Token, TokenAccount};
 use std::mem::size_of;
-use crate::cyclos_core;
 use crate::error::ErrorCode;
 use crate::program::CyclosCore;
 use crate::states::factory::FactoryState;
@@ -504,25 +503,23 @@ pub struct CollectContext<'info> {
 #[derive(Accounts)]
 pub struct SwapContext<'info> {
     /// The user performing the swap
-    pub signer: UncheckedAccount<'info>,
+    pub signer: Signer<'info>,
 
-    /// The payer token account in zero for one swaps, or the recipient token account
-    /// in one for zero swaps
+    /// The user token account for input token
     #[account(mut)]
-    pub token_account_0: UncheckedAccount<'info>,
+    pub input_token_account: UncheckedAccount<'info>,
 
-    /// The payer token account in one for zero swaps, or the recipient token account
-    /// in zero for one swaps
+    /// The user token account for output token
     #[account(mut)]
-    pub token_account_1: UncheckedAccount<'info>,
+    pub output_token_account: UncheckedAccount<'info>,
 
-    /// The account holding pool tokens for token_0
+    /// The vault token account for input token
     #[account(mut)]
-    pub vault_0: Box<Account<'info, TokenAccount>>,
+    pub input_vault: Box<Account<'info, TokenAccount>>,
 
-    /// The account holding pool tokens for token_1
+    /// The vault token account for output token
     #[account(mut)]
-    pub vault_1: Box<Account<'info, TokenAccount>>,
+    pub output_vault: Box<Account<'info, TokenAccount>>,
 
     /// SPL program for token transfers
     pub token_program: Program<'info, Token>,
@@ -530,7 +527,6 @@ pub struct SwapContext<'info> {
     /// The program account of the pool in which the swap will be performed
     #[account(mut)]
     pub pool_state: UncheckedAccount<'info>,
-    // pub pool_state: Loader<'info, PoolState>,
 
     /// The program account for the most recent oracle observation
     #[account(mut)]
@@ -890,32 +886,27 @@ pub struct CollectFromTokenized<'info> {
 pub struct ExactInputSingle<'info> {
     /// The user performing the swap
     #[account(mut)]
-    pub signer: UncheckedAccount<'info>,
-    // pub signer: Signer<'info>,
+    pub signer: Signer<'info>,
 
     /// The program account of the pool in which the swap will be performed
     #[account(mut)]
     pub pool_state: UncheckedAccount<'info>,
 
-    /// The payer token account in zero for one swaps, or the recipient token account
-    /// in one for zero swaps
+    /// The user token account for input token
     #[account(mut)]
-    pub token_account_0: UncheckedAccount<'info>,
+    pub input_token_account: UncheckedAccount<'info>,
 
-    /// The payer token account in one for zero swaps, or the recipient token account
-    /// in zero for one swaps
+    /// The user token account for output token
     #[account(mut)]
-    pub token_account_1: UncheckedAccount<'info>,
+    pub output_token_account: UncheckedAccount<'info>,
 
-    /// The pool vault token account for token_0
+    /// The vault token account for input token
     #[account(mut)]
-    pub vault_0: Box<Account<'info, TokenAccount>>,
-    // pub vault_0: UncheckedAccount<'info>,
+    pub input_vault: Box<Account<'info, TokenAccount>>,
 
-    /// The pool vault token account for token_1
+    /// The vault token account for output token
     #[account(mut)]
-    pub vault_1: Box<Account<'info, TokenAccount>>,
-    // pub vault_1: UncheckedAccount<'info>,
+    pub output_vault: Box<Account<'info, TokenAccount>>,
 
     /// The program account for the most recent oracle observation
     #[account(mut)]

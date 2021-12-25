@@ -46,6 +46,8 @@ declare_id!("cysonxupBUVurvLe3Kz9mYrwmNfh43gEP4MgXwHmsUk");
 #[program]
 pub mod cyclos_core {
 
+    use anchor_spl::token::TokenAccount;
+
     use super::*;
 
     // ---------------------------------------------------------------------
@@ -1168,25 +1170,39 @@ pub mod cyclos_core {
     ///
     pub fn swap(
         ctx: Context<SwapContext>,
-        zero_for_one: bool,
         amount_specified: i64,
         sqrt_price_limit_x32: u64,
     ) -> ProgramResult {
         require!(amount_specified != 0, ErrorCode::AS);
 
-        assert!(ctx.accounts.signer.is_signer);
         let pool_loader =
             Loader::<PoolState>::try_from(&ID, &ctx.accounts.pool_state.to_account_info())?;
         let mut pool = pool_loader.load_mut()?;
 
-        assert!(
-            ctx.accounts.vault_0.key()
-                == get_associated_token_address(&pool_loader.key(), &pool.token_0)
-        );
-        assert!(
-            ctx.accounts.vault_1.key()
-                == get_associated_token_address(&pool_loader.key(), &pool.token_1)
-        );
+        let input_token_account =
+            Account::<TokenAccount>::try_from(&ctx.accounts.input_token_account)?;
+        let output_token_account =
+            Account::<TokenAccount>::try_from(&ctx.accounts.output_token_account)?;
+
+        let zero_for_one = ctx.accounts.input_vault.mint == pool.token_0;
+
+        let (token_account_0, token_account_1, mut vault_0, mut vault_1) = if zero_for_one {
+            (
+                input_token_account,
+                output_token_account,
+                ctx.accounts.input_vault.clone(),
+                ctx.accounts.output_vault.clone(),
+            )
+        } else {
+            (
+                output_token_account,
+                input_token_account,
+                ctx.accounts.output_vault.clone(),
+                ctx.accounts.input_vault.clone(),
+            )
+        };
+        assert!(vault_0.key() == get_associated_token_address(&pool_loader.key(), &pool.token_0));
+        assert!(vault_1.key() == get_associated_token_address(&pool_loader.key(), &pool.token_1));
 
         let latest_observation_state = Loader::<ObservationState>::try_from(
             &ID,
@@ -1523,8 +1539,8 @@ pub mod cyclos_core {
                     CpiContext::new_with_signer(
                         ctx.accounts.token_program.to_account_info().clone(),
                         token::Transfer {
-                            from: ctx.accounts.vault_1.to_account_info().clone(),
-                            to: ctx.accounts.token_account_1.to_account_info().clone(),
+                            from: vault_1.to_account_info().clone(),
+                            to: token_account_1.to_account_info().clone(),
                             authority: ctx.accounts.pool_state.to_account_info().clone(),
                         },
                         &[&pool_state_seeds[..]],
@@ -1532,7 +1548,7 @@ pub mod cyclos_core {
                     amount_1.neg() as u64,
                 )?;
             }
-            let balance_0_before = ctx.accounts.vault_0.amount;
+            let balance_0_before = vault_0.amount;
             // transfer tokens to pool in callback
             let swap_callback_ix = cyclos_core::instruction::SwapCallback {
                 amount_0_delta: amount_0,
@@ -1545,10 +1561,9 @@ pub mod cyclos_core {
                 ctx.accounts.to_account_metas(None),
             );
             solana_program::program::invoke(&ix, &ctx.accounts.to_account_infos())?;
-            ctx.accounts.vault_0.reload()?;
+            vault_0.reload()?;
             require!(
-                balance_0_before.checked_add(amount_0 as u64).unwrap()
-                    <= ctx.accounts.vault_0.amount,
+                balance_0_before.checked_add(amount_0 as u64).unwrap() <= vault_0.amount,
                 ErrorCode::IIA
             );
         } else {
@@ -1557,8 +1572,8 @@ pub mod cyclos_core {
                     CpiContext::new_with_signer(
                         ctx.accounts.token_program.to_account_info().clone(),
                         token::Transfer {
-                            from: ctx.accounts.vault_0.to_account_info().clone(),
-                            to: ctx.accounts.token_account_0.to_account_info().clone(),
+                            from: vault_0.to_account_info().clone(),
+                            to: token_account_0.to_account_info().clone(),
                             authority: ctx.accounts.pool_state.to_account_info().clone(),
                         },
                         &[&pool_state_seeds[..]],
@@ -1566,7 +1581,7 @@ pub mod cyclos_core {
                     amount_0.neg() as u64,
                 )?;
             }
-            let balance_1_before = ctx.accounts.vault_1.amount;
+            let balance_1_before = vault_1.amount;
             // transfer tokens to pool in callback
             let swap_callback_ix = cyclos_core::instruction::SwapCallback {
                 amount_0_delta: amount_0,
@@ -1579,10 +1594,9 @@ pub mod cyclos_core {
                 ctx.accounts.to_account_metas(None),
             );
             solana_program::program::invoke(&ix, &ctx.accounts.to_account_infos())?;
-            ctx.accounts.vault_1.reload()?;
+            vault_1.reload()?;
             require!(
-                balance_1_before.checked_add(amount_0 as u64).unwrap()
-                    <= ctx.accounts.vault_1.amount,
+                balance_1_before.checked_add(amount_0 as u64).unwrap() <= vault_1.amount,
                 ErrorCode::IIA
             );
         }
@@ -1590,8 +1604,8 @@ pub mod cyclos_core {
         emit!(SwapEvent {
             pool_state: pool_loader.key(),
             sender: ctx.accounts.signer.key(),
-            token_account_0: ctx.accounts.token_account_0.key(),
-            token_account_1: ctx.accounts.token_account_1.key(),
+            token_account_0: token_account_0.key(),
+            token_account_1: token_account_1.key(),
             amount_0,
             amount_1,
             sqrt_price_x32: state.sqrt_price_x32,
@@ -2089,7 +2103,7 @@ pub mod cyclos_core {
     pub fn exact_input_single<'a, 'b, 'c, 'info>(
         ctx: Context<'a, 'b, 'c, 'info, ExactInputSingle<'info>>,
         deadline: i64,
-        zero_for_one: bool,
+        // zero_for_one: bool,
         amount_in: u64,
         amount_out_minimum: u64,
         sqrt_price_limit_x32: u64,
@@ -2097,10 +2111,10 @@ pub mod cyclos_core {
         let amount_out = exact_input_internal(
             &mut SwapContext {
                 signer: ctx.accounts.signer.clone(),
-                token_account_0: ctx.accounts.token_account_0.clone(),
-                token_account_1: ctx.accounts.token_account_1.clone(),
-                vault_0: ctx.accounts.vault_0.clone(),
-                vault_1: ctx.accounts.vault_1.clone(),
+                input_token_account: ctx.accounts.input_token_account.clone(),
+                output_token_account: ctx.accounts.output_token_account.clone(),
+                input_vault: ctx.accounts.input_vault.clone(),
+                output_vault: ctx.accounts.output_vault.clone(),
                 token_program: ctx.accounts.token_program.clone(),
                 pool_state: ctx.accounts.pool_state.clone(),
                 latest_observation_state: ctx.accounts.latest_observation_state.clone(),
@@ -2108,9 +2122,9 @@ pub mod cyclos_core {
                 callback_handler: UncheckedAccount::try_from(
                     ctx.accounts.core_program.to_account_info(),
                 ),
+
             },
             ctx.remaining_accounts,
-            zero_for_one,
             amount_in,
             sqrt_price_limit_x32,
         )?;
@@ -2188,19 +2202,15 @@ pub mod cyclos_core {
 pub fn exact_input_internal<'info>(
     accounts: &mut SwapContext<'info>,
     remaining_accounts: &[AccountInfo<'info>],
-    zero_for_one: bool,
     amount_in: u64,
     sqrt_price_limit_x32: u64,
 ) -> Result<u64, ProgramError> {
-    let balance_before = if zero_for_one {
-        accounts.vault_1.amount
-    } else {
-        accounts.vault_0.amount
-    };
+    let pool_state = Loader::<PoolState>::try_from(&ID, &accounts.pool_state)?;
+    let zero_for_one = accounts.input_vault.mint == pool_state.load()?.token_0;
 
+    let balance_before = accounts.input_vault.amount;
     swap(
         Context::new(&ID, accounts, remaining_accounts),
-        zero_for_one,
         i64::try_from(amount_in).unwrap(),
         if sqrt_price_limit_x32 == 0 {
             if zero_for_one {
@@ -2213,14 +2223,8 @@ pub fn exact_input_internal<'info>(
         },
     )?;
 
-    let balance_after = if zero_for_one {
-        accounts.vault_1.reload()?;
-        accounts.vault_1.amount
-    } else {
-        accounts.vault_0.reload()?;
-        accounts.vault_0.amount
-    };
-    Ok(balance_before - balance_after)
+    accounts.input_vault.reload()?;
+    Ok(balance_before - accounts.input_vault.amount)
 }
 
 /// Common checks for a valid tick input.
