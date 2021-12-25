@@ -1,7 +1,3 @@
-use anchor_lang::prelude::*;
-use anchor_spl::associated_token::AssociatedToken;
-use anchor_spl::token::{Mint, Token, TokenAccount};
-use std::mem::size_of;
 use crate::error::ErrorCode;
 use crate::program::CyclosCore;
 use crate::states::factory::FactoryState;
@@ -12,6 +8,10 @@ use crate::states::position::{PositionState, POSITION_SEED};
 use crate::states::tick::{TickState, TICK_SEED};
 use crate::states::tick_bitmap::{TickBitmapState, BITMAP_SEED};
 use crate::states::tokenized_position::TokenizedPositionState;
+use anchor_lang::prelude::*;
+use anchor_spl::associated_token::AssociatedToken;
+use anchor_spl::token::{Mint, Token, TokenAccount};
+use std::mem::size_of;
 
 #[derive(Accounts)]
 #[instruction(bump: u8)]
@@ -527,7 +527,6 @@ pub struct SwapContext<'info> {
     /// The program account of the pool in which the swap will be performed
     #[account(mut)]
     pub pool_state: UncheckedAccount<'info>,
-
     /// The program account for the most recent oracle observation
     #[account(mut)]
     pub latest_observation_state: UncheckedAccount<'info>,
@@ -915,6 +914,22 @@ pub struct ExactInputSingle<'info> {
     /// The observation program account one position after latest_observation_state
     #[account(mut)]
     pub next_observation_state: UncheckedAccount<'info>,
+
+    /// The core program where swap is performed
+    pub core_program: Program<'info, CyclosCore>,
+
+    /// SPL program for token transfers
+    pub token_program: Program<'info, Token>,
+}
+
+#[derive(Accounts)]
+pub struct ExactInput<'info> {
+    /// The user performing the swap
+    #[account(mut)]
+    pub signer: Signer<'info>,
+
+    #[account(mut)]
+    pub input_token_account: UncheckedAccount<'info>,
 
     /// The core program where swap is performed
     pub core_program: Program<'info, CyclosCore>,

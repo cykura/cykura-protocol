@@ -35,6 +35,7 @@ use std::convert::TryFrom;
 use std::mem::size_of;
 use std::ops::Neg;
 use std::ops::{Deref, DerefMut};
+use anchor_spl::token::{Token, TokenAccount};
 
 use crate::{
     libraries::{fixed_point_x32, swap_math},
@@ -45,8 +46,6 @@ declare_id!("cysonxupBUVurvLe3Kz9mYrwmNfh43gEP4MgXwHmsUk");
 
 #[program]
 pub mod cyclos_core {
-
-    use anchor_spl::token::TokenAccount;
 
     use super::*;
 
@@ -148,6 +147,7 @@ pub mod cyclos_core {
         observation_state_bump: u8,
         sqrt_price_x32: u64,
     ) -> ProgramResult {
+        msg!("inside create and init pool");
         let mut pool_state = ctx.accounts.pool_state.load_init()?;
         let mut initial_observation_state = ctx.accounts.initial_observation_state.load_init()?;
         let fee_state = ctx.accounts.fee_state.load()?;
@@ -1160,7 +1160,6 @@ pub mod cyclos_core {
     /// # Arguments
     ///
     /// * `ctx` - Accounts required for the swap
-    /// * `zero_for_one` -  The direction of the swap, true for token_0 to token_1, false for token_1 to token_0
     /// * `deadline` - The time by which the transaction must be included to effect the change
     /// * `amount_specified` - The amount of the swap, which implicitly configures the swap as exact input (positive),
     /// or exact output (negative)
@@ -1173,6 +1172,7 @@ pub mod cyclos_core {
         amount_specified: i64,
         sqrt_price_limit_x32: u64,
     ) -> ProgramResult {
+        msg!("inside swap");
         require!(amount_specified != 0, ErrorCode::AS);
 
         let pool_loader =
@@ -1256,7 +1256,7 @@ pub mod cyclos_core {
         );
 
         pool.unlocked = false;
-
+        msg!("pool locked");
         let mut cache = SwapCache {
             liquidity_start: pool.liquidity,
             block_timestamp: oracle::_block_timestamp(),
@@ -1293,6 +1293,7 @@ pub mod cyclos_core {
         let mut bitmap: Option<TickBitmapState> = None;
         while state.amount_specified_remaining != 0 && state.sqrt_price_x32 != sqrt_price_limit_x32
         {
+            msg!("in loop");
             let mut step = StepComputations::default();
             step.sqrt_price_start_x32 = state.sqrt_price_x32;
 
@@ -1308,13 +1309,18 @@ pub mod cyclos_core {
             }
 
             let Position { word_pos, bit_pos } = tick_bitmap::position(compressed);
-
+            msg!("loop starting");
+            // msg!("bitmap word pos {}", bitmap.unwrap().word_pos);
             if bitmap.is_none() || bitmap.unwrap().word_pos != word_pos {
+                msg!("loading bitmap");
+                msg!("remaining acc length {}", remaining_accounts.len());
                 let bitmap_loader = Loader::<TickBitmapState>::try_from(
                     &cyclos_core::id(),
                     remaining_accounts.next().unwrap(),
                 )?;
+                
                 let bitmap_state = bitmap_loader.load()?;
+                msg!("bitmap loaded");
 
                 let bitmap_account_seeds = [
                     BITMAP_SEED.as_bytes(),
@@ -1335,6 +1341,7 @@ pub mod cyclos_core {
                 drop(bitmap_state);
             }
 
+            msg!("outside loop");
             let next_initialized_bit = bitmap.unwrap().next_initialized_bit(bit_pos, zero_for_one);
             step.tick_next = (compressed + next_initialized_bit.next) * pool.tick_spacing as i32;
             step.initialized = next_initialized_bit.initialized;
@@ -1613,6 +1620,8 @@ pub mod cyclos_core {
             tick: state.tick
         });
         pool_loader.load_mut()?.unlocked = true;
+
+        msg!("remaining accounts at end of swap {}", remaining_accounts.len());
         Ok(())
     }
 
@@ -1667,7 +1676,6 @@ pub mod cyclos_core {
         let tick_lower_state =
             Loader::<TickState>::try_from(&ID, &ctx.accounts.tick_lower_state.to_account_info())?;
         let tick_lower = tick_lower_state.load()?.tick;
-
         let tick_upper_state =
             Loader::<TickState>::try_from(&ID, &ctx.accounts.tick_upper_state.to_account_info())?;
         let tick_upper = tick_upper_state.load()?.tick;
@@ -1716,6 +1724,7 @@ pub mod cyclos_core {
             ),
             1,
         )?;
+        msg!("nft minted");
 
         // Write tokenized position metadata
         let mut tokenized_position = ctx.accounts.tokenized_position_state.load_init()?;
@@ -2091,7 +2100,6 @@ pub mod cyclos_core {
     /// # Arguments
     ///
     /// * `ctx` - Accounts required for the swap
-    /// * `zero_for_one` -  The direction of the swap, true for token_0 to token_1, false for token_1 to token_0
     /// * `deadline` - The time by which the transaction must be included to effect the change
     /// * `amount_in` - Token amount to be swapped in
     /// * `amount_out_minimum` - The minimum amount to swap out, which serves as a slippage check
@@ -2103,7 +2111,6 @@ pub mod cyclos_core {
     pub fn exact_input_single<'a, 'b, 'c, 'info>(
         ctx: Context<'a, 'b, 'c, 'info, ExactInputSingle<'info>>,
         deadline: i64,
-        // zero_for_one: bool,
         amount_in: u64,
         amount_out_minimum: u64,
         sqrt_price_limit_x32: u64,
@@ -2128,7 +2135,7 @@ pub mod cyclos_core {
             amount_in,
             sqrt_price_limit_x32,
         )?;
-
+        msg!("exact input single output amount {}", amount_out);
         require!(
             amount_out >= amount_out_minimum,
             ErrorCode::TooLittleReceived
@@ -2136,24 +2143,91 @@ pub mod cyclos_core {
         Ok(())
     }
 
-    // /// Swaps `amount_in` of one token for as much as possible of another token,
-    // /// across the path provided
-    // ///
-    // /// # Arguments
-    // ///
-    // /// * `ctx` - Accounts for token transfer and swap route
-    // /// * `deadline` - Swap should if fail if past deadline
-    // /// * `amount_in` - Token amount to be swapped in
-    // /// * `amount_out_minimum` - Panic if output amount is below minimum amount. For slippage.
-    // ///
-    // pub fn exact_input(
-    //     ctx: Context<ExactInput>,
-    //     deadline: u64,
-    //     amount_in: u64,
-    //     amount_out_minimum: u64,
-    // ) -> ProgramResult {
-    //     todo!()
-    // }
+    /// Swaps `amount_in` of one token for as much as possible of another token,
+    /// across the path provided
+    ///
+    /// # Arguments
+    ///
+    /// * `ctx` - Accounts for token transfer and swap route
+    /// * `deadline` - Swap should if fail if past deadline
+    /// * `amount_in` - Token amount to be swapped in
+    /// * `amount_out_minimum` - Panic if output amount is below minimum amount. For slippage.
+    ///
+    #[access_control(check_deadline(deadline))]
+    pub fn exact_input<'a, 'b, 'c, 'info>(
+        ctx: Context<'a, 'b, 'c, 'info, ExactInput<'info>>,
+        deadline: i64,
+        amount_in: u64,
+        amount_out_minimum: u64,
+        additional_accounts_per_pool: Vec<u8>,
+    ) -> ProgramResult {
+        msg!("additional per pool {:?}", additional_accounts_per_pool);
+        let mut remaining_accounts = ctx.remaining_accounts.iter();
+        
+        let mut amount_in_internal = amount_in;
+        let mut input_token_account = ctx.accounts.input_token_account.clone();
+        for i in 0..additional_accounts_per_pool.len() {
+            msg!("pool loop, remaining accounts {}", remaining_accounts.len());
+            let pool_state = UncheckedAccount::try_from(remaining_accounts.next().unwrap().clone());
+            let output_token_account = UncheckedAccount::try_from(remaining_accounts.next().unwrap().clone());
+            let input_vault = Box::new(Account::<TokenAccount>::try_from(remaining_accounts.next().unwrap())?);
+            let output_vault = Box::new(Account::<TokenAccount>::try_from(remaining_accounts.next().unwrap())?);
+            msg!("accounts loaded");
+            // the outputs of prior swaps become the inputs to subsequent ones
+            let swap_ctx = &mut SwapContext {
+                signer: ctx.accounts.signer.clone(),
+                input_token_account: input_token_account.clone(),
+                pool_state,
+                output_token_account: output_token_account.clone(),
+                input_vault,
+                output_vault,
+                latest_observation_state: UncheckedAccount::try_from(remaining_accounts.next().unwrap().clone()),
+                next_observation_state: UncheckedAccount::try_from(remaining_accounts.next().unwrap().clone()),
+                token_program: ctx.accounts.token_program.clone(),
+                callback_handler: UncheckedAccount::try_from(
+                    ctx.accounts.core_program.to_account_info(),
+                ),
+            };
+
+            // let mut rem_slice = &mut *remaining_accounts.as_slice();
+            amount_in_internal = exact_input_internal(
+                // &mut SwapContext {
+                //     signer: ctx.accounts.signer.clone(),
+                //     input_token_account: input_token_account.clone(),
+                //     pool_state,
+                //     output_token_account: output_token_account.clone(),
+                //     input_vault,
+                //     output_vault,
+                //     latest_observation_state: UncheckedAccount::try_from(remaining_accounts.next().unwrap().clone()),
+                //     next_observation_state: UncheckedAccount::try_from(remaining_accounts.next().unwrap().clone()),
+                //     token_program: ctx.accounts.token_program.clone(),
+                //     callback_handler: UncheckedAccount::try_from(
+                //         ctx.accounts.core_program.to_account_info(),
+                //     ),
+
+                // },
+                swap_ctx,
+                remaining_accounts.as_slice(),
+                // rem_slice,
+                amount_in_internal,
+                0,
+            )?;
+            msg!("output amount after swap {}", amount_in_internal);
+            
+
+            if i < additional_accounts_per_pool.len() - 1 {
+                for j in 0..additional_accounts_per_pool[i] {
+                    remaining_accounts.next();
+                }
+                // output token account is the new input
+                input_token_account = output_token_account;
+            }
+        }
+        msg!("remaining account length at end {}", remaining_accounts.len());
+        require!(amount_in_internal >= amount_out_minimum, ErrorCode::TooLittleReceived);
+
+        Ok(())
+    }
 
     //  /// Swaps as little as possible of one token for `amount_out` of another token,
     // /// across a single pool
@@ -2224,7 +2298,7 @@ pub fn exact_input_internal<'info>(
     )?;
 
     accounts.input_vault.reload()?;
-    Ok(balance_before - accounts.input_vault.amount)
+    Ok(accounts.input_vault.amount - balance_before)
 }
 
 /// Common checks for a valid tick input.

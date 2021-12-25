@@ -55,20 +55,28 @@ describe('cyclos-core', async () => {
   // Tokens constituting the pool
   let token0: Token
   let token1: Token
+  let token2: Token
 
   // ATAs to hold pool tokens
-  let vault0: web3.PublicKey
-  let vault1: web3.PublicKey
+  let vaultA0: web3.PublicKey
+  let vaultA1: web3.PublicKey
+  let vaultB1: web3.PublicKey
+  let vaultB2: web3.PublicKey
 
-  let poolState: web3.PublicKey
-  let poolStateBump: number
+  let poolAState: web3.PublicKey
+  let poolAStateBump: number
+  let poolBState: web3.PublicKey
+  let poolBStateBump: number
 
-  let initialObservationState: web3.PublicKey
-  let initialObservationBump: number
+  let initialObservationStateA: web3.PublicKey
+  let initialObservationBumpA: number
+  let initialObservationStateB: web3.PublicKey
+  let initialObservationBumpB: number
 
   // These accounts will spend tokens to mint the position
   let minterWallet0: web3.PublicKey
   let minterWallet1: web3.PublicKey
+  let minterWallet2: web3.PublicKey
 
   let temporaryNftHolder: web3.PublicKey
 
@@ -82,23 +90,40 @@ describe('cyclos-core', async () => {
   const amount0Minimum = new BN(0)
   const amount1Minimum = new BN(1_000_000)
 
-  const nftMintKeypair = new Keypair()
-  let tickLowerState: web3.PublicKey
-  let tickLowerStateBump: number
-  let tickUpperState: web3.PublicKey
-  let tickUpperStateBump: number
-  let corePositionState: web3.PublicKey
-  let corePositionBump: number
-  let bitmapLowerState: web3.PublicKey
-  let bitmapLowerBump: number
-  let bitmapUpperState: web3.PublicKey
-  let bitmapUpperBump: number
-  let tokenizedPositionState: web3.PublicKey
-  let tokenizedPositionBump: number
-  let positionNftAccount: web3.PublicKey
+  const nftMintAKeypair = new Keypair()
+  const nftMintBKeypair = new web3.Keypair()
+  
+  let tickLowerAState: web3.PublicKey
+  let tickLowerAStateBump: number
+  let tickLowerBState: web3.PublicKey
+  let tickLowerBStateBump: number
+  let tickUpperAState: web3.PublicKey
+  let tickUpperAStateBump: number
+  let tickUpperBState: web3.PublicKey
+  let tickUpperBStateBump: number
+  let corePositionAState: web3.PublicKey
+  let corePositionABump: number
+  let corePositionBState: web3.PublicKey
+  let corePositionBBump: number
+  let bitmapLowerAState: web3.PublicKey
+  let bitmapLowerABump: number
+  let bitmapLowerBState: web3.PublicKey
+  let bitmapLowerBBump: number
+  let bitmapUpperAState: web3.PublicKey
+  let bitmapUpperABump: number
+  let bitmapUpperBState: web3.PublicKey
+  let bitmapUpperBBump: number
+  let tokenizedPositionAState: web3.PublicKey
+  let tokenizedPositionABump: number
+  let tokenizedPositionBState: web3.PublicKey
+  let tokenizedPositionBBump: number
+  let positionANftAccount: web3.PublicKey
+  let positionBNftAccount: web3.PublicKey
   let metadataAccount: web3.PublicKey
-  let latestObservationState: web3.PublicKey
-  let nextObservationState: web3.PublicKey
+  let latestObservationAState: web3.PublicKey
+  let nextObservationAState: web3.PublicKey
+  let latestObservationBState: web3.PublicKey
+  let nextObservationBState: web3.PublicKey
 
   const protocolFeeRecipient = new Keypair()
   let feeRecipientWallet0: web3.PublicKey
@@ -140,27 +165,49 @@ describe('cyclos-core', async () => {
       8,
       TOKEN_PROGRAM_ID
     )
+    token2 = await Token.createMint(
+      connection,
+      mintAuthority,
+      mintAuthority.publicKey,
+      null,
+      8,
+      TOKEN_PROGRAM_ID
+    )
 
     console.log('Token 0', token0.publicKey.toString())
     console.log('Token 1', token1.publicKey.toString())
+    console.log('Token 2', token2.publicKey.toString())
 
     if (token0.publicKey.toString() > token1.publicKey.toString()) { // swap token mints
-      console.log('Swap tokens')
+      console.log('Swap tokens for A')
       const temp = token0
       token0 = token1
       token1 = temp
+    }
+
+    while(token1.publicKey.toString() > token2.publicKey.toString()) {
+      token2 = await Token.createMint(
+        connection,
+        mintAuthority,
+        mintAuthority.publicKey,
+        null,
+        8,
+        TOKEN_PROGRAM_ID
+      )
     }
   })
 
   it('creates token accounts for position minter and airdrops to them', async () => {
     minterWallet0 = await token0.createAssociatedTokenAccount(owner)
     minterWallet1 = await token1.createAssociatedTokenAccount(owner)
+    minterWallet2 = await token2.createAssociatedTokenAccount(owner)
     await token0.mintTo(minterWallet0, mintAuthority, [], 100_000_000)
     await token1.mintTo(minterWallet1, mintAuthority, [], 100_000_000)
+    await token2.mintTo(minterWallet2, mintAuthority, [], 100_000_000)
   })
 
   it('derive pool address', async () => {
-    [poolState, poolStateBump] = await PublicKey.findProgramAddress(
+    [poolAState, poolAStateBump] = await PublicKey.findProgramAddress(
       [
         POOL_SEED,
         token0.publicKey.toBuffer(),
@@ -169,22 +216,47 @@ describe('cyclos-core', async () => {
       ],
       coreProgram.programId
     )
-    console.log('got pool address', poolState)
+    console.log('got pool address', poolAState);
+
+    [poolBState, poolBStateBump] = await PublicKey.findProgramAddress(
+      [
+        POOL_SEED,
+        token1.publicKey.toBuffer(),
+        token2.publicKey.toBuffer(),
+        u32ToSeed(fee)
+      ],
+      coreProgram.programId
+    )
+    console.log('got pool address', poolBState)
   })
 
   it('derive vault addresses', async () => {
-    vault0 = await Token.getAssociatedTokenAddress(
+    vaultA0 = await Token.getAssociatedTokenAddress(
       ASSOCIATED_TOKEN_PROGRAM_ID,
       TOKEN_PROGRAM_ID,
       token0.publicKey,
-      poolState,
+      poolAState,
       true
     )
-    vault1 = await Token.getAssociatedTokenAddress(
+    vaultA1 = await Token.getAssociatedTokenAddress(
       ASSOCIATED_TOKEN_PROGRAM_ID,
       TOKEN_PROGRAM_ID,
       token1.publicKey,
-      poolState,
+      poolAState,
+      true
+    )
+    vaultB1 = await Token.getAssociatedTokenAddress(
+      ASSOCIATED_TOKEN_PROGRAM_ID,
+      TOKEN_PROGRAM_ID,
+      token1.publicKey,
+      poolBState,
+      true
+    )
+    vaultB2 = await Token.getAssociatedTokenAddress(
+      ASSOCIATED_TOKEN_PROGRAM_ID,
+      TOKEN_PROGRAM_ID,
+      token2.publicKey,
+      poolBState,
       true
     )
   })
@@ -433,11 +505,21 @@ describe('cyclos-core', async () => {
 
   describe('#create_and_init_pool', () => {
     it('derive first observation slot address', async () => {
-      [initialObservationState, initialObservationBump] = await PublicKey.findProgramAddress(
+      [initialObservationStateA, initialObservationBumpA] = await PublicKey.findProgramAddress(
         [
           OBSERVATION_SEED,
           token0.publicKey.toBuffer(),
           token1.publicKey.toBuffer(),
+          u32ToSeed(fee),
+          u16ToSeed(0)
+        ],
+        coreProgram.programId
+      );
+      [initialObservationStateB, initialObservationBumpB] = await PublicKey.findProgramAddress(
+        [
+          OBSERVATION_SEED,
+          token1.publicKey.toBuffer(),
+          token2.publicKey.toBuffer(),
           u32ToSeed(fee),
           u16ToSeed(0)
         ],
@@ -447,16 +529,16 @@ describe('cyclos-core', async () => {
 
     it('fails if tokens are passed in reverse', async () => {
       // Unlike Uniswap, we must pass the tokens by address sort order
-      await expect(coreProgram.rpc.createAndInitPool(poolStateBump, initialObservationBump, initialPriceX32, {
+      await expect(coreProgram.rpc.createAndInitPool(poolAStateBump, initialObservationBumpA, initialPriceX32, {
         accounts: {
           poolCreator: owner,
           token0: token1.publicKey,
           token1: token0.publicKey,
           feeState,
-          poolState,
-          initialObservationState,
-          vault0: vault1,
-          vault1: vault0,
+          poolState: poolAState,
+          initialObservationState: initialObservationStateA,
+          vault0: vaultA1,
+          vault1: vaultA0,
           systemProgram: SystemProgram.programId,
           rent: web3.SYSVAR_RENT_PUBKEY,
           tokenProgram: TOKEN_PROGRAM_ID,
@@ -467,16 +549,16 @@ describe('cyclos-core', async () => {
 
     it('fails if token0 == token1', async () => {
       // Unlike Uniswap, we must pass the tokens by address sort order
-      await expect(coreProgram.rpc.createAndInitPool(poolStateBump, initialObservationBump, initialPriceX32, {
+      await expect(coreProgram.rpc.createAndInitPool(poolAStateBump, initialObservationBumpA, initialPriceX32, {
         accounts: {
           poolCreator: owner,
           token0: token0.publicKey,
           token1: token0.publicKey,
           feeState,
-          poolState,
-          initialObservationState,
-          vault0,
-          vault1: vault0,
+          poolState: poolAState,
+          initialObservationState: initialObservationStateA,
+          vault0: vaultA0,
+          vault1: vaultA0,
           systemProgram: SystemProgram.programId,
           rent: web3.SYSVAR_RENT_PUBKEY,
           tokenProgram: TOKEN_PROGRAM_ID,
@@ -491,16 +573,16 @@ describe('cyclos-core', async () => {
         coreProgram.programId
       );
 
-      await expect(coreProgram.rpc.createAndInitPool(poolStateBump, initialObservationBump, initialPriceX32, {
+      await expect(coreProgram.rpc.createAndInitPool(poolAStateBump, initialObservationBumpA, initialPriceX32, {
         accounts: {
           poolCreator: owner,
           token0: token0.publicKey,
           token1: token0.publicKey,
           feeState: uninitializedFeeState,
-          poolState,
-          initialObservationState,
-          vault0,
-          vault1: vault0,
+          poolState: poolAState,
+          initialObservationState: initialObservationStateA,
+          vault0: vaultA0,
+          vault1: vaultA0,
           systemProgram: SystemProgram.programId,
           rent: web3.SYSVAR_RENT_PUBKEY,
           tokenProgram: TOKEN_PROGRAM_ID,
@@ -510,16 +592,16 @@ describe('cyclos-core', async () => {
     })
 
     it('fails if starting price is too low', async () => {
-      await expect(coreProgram.rpc.createAndInitPool(poolStateBump, initialObservationBump, new BN(1), {
+      await expect(coreProgram.rpc.createAndInitPool(poolAStateBump, initialObservationBumpA, new BN(1), {
         accounts: {
           poolCreator: owner,
           token0: token0.publicKey,
           token1: token1.publicKey,
           feeState,
-          poolState,
-          initialObservationState,
-          vault0,
-          vault1,
+          poolState: poolAState,
+          initialObservationState: initialObservationStateA,
+          vault0: vaultA0,
+          vault1: vaultA1,
           systemProgram: SystemProgram.programId,
           rent: web3.SYSVAR_RENT_PUBKEY,
           tokenProgram: TOKEN_PROGRAM_ID,
@@ -528,18 +610,18 @@ describe('cyclos-core', async () => {
       })).to.be.rejectedWith('R')
 
       await expect(coreProgram.rpc.createAndInitPool(
-        poolStateBump,
-        initialObservationBump,
+        poolAStateBump,
+        initialObservationBumpA,
         MIN_SQRT_RATIO.subn(1), {
         accounts: {
           poolCreator: owner,
           token0: token0.publicKey,
           token1: token1.publicKey,
           feeState,
-          poolState,
-          initialObservationState,
-          vault0,
-          vault1,
+          poolState: poolAState,
+          initialObservationState: initialObservationStateA,
+          vault0: vaultA0,
+          vault1: vaultA1,
           systemProgram: SystemProgram.programId,
           rent: web3.SYSVAR_RENT_PUBKEY,
           tokenProgram: TOKEN_PROGRAM_ID,
@@ -550,16 +632,16 @@ describe('cyclos-core', async () => {
     })
 
     it('fails if starting price is too high', async () => {
-      await expect(coreProgram.rpc.createAndInitPool(poolStateBump, initialObservationBump, MAX_SQRT_RATIO, {
+      await expect(coreProgram.rpc.createAndInitPool(poolAStateBump, initialObservationBumpA, MAX_SQRT_RATIO, {
         accounts: {
           poolCreator: owner,
           token0: token0.publicKey,
           token1: token1.publicKey,
           feeState,
-          poolState,
-          initialObservationState,
-          vault0,
-          vault1,
+          poolState: poolAState,
+          initialObservationState: initialObservationStateA,
+          vault0: vaultA0,
+          vault1: vaultA1,
           systemProgram: SystemProgram.programId,
           rent: web3.SYSVAR_RENT_PUBKEY,
           tokenProgram: TOKEN_PROGRAM_ID,
@@ -568,18 +650,18 @@ describe('cyclos-core', async () => {
       })).to.be.rejectedWith('R')
 
       await expect(coreProgram.rpc.createAndInitPool(
-        poolStateBump,
-        initialObservationBump,
+        poolAStateBump,
+        initialObservationBumpA,
         new BN(2).pow(new BN(64)).subn(1), { // u64::MAX
         accounts: {
           poolCreator: owner,
           token0: token0.publicKey,
           token1: token1.publicKey,
           feeState,
-          poolState,
-          initialObservationState,
-          vault0,
-          vault1,
+          poolState: poolAState,
+          initialObservationState: initialObservationStateA,
+          vault0: vaultA0,
+          vault1: vaultA1,
           systemProgram: SystemProgram.programId,
           rent: web3.SYSVAR_RENT_PUBKEY,
           tokenProgram: TOKEN_PROGRAM_ID,
@@ -596,23 +678,23 @@ describe('cyclos-core', async () => {
           assert((event.token1 as web3.PublicKey).equals(token1.publicKey))
           assert.equal(event.fee, fee)
           assert.equal(event.tickSpacing, tickSpacing)
-          assert((event.poolState as web3.PublicKey).equals(poolState))
+          assert((event.poolState as web3.PublicKey).equals(poolAState))
           assert((event.sqrtPriceX32 as BN).eq(initialPriceX32))
           assert.equal(event.tick, initialTick)
 
           resolve([event, slot]);
         });
 
-        coreProgram.rpc.createAndInitPool(poolStateBump, initialObservationBump, initialPriceX32, {
+        coreProgram.rpc.createAndInitPool(poolAStateBump, initialObservationBumpA, initialPriceX32, {
           accounts: {
             poolCreator: owner,
             token0: token0.publicKey,
             token1: token1.publicKey,
             feeState,
-            poolState,
-            initialObservationState,
-            vault0,
-            vault1,
+            poolState: poolAState,
+            initialObservationState: initialObservationStateA,
+            vault0: vaultA0,
+            vault1: vaultA1,
             systemProgram: SystemProgram.programId,
             rent: web3.SYSVAR_RENT_PUBKEY,
             tokenProgram: TOKEN_PROGRAM_ID,
@@ -623,8 +705,8 @@ describe('cyclos-core', async () => {
       await coreProgram.removeEventListener(listener)
 
       // pool state variables
-      const poolStateData = await coreProgram.account.poolState.fetch(poolState)
-      assert.equal(poolStateData.bump, poolStateBump)
+      const poolStateData = await coreProgram.account.poolState.fetch(poolAState)
+      assert.equal(poolStateData.bump, poolAStateBump)
       assert((poolStateData.token0).equals(token0.publicKey))
       assert((poolStateData.token1).equals(token1.publicKey))
       assert.equal(poolStateData.fee, fee)
@@ -643,28 +725,28 @@ describe('cyclos-core', async () => {
       assert(poolStateData.unlocked)
 
       // first observations slot
-      const observationStateData = await coreProgram.account.observationState.fetch(initialObservationState)
-      assert.equal(observationStateData.bump, initialObservationBump)
+      const observationStateData = await coreProgram.account.observationState.fetch(initialObservationStateA)
+      assert.equal(observationStateData.bump, initialObservationBumpA)
       assert.equal(observationStateData.index, 0)
       assert(observationStateData.tickCumulative.eq(new BN(0)))
       assert(observationStateData.secondsPerLiquidityCumulativeX32.eq(new BN(0)))
       assert(observationStateData.initialized)
       assert.approximately(observationStateData.blockTimestamp, Math.floor(Date.now() / 1000), 60)
 
-      console.log('got pool address', poolState.toString())
+      console.log('got pool address', poolAState.toString())
     })
 
     it('fails if already initialized', async () => {
-      await expect(coreProgram.rpc.createAndInitPool(poolStateBump, initialObservationBump, initialPriceX32, {
+      await expect(coreProgram.rpc.createAndInitPool(poolAStateBump, initialObservationBumpA, initialPriceX32, {
         accounts: {
           poolCreator: owner,
           token0: token0.publicKey,
           token1: token1.publicKey,
           feeState,
-          poolState,
-          initialObservationState,
-          vault0,
-          vault1,
+          poolState: poolAState,
+          initialObservationState: initialObservationStateA,
+          vault0: vaultA0,
+          vault1: vaultA1,
           systemProgram: SystemProgram.programId,
           rent: web3.SYSVAR_RENT_PUBKEY,
           tokenProgram: TOKEN_PROGRAM_ID,
@@ -690,7 +772,7 @@ describe('cyclos-core', async () => {
       await expect(coreProgram.rpc.increaseObservationCardinalityNext(Buffer.from([0]), {
         accounts: {
           payer: owner,
-          poolState,
+          poolState: poolAState,
           systemProgram: SystemProgram.programId,
         }, remainingAccounts: [{
           pubkey: observationState,
@@ -717,7 +799,7 @@ describe('cyclos-core', async () => {
       await expect(coreProgram.rpc.increaseObservationCardinalityNext(Buffer.from([observationStateBump]), {
         accounts: {
           payer: owner,
-          poolState,
+          poolState: poolAState,
           systemProgram: SystemProgram.programId,
         }, remainingAccounts: [{
           pubkey: fakeAccount.publicKey,
@@ -742,7 +824,7 @@ describe('cyclos-core', async () => {
       await expect(coreProgram.rpc.increaseObservationCardinalityNext(Buffer.from([observationState2Bump]), {
         accounts: {
           payer: owner,
-          poolState,
+          poolState: poolAState,
           systemProgram: SystemProgram.programId,
         }, remainingAccounts: [{
           pubkey: observationState2,
@@ -775,7 +857,7 @@ describe('cyclos-core', async () => {
         coreProgram.rpc.increaseObservationCardinalityNext(Buffer.from([observationState1Bump]), {
           accounts: {
             payer: owner,
-            poolState,
+            poolState: poolAState,
             systemProgram: SystemProgram.programId,
           }, remainingAccounts: [{
             pubkey: observationState1,
@@ -795,7 +877,7 @@ describe('cyclos-core', async () => {
       assert(observationState1Data.secondsPerLiquidityCumulativeX32.eq(new BN(0)))
       assert.isFalse(observationState1Data.initialized)
 
-      const poolStateData = await coreProgram.account.poolState.fetch(poolState)
+      const poolStateData = await coreProgram.account.poolState.fetch(poolAState)
       assert.equal(poolStateData.observationCardinalityNext, 2)
     })
 
@@ -824,7 +906,7 @@ describe('cyclos-core', async () => {
       await expect(coreProgram.rpc.increaseObservationCardinalityNext(Buffer.from([observationState3Bump, observationState2Bump]), {
         accounts: {
           payer: owner,
-          poolState,
+          poolState: poolAState,
           systemProgram: SystemProgram.programId,
         }, remainingAccounts: [{
           pubkey: observationState3,
@@ -864,7 +946,7 @@ describe('cyclos-core', async () => {
       await expect(coreProgram.rpc.increaseObservationCardinalityNext(Buffer.from([observationState2Bump, observationState3Bump]), {
         accounts: {
           payer: owner,
-          poolState,
+          poolState: poolAState,
           systemProgram: SystemProgram.programId,
         }, remainingAccounts: [{
           pubkey: observationState2,
@@ -899,7 +981,7 @@ describe('cyclos-core', async () => {
       await expect(coreProgram.rpc.increaseObservationCardinalityNext(Buffer.from([observationState1Bump]), {
         accounts: {
           payer: owner,
-          poolState,
+          poolState: poolAState,
           systemProgram: SystemProgram.programId,
         }, remainingAccounts: [{
           pubkey: observationState1,
@@ -942,7 +1024,7 @@ describe('cyclos-core', async () => {
       await expect(coreProgram.rpc.increaseObservationCardinalityNext(Buffer.from(bumps), {
         accounts: {
           payer: owner,
-          poolState,
+          poolState: poolAState,
           systemProgram: SystemProgram.programId,
         }, remainingAccounts: observationAccounts
       })).to.be.rejectedWith(Error)
@@ -979,12 +1061,12 @@ describe('cyclos-core', async () => {
       await coreProgram.rpc.increaseObservationCardinalityNext(Buffer.from(bumps), {
         accounts: {
           payer: owner,
-          poolState,
+          poolState: poolAState,
           systemProgram: SystemProgram.programId,
         }, remainingAccounts: observationAccounts
       })
 
-      const poolStateData = await coreProgram.account.poolState.fetch(poolState)
+      const poolStateData = await coreProgram.account.poolState.fetch(poolAState)
       assert.equal(poolStateData.observationCardinalityNext, currentCardinality + MAX_OBSERVATION_INITS_PER_IX)
 
       for (let i = 0; i < MAX_OBSERVATION_INITS_PER_IX; i++) {
@@ -1005,7 +1087,7 @@ describe('cyclos-core', async () => {
       await expect(coreProgram.rpc.setFeeProtocol(6, 6, {
         accounts: {
           owner: notOwner.publicKey,
-          poolState,
+          poolState: poolAState,
           factoryState,
         }, signers: [notOwner]
       })).to.be.rejectedWith(Error)
@@ -1015,7 +1097,7 @@ describe('cyclos-core', async () => {
       await expect(coreProgram.rpc.setFeeProtocol(3, 3, {
         accounts: {
           owner,
-          poolState,
+          poolState: poolAState,
           factoryState,
         }
       })).to.be.rejectedWith(Error)
@@ -1023,7 +1105,7 @@ describe('cyclos-core', async () => {
       await expect(coreProgram.rpc.setFeeProtocol(11, 11, {
         accounts: {
           owner,
-          poolState,
+          poolState: poolAState,
           factoryState,
         }
       })).to.be.rejectedWith(Error)
@@ -1033,7 +1115,7 @@ describe('cyclos-core', async () => {
       let listener: number
       let [_event, _slot] = await new Promise((resolve, _reject) => {
         listener = coreProgram.addEventListener("SetFeeProtocolEvent", (event, slot) => {
-          assert((event.poolState as web3.PublicKey).equals(poolState))
+          assert((event.poolState as web3.PublicKey).equals(poolAState))
           assert.equal(event.feeProtocol0Old, 0)
           assert.equal(event.feeProtocol1Old, 0)
           assert.equal(event.feeProtocol0, 6)
@@ -1045,14 +1127,14 @@ describe('cyclos-core', async () => {
         coreProgram.rpc.setFeeProtocol(6, 6, {
           accounts: {
             owner,
-            poolState,
+            poolState: poolAState,
             factoryState,
           }
         })
       })
       await coreProgram.removeEventListener(listener)
 
-      const poolStateData = await coreProgram.account.poolState.fetch(poolState)
+      const poolStateData = await coreProgram.account.poolState.fetch(poolAState)
       assert.equal((6 << 4) + 6, 102)
       assert.equal(poolStateData.feeProtocol, 102)
     })
@@ -1069,9 +1151,9 @@ describe('cyclos-core', async () => {
         accounts: {
           owner: notOwner,
           factoryState,
-          poolState,
-          vault0,
-          vault1,
+          poolState: poolAState,
+          vault0: vaultA0,
+          vault1: vaultA1,
           recipientWallet0: feeRecipientWallet0,
           recipientWallet1: feeRecipientWallet1,
           tokenProgram: TOKEN_PROGRAM_ID,
@@ -1084,9 +1166,9 @@ describe('cyclos-core', async () => {
         accounts: {
           owner: notOwner,
           factoryState,
-          poolState,
+          poolState: poolAState,
           vault0: new Keypair().publicKey,
-          vault1,
+          vault1: vaultA1,
           recipientWallet0: feeRecipientWallet0,
           recipientWallet1: feeRecipientWallet1,
           tokenProgram: TOKEN_PROGRAM_ID,
@@ -1099,8 +1181,8 @@ describe('cyclos-core', async () => {
         accounts: {
           owner: notOwner,
           factoryState,
-          poolState,
-          vault0,
+          poolState: poolAState,
+          vault0: vaultA0,
           vault1: new Keypair().publicKey,
           recipientWallet0: feeRecipientWallet0,
           recipientWallet1: feeRecipientWallet1,
@@ -1113,7 +1195,7 @@ describe('cyclos-core', async () => {
       let listener: number
       let [_event, _slot] = await new Promise((resolve, _reject) => {
         listener = coreProgram.addEventListener("CollectProtocolEvent", (event, slot) => {
-          assert((event.poolState as web3.PublicKey).equals(poolState))
+          assert((event.poolState as web3.PublicKey).equals(poolAState))
           assert((event.sender as web3.PublicKey).equals(owner))
           assert((event.amount0 as BN).eqn(0))
           assert((event.amount1 as BN).eqn(0))
@@ -1125,9 +1207,9 @@ describe('cyclos-core', async () => {
           accounts: {
             owner,
             factoryState,
-            poolState,
-            vault0,
-            vault1,
+            poolState: poolAState,
+            vault0: vaultA0,
+            vault1: vaultA1,
             recipientWallet0: feeRecipientWallet0,
             recipientWallet1: feeRecipientWallet1,
             tokenProgram: TOKEN_PROGRAM_ID,
@@ -1136,7 +1218,7 @@ describe('cyclos-core', async () => {
       })
       await coreProgram.removeEventListener(listener)
 
-      const poolStateData = await coreProgram.account.poolState.fetch(poolState)
+      const poolStateData = await coreProgram.account.poolState.fetch(poolAState)
       assert(poolStateData.protocolFeesToken0.eqn(0))
       assert(poolStateData.protocolFeesToken1.eqn(0))
 
@@ -1150,8 +1232,8 @@ describe('cyclos-core', async () => {
 
   })
 
-  it('setup position manager accounts', async () => {
-    [tickLowerState, tickLowerStateBump] = await PublicKey.findProgramAddress([
+  it('find program accounts addresses for position creation', async () => {
+    [tickLowerAState, tickLowerAStateBump] = await PublicKey.findProgramAddress([
       TICK_SEED,
       token0.publicKey.toBuffer(),
       token1.publicKey.toBuffer(),
@@ -1160,8 +1242,17 @@ describe('cyclos-core', async () => {
     ],
       coreProgram.programId
     );
+    [tickLowerBState, tickLowerBStateBump] = await PublicKey.findProgramAddress([
+      TICK_SEED,
+      token1.publicKey.toBuffer(),
+      token2.publicKey.toBuffer(),
+      u32ToSeed(fee),
+      u32ToSeed(tickLower)
+    ],
+      coreProgram.programId
+    );
 
-    [tickUpperState, tickUpperStateBump] = await PublicKey.findProgramAddress([
+    [tickUpperAState, tickUpperAStateBump] = await PublicKey.findProgramAddress([
       TICK_SEED,
       token0.publicKey.toBuffer(),
       token1.publicKey.toBuffer(),
@@ -1170,8 +1261,17 @@ describe('cyclos-core', async () => {
     ],
       coreProgram.programId
     );
+    [tickUpperBState, tickUpperBStateBump] = await PublicKey.findProgramAddress([
+      TICK_SEED,
+      token1.publicKey.toBuffer(),
+      token2.publicKey.toBuffer(),
+      u32ToSeed(fee),
+      u32ToSeed(tickUpper)
+    ],
+      coreProgram.programId
+    );
 
-    [bitmapLowerState, bitmapLowerBump] = await PublicKey.findProgramAddress([
+    [bitmapLowerAState, bitmapLowerABump] = await PublicKey.findProgramAddress([
       BITMAP_SEED,
       token0.publicKey.toBuffer(),
       token1.publicKey.toBuffer(),
@@ -1180,7 +1280,7 @@ describe('cyclos-core', async () => {
     ],
       coreProgram.programId
     );
-    [bitmapUpperState, bitmapUpperBump] = await PublicKey.findProgramAddress([
+    [bitmapUpperAState, bitmapUpperABump] = await PublicKey.findProgramAddress([
       BITMAP_SEED,
       token0.publicKey.toBuffer(),
       token1.publicKey.toBuffer(),
@@ -1189,13 +1289,42 @@ describe('cyclos-core', async () => {
     ],
       coreProgram.programId
     );
+    
+    [bitmapLowerBState, bitmapLowerBBump] = await PublicKey.findProgramAddress([
+      BITMAP_SEED,
+      token1.publicKey.toBuffer(),
+      token2.publicKey.toBuffer(),
+      u32ToSeed(fee),
+      u16ToSeed(wordPosLower),
+    ],
+      coreProgram.programId
+    );
+    [bitmapUpperBState, bitmapUpperBBump] = await PublicKey.findProgramAddress([
+      BITMAP_SEED,
+      token1.publicKey.toBuffer(),
+      token2.publicKey.toBuffer(),
+      u32ToSeed(fee),
+      u16ToSeed(wordPosUpper),
+    ],
+      coreProgram.programId
+    );
 
-    [corePositionState, corePositionBump] = await PublicKey.findProgramAddress([
+    [corePositionAState, corePositionABump] = await PublicKey.findProgramAddress([
       POSITION_SEED,
       token0.publicKey.toBuffer(),
       token1.publicKey.toBuffer(),
       u32ToSeed(fee),
-      // posMgrState.toBuffer(),
+      factoryState.toBuffer(),
+      u32ToSeed(tickLower),
+      u32ToSeed(tickUpper)
+    ],
+      coreProgram.programId
+    );
+    [corePositionBState, corePositionBBump] = await PublicKey.findProgramAddress([
+      POSITION_SEED,
+      token1.publicKey.toBuffer(),
+      token2.publicKey.toBuffer(),
+      u32ToSeed(fee),
       factoryState.toBuffer(),
       u32ToSeed(tickLower),
       u32ToSeed(tickUpper)
@@ -1204,16 +1333,22 @@ describe('cyclos-core', async () => {
     );
 
 
-    positionNftAccount = await Token.getAssociatedTokenAddress(
+    positionANftAccount = await Token.getAssociatedTokenAddress(
       ASSOCIATED_TOKEN_PROGRAM_ID,
       TOKEN_PROGRAM_ID,
-      nftMintKeypair.publicKey,
+      nftMintAKeypair.publicKey,
+      owner,
+    )
+    positionBNftAccount = await Token.getAssociatedTokenAddress(
+      ASSOCIATED_TOKEN_PROGRAM_ID,
+      TOKEN_PROGRAM_ID,
+      nftMintBKeypair.publicKey,
       owner,
     )
 
     const nftMint = new Token(
       connection,
-      nftMintKeypair.publicKey,
+      nftMintAKeypair.publicKey,
       TOKEN_PROGRAM_ID,
       mintAuthority
     )
@@ -1223,18 +1358,23 @@ describe('cyclos-core', async () => {
         [
           Buffer.from('metadata'),
           metaplex.programs.metadata.MetadataProgram.PUBKEY.toBuffer(),
-          nftMintKeypair.publicKey.toBuffer(),
+          nftMintAKeypair.publicKey.toBuffer(),
         ],
         metaplex.programs.metadata.MetadataProgram.PUBKEY,
       )
     )[0];
 
-    [tokenizedPositionState, tokenizedPositionBump] = await PublicKey.findProgramAddress([
+    [tokenizedPositionAState, tokenizedPositionABump] = await PublicKey.findProgramAddress([
       POSITION_SEED,
-      nftMintKeypair.publicKey.toBuffer()
+      nftMintAKeypair.publicKey.toBuffer()
     ],
       coreProgram.programId
-      // mgrProgram.programId
+    );
+    [tokenizedPositionBState, tokenizedPositionBBump] = await PublicKey.findProgramAddress([
+      POSITION_SEED,
+      nftMintBKeypair.publicKey.toBuffer()
+    ],
+      coreProgram.programId
     );
   })
 
@@ -1253,7 +1393,7 @@ describe('cyclos-core', async () => {
       await expect(coreProgram.rpc.initTickAccount(invalidLowTickBump, MIN_TICK - 1, {
         accounts: {
           signer: owner,
-          poolState,
+          poolState: poolAState,
           tickState: invalidLowTickState,
           systemProgram: SystemProgram.programId,
         }
@@ -1274,7 +1414,7 @@ describe('cyclos-core', async () => {
       await expect(coreProgram.rpc.initTickAccount(invalidUpperTickBump, MAX_TICK + 1, {
         accounts: {
           signer: owner,
-          poolState,
+          poolState: poolAState,
           tickState: invalidUpperTickState,
           systemProgram: SystemProgram.programId,
         }
@@ -1296,7 +1436,7 @@ describe('cyclos-core', async () => {
       await expect(coreProgram.rpc.initTickAccount(tickBump, invalidTick, {
         accounts: {
           signer: owner,
-          poolState,
+          poolState: poolAState,
           tickState: tickState,
           systemProgram: SystemProgram.programId,
         }
@@ -1304,30 +1444,30 @@ describe('cyclos-core', async () => {
     })
 
     it('creates new tick accounts for lower and upper ticks', async () => {
-      await coreProgram.rpc.initTickAccount(tickLowerStateBump, tickLower, {
+      await coreProgram.rpc.initTickAccount(tickLowerAStateBump, tickLower, {
         accounts: {
           signer: owner,
-          poolState,
-          tickState: tickLowerState,
+          poolState: poolAState,
+          tickState: tickLowerAState,
           systemProgram: SystemProgram.programId,
         }
       })
 
-      await coreProgram.rpc.initTickAccount(tickUpperStateBump, tickUpper, {
+      await coreProgram.rpc.initTickAccount(tickUpperAStateBump, tickUpper, {
         accounts: {
           signer: owner,
-          poolState,
-          tickState: tickUpperState,
+          poolState: poolAState,
+          tickState: tickUpperAState,
           systemProgram: SystemProgram.programId,
         }
       })
 
-      const tickStateLowerData = await coreProgram.account.tickState.fetch(tickLowerState)
-      assert.equal(tickStateLowerData.bump, tickLowerStateBump)
+      const tickStateLowerData = await coreProgram.account.tickState.fetch(tickLowerAState)
+      assert.equal(tickStateLowerData.bump, tickLowerAStateBump)
       assert.equal(tickStateLowerData.tick, tickLower)
 
-      const tickStateUpperData = await coreProgram.account.tickState.fetch(tickUpperState)
-      assert.equal(tickStateUpperData.bump, tickUpperStateBump)
+      const tickStateUpperData = await coreProgram.account.tickState.fetch(tickUpperAState)
+      assert.equal(tickStateUpperData.bump, tickUpperAStateBump)
       assert.equal(tickStateUpperData.tick, tickUpper)
     })
   })
@@ -1350,7 +1490,7 @@ describe('cyclos-core', async () => {
       await expect(coreProgram.rpc.initBitmapAccount(invalidBitmapLowerBump, minWordPos - 1, {
         accounts: {
           signer: owner,
-          poolState,
+          poolState: poolAState,
           bitmapState: invalidBitmapLower,
           systemProgram: SystemProgram.programId,
         }
@@ -1371,7 +1511,7 @@ describe('cyclos-core', async () => {
       await expect(coreProgram.rpc.initBitmapAccount(invalidBitmapUpperBump, maxWordPos + 1, {
         accounts: {
           signer: owner,
-          poolState,
+          poolState: poolAState,
           bitmapState: invalidBitmapUpper,
           systemProgram: SystemProgram.programId,
         }
@@ -1379,17 +1519,17 @@ describe('cyclos-core', async () => {
     })
 
     it('creates new bitmap account for lower and upper ticks', async () => {
-      await coreProgram.rpc.initBitmapAccount(bitmapLowerBump, wordPosLower, {
+      await coreProgram.rpc.initBitmapAccount(bitmapLowerABump, wordPosLower, {
         accounts: {
           signer: owner,
-          poolState,
-          bitmapState: bitmapLowerState,
+          poolState: poolAState,
+          bitmapState: bitmapLowerAState,
           systemProgram: SystemProgram.programId,
         }
       })
 
-      const bitmapLowerData = await coreProgram.account.tickBitmapState.fetch(bitmapLowerState)
-      assert.equal(bitmapLowerData.bump, bitmapLowerBump)
+      const bitmapLowerData = await coreProgram.account.tickBitmapState.fetch(bitmapLowerAState)
+      assert.equal(bitmapLowerData.bump, bitmapLowerABump)
       assert.equal(bitmapLowerData.wordPos, wordPosLower)
 
       // bitmap upper = bitmap lower
@@ -1416,9 +1556,9 @@ describe('cyclos-core', async () => {
           signer: owner,
           // recipient: posMgrState,
           recipient: factoryState,
-          poolState,
-          tickLowerState: tickUpperState,
-          tickUpperState: tickLowerState,
+          poolState: poolAState,
+          tickLowerState: tickUpperAState,
+          tickUpperState: tickLowerAState,
           positionState: invalidPosition,
           systemProgram: SystemProgram.programId,
         }
@@ -1426,21 +1566,21 @@ describe('cyclos-core', async () => {
     })
 
     it('creates a new position account', async () => {
-      await coreProgram.rpc.initPositionAccount(corePositionBump, {
+      await coreProgram.rpc.initPositionAccount(corePositionABump, {
         accounts: {
           signer: owner,
           // recipient: posMgrState,
           recipient: factoryState,
-          poolState,
-          tickLowerState,
-          tickUpperState,
-          positionState: corePositionState,
+          poolState: poolAState,
+          tickLowerState: tickLowerAState,
+          tickUpperState: tickUpperAState,
+          positionState: corePositionAState,
           systemProgram: SystemProgram.programId,
         }
       })
 
-      const corePositionData = await coreProgram.account.positionState.fetch(corePositionState)
-      assert.equal(corePositionData.bump, corePositionBump)
+      const corePositionData = await coreProgram.account.positionState.fetch(corePositionAState)
+      assert.equal(corePositionData.bump, corePositionABump)
     })
   })
 
@@ -1450,9 +1590,9 @@ describe('cyclos-core', async () => {
       const {
         observationIndex,
         observationCardinalityNext
-      } = await coreProgram.account.poolState.fetch(poolState)
+      } = await coreProgram.account.poolState.fetch(poolAState)
 
-      latestObservationState = (await PublicKey.findProgramAddress(
+      latestObservationAState = (await PublicKey.findProgramAddress(
         [
           OBSERVATION_SEED,
           token0.publicKey.toBuffer(),
@@ -1463,7 +1603,7 @@ describe('cyclos-core', async () => {
         coreProgram.programId
       ))[0]
 
-      nextObservationState = (await PublicKey.findProgramAddress(
+      nextObservationAState = (await PublicKey.findProgramAddress(
         [
           OBSERVATION_SEED,
           token0.publicKey.toBuffer(),
@@ -1473,13 +1613,14 @@ describe('cyclos-core', async () => {
         ],
         coreProgram.programId
       ))[0]
+
     })
 
     it('fails if past deadline', async () => {
       // connection.slot
       const deadline = new BN(Date.now() / 1000 - 10_000)
 
-      await expect(coreProgram.rpc.mintTokenizedPosition(tokenizedPositionBump,
+      await expect(coreProgram.rpc.mintTokenizedPosition(tokenizedPositionABump,
         amount0Desired,
         amount1Desired,
         amount0Minimum,
@@ -1489,27 +1630,27 @@ describe('cyclos-core', async () => {
           minter: owner,
           recipient: owner,
           factoryState,
-          nftMint: nftMintKeypair.publicKey,
-          nftAccount: positionNftAccount,
-          poolState,
-          corePositionState,
-          tickLowerState,
-          tickUpperState,
-          bitmapLowerState,
-          bitmapUpperState,
+          nftMint: nftMintAKeypair.publicKey,
+          nftAccount: positionANftAccount,
+          poolState: poolAState,
+          corePositionState: corePositionAState,
+          tickLowerState: tickLowerAState,
+          tickUpperState: tickUpperAState,
+          bitmapLowerState: bitmapLowerAState,
+          bitmapUpperState: bitmapUpperAState,
           tokenAccount0: minterWallet0,
           tokenAccount1: minterWallet1,
-          vault0,
-          vault1,
-          latestObservationState,
-          nextObservationState,
-          tokenizedPositionState,
+          vault0: vaultA0,
+          vault1: vaultA1,
+          latestObservationState: latestObservationAState,
+          nextObservationState: nextObservationAState,
+          tokenizedPositionState: tokenizedPositionAState,
           coreProgram: coreProgram.programId,
           systemProgram: SystemProgram.programId,
           rent: web3.SYSVAR_RENT_PUBKEY,
           tokenProgram: TOKEN_PROGRAM_ID,
           associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID
-        }, signers: [nftMintKeypair],
+        }, signers: [nftMintAKeypair],
       })).to.be.rejectedWith('Transaction too old')
     })
 
@@ -1520,14 +1661,14 @@ describe('cyclos-core', async () => {
       let listener: number
       let [_event, _slot] = await new Promise((resolve, _reject) => {
         listener = coreProgram.addEventListener("IncreaseLiquidityEvent", (event, slot) => {
-          assert((event.tokenId as web3.PublicKey).equals(nftMintKeypair.publicKey))
+          assert((event.tokenId as web3.PublicKey).equals(nftMintAKeypair.publicKey))
           assert((event.amount0 as BN).eqn(0))
           assert((event.amount1 as BN).eq(amount1Desired))
 
           resolve([event, slot]);
         });
 
-        coreProgram.rpc.mintTokenizedPosition(tokenizedPositionBump,
+        coreProgram.rpc.mintTokenizedPosition(tokenizedPositionABump,
           amount0Desired,
           amount1Desired,
           amount0Minimum,
@@ -1537,49 +1678,49 @@ describe('cyclos-core', async () => {
             minter: owner,
             recipient: owner,
             factoryState,
-            nftMint: nftMintKeypair.publicKey,
-            nftAccount: positionNftAccount,
-            poolState,
-            corePositionState,
-            tickLowerState,
-            tickUpperState,
-            bitmapLowerState,
-            bitmapUpperState,
+            nftMint: nftMintAKeypair.publicKey,
+            nftAccount: positionANftAccount,
+            poolState: poolAState,
+            corePositionState: corePositionAState,
+            tickLowerState: tickLowerAState,
+            tickUpperState: tickUpperAState,
+            bitmapLowerState: bitmapLowerAState,
+            bitmapUpperState: bitmapUpperAState,
             tokenAccount0: minterWallet0,
             tokenAccount1: minterWallet1,
-            vault0,
-            vault1,
-            latestObservationState,
-            nextObservationState,
-            tokenizedPositionState,
+            vault0: vaultA0,
+            vault1: vaultA1,
+            latestObservationState: latestObservationAState,
+            nextObservationState: nextObservationAState,
+            tokenizedPositionState: tokenizedPositionAState,
             coreProgram: coreProgram.programId,
             systemProgram: SystemProgram.programId,
             rent: web3.SYSVAR_RENT_PUBKEY,
             tokenProgram: TOKEN_PROGRAM_ID,
             associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID
-          }, signers: [nftMintKeypair],
+          }, signers: [nftMintAKeypair],
         })
       })
       await coreProgram.removeEventListener(listener)
 
       const nftMint = new Token(
         connection,
-        nftMintKeypair.publicKey,
+        nftMintAKeypair.publicKey,
         TOKEN_PROGRAM_ID,
         new Keypair()
       )
       const nftMintInfo = await nftMint.getMintInfo()
       assert.equal(nftMintInfo.decimals, 0)
-      const nftAccountInfo = await nftMint.getAccountInfo(positionNftAccount)
+      const nftAccountInfo = await nftMint.getAccountInfo(positionANftAccount)
       console.log('NFT account info', nftAccountInfo)
       assert(nftAccountInfo.amount.eqn(1))
 
-      const tokenizedPositionData = await coreProgram.account.tokenizedPositionState.fetch(tokenizedPositionState)
+      const tokenizedPositionData = await coreProgram.account.tokenizedPositionState.fetch(tokenizedPositionAState)
       console.log('Tokenized position', tokenizedPositionData)
       console.log('liquidity inside position', tokenizedPositionData.liquidity.toNumber())
-      assert.equal(tokenizedPositionData.bump, tokenizedPositionBump)
-      assert(tokenizedPositionData.poolId.equals(poolState))
-      assert(tokenizedPositionData.mint.equals(nftMintKeypair.publicKey))
+      assert.equal(tokenizedPositionData.bump, tokenizedPositionABump)
+      assert(tokenizedPositionData.poolId.equals(poolAState))
+      assert(tokenizedPositionData.mint.equals(nftMintAKeypair.publicKey))
       assert.equal(tokenizedPositionData.tickLower, tickLower)
       assert.equal(tokenizedPositionData.tickUpper, tickUpper)
       assert(tokenizedPositionData.feeGrowthInside0LastX32.eqn(0))
@@ -1587,18 +1728,18 @@ describe('cyclos-core', async () => {
       assert(tokenizedPositionData.tokensOwed0.eqn(0))
       assert(tokenizedPositionData.tokensOwed1.eqn(0))
 
-      const vault0State = await token0.getAccountInfo(vault0)
+      const vault0State = await token0.getAccountInfo(vaultA0)
       assert(vault0State.amount.eqn(0))
-      const vault1State = await token1.getAccountInfo(vault1)
+      const vault1State = await token1.getAccountInfo(vaultA1)
       assert(vault1State.amount.eqn(1_000_000))
 
-      const tickLowerData = await coreProgram.account.tickState.fetch(tickLowerState)
+      const tickLowerData = await coreProgram.account.tickState.fetch(tickLowerAState)
       console.log('Tick lower', tickLowerData)
-      const tickUpperData = await coreProgram.account.tickState.fetch(tickUpperState)
+      const tickUpperData = await coreProgram.account.tickState.fetch(tickUpperAState)
       console.log('Tick upper', tickUpperData)
 
       // check if ticks are correctly initialized on the bitmap
-      const tickLowerBitmapData = await coreProgram.account.tickBitmapState.fetch(bitmapLowerState)
+      const tickLowerBitmapData = await coreProgram.account.tickBitmapState.fetch(bitmapLowerAState)
       const tickLowerPos = (tickLower / tickSpacing) % 256
       const tickUpperPos = (tickUpper / tickSpacing) % 256
       const expectedBitmap = [3, 2, 1, 0].map(x => {
@@ -1618,7 +1759,7 @@ describe('cyclos-core', async () => {
         assert(tickLowerBitmapData.word[i].eq(expectedBitmap[i]))
       }
 
-      const corePositionData = await coreProgram.account.positionState.fetch(corePositionState)
+      const corePositionData = await coreProgram.account.positionState.fetch(corePositionAState)
       console.log('Core position data', corePositionData)
 
       // TODO test remaining fields later
@@ -1628,7 +1769,7 @@ describe('cyclos-core', async () => {
 
   const nftMint = new Token(
     connection,
-    nftMintKeypair.publicKey,
+    nftMintAKeypair.publicKey,
     TOKEN_PROGRAM_ID,
     notOwner
   )
@@ -1639,8 +1780,8 @@ describe('cyclos-core', async () => {
         accounts: {
           payer: owner,
           factoryState,
-          nftMint: nftMintKeypair.publicKey,
-          tokenizedPositionState,
+          nftMint: nftMintAKeypair.publicKey,
+          tokenizedPositionState: tokenizedPositionAState,
           metadataAccount,
           systemProgram: SystemProgram.programId,
           rent: web3.SYSVAR_RENT_PUBKEY,
@@ -1673,8 +1814,8 @@ describe('cyclos-core', async () => {
         accounts: {
           payer: owner,
           factoryState,
-          nftMint: nftMintKeypair.publicKey,
-          tokenizedPositionState,
+          nftMint: nftMintAKeypair.publicKey,
+          tokenizedPositionState: tokenizedPositionAState,
           metadataAccount,
           systemProgram: SystemProgram.programId,
           rent: web3.SYSVAR_RENT_PUBKEY,
@@ -1697,19 +1838,19 @@ describe('cyclos-core', async () => {
         accounts: {
           payer: owner,
           factoryState,
-          poolState,
-          corePositionState,
-          tickLowerState,
-          tickUpperState,
-          bitmapLowerState,
-          bitmapUpperState,
+          poolState: poolAState,
+          corePositionState: corePositionAState,
+          tickLowerState: tickLowerAState,
+          tickUpperState: tickUpperAState,
+          bitmapLowerState: bitmapLowerAState,
+          bitmapUpperState: bitmapUpperAState,
           tokenAccount0: minterWallet0,
           tokenAccount1: minterWallet1,
-          vault0,
-          vault1,
-          latestObservationState,
-          nextObservationState,
-          tokenizedPositionState,
+          vault0: vaultA0,
+          vault1: vaultA1,
+          latestObservationState: latestObservationAState,
+          nextObservationState: nextObservationAState,
+          tokenizedPositionState: tokenizedPositionAState,
           coreProgram: coreProgram.programId,
           tokenProgram: TOKEN_PROGRAM_ID,
         },
@@ -1721,7 +1862,7 @@ describe('cyclos-core', async () => {
       let listener: number
       let [_event, _slot] = await new Promise((resolve, _reject) => {
         listener = coreProgram.addEventListener("IncreaseLiquidityEvent", (event, slot) => {
-          assert((event.tokenId as web3.PublicKey).equals(nftMintKeypair.publicKey))
+          assert((event.tokenId as web3.PublicKey).equals(nftMintAKeypair.publicKey))
           assert((event.amount0 as BN).eqn(0))
           assert((event.amount1 as BN).eq(amount1Desired))
 
@@ -1737,19 +1878,19 @@ describe('cyclos-core', async () => {
           accounts: {
             payer: owner,
             factoryState,
-            poolState,
-            corePositionState,
-            tickLowerState,
-            tickUpperState,
-            bitmapLowerState,
-            bitmapUpperState,
+            poolState: poolAState,
+            corePositionState: corePositionAState,
+            tickLowerState: tickLowerAState,
+            tickUpperState: tickUpperAState,
+            bitmapLowerState: bitmapLowerAState,
+            bitmapUpperState: bitmapUpperAState,
             tokenAccount0: minterWallet0,
             tokenAccount1: minterWallet1,
-            vault0,
-            vault1,
-            latestObservationState,
-            nextObservationState,
-            tokenizedPositionState,
+            vault0: vaultA0,
+            vault1: vaultA1,
+            latestObservationState: latestObservationAState,
+            nextObservationState: nextObservationAState,
+            tokenizedPositionState: tokenizedPositionAState,
             coreProgram: coreProgram.programId,
             tokenProgram: TOKEN_PROGRAM_ID,
           },
@@ -1758,9 +1899,9 @@ describe('cyclos-core', async () => {
       })
       await coreProgram.removeEventListener(listener)
 
-      const vault0State = await token0.getAccountInfo(vault0)
+      const vault0State = await token0.getAccountInfo(vaultA0)
       assert(vault0State.amount.eqn(0))
-      const vault1State = await token1.getAccountInfo(vault1)
+      const vault1State = await token1.getAccountInfo(vaultA1)
       assert(vault1State.amount.eqn(2_000_000))
 
       // TODO test remaining fields later
@@ -1784,17 +1925,17 @@ describe('cyclos-core', async () => {
         deadline, {
         accounts: {
           ownerOrDelegate: owner,
-          nftAccount: positionNftAccount,
-          tokenizedPositionState,
+          nftAccount: positionANftAccount,
+          tokenizedPositionState: tokenizedPositionAState,
           factoryState,
-          poolState,
-          corePositionState,
-          tickLowerState,
-          tickUpperState,
-          bitmapLowerState,
-          bitmapUpperState,
-          latestObservationState,
-          nextObservationState,
+          poolState: poolAState,
+          corePositionState: corePositionAState,
+          tickLowerState: tickLowerAState,
+          tickUpperState: tickUpperAState,
+          bitmapLowerState: bitmapLowerAState,
+          bitmapUpperState: bitmapUpperAState,
+          latestObservationState: latestObservationAState,
+          nextObservationState: nextObservationAState,
           coreProgram: coreProgram.programId
         }
       }
@@ -1810,17 +1951,17 @@ describe('cyclos-core', async () => {
         deadline, {
         accounts: {
           ownerOrDelegate: notOwner,
-          nftAccount: positionNftAccount,
-          tokenizedPositionState,
+          nftAccount: positionANftAccount,
+          tokenizedPositionState: tokenizedPositionAState,
           factoryState,
-          poolState,
-          corePositionState,
-          tickLowerState,
-          tickUpperState,
-          bitmapLowerState,
-          bitmapUpperState,
-          latestObservationState,
-          nextObservationState,
+          poolState: poolAState,
+          corePositionState: corePositionAState,
+          tickLowerState: tickLowerAState,
+          tickUpperState: tickUpperAState,
+          bitmapLowerState: bitmapLowerAState,
+          bitmapUpperState: bitmapUpperAState,
+          latestObservationState: latestObservationAState,
+          nextObservationState: nextObservationAState,
           coreProgram: coreProgram.programId
         }
       }
@@ -1836,17 +1977,17 @@ describe('cyclos-core', async () => {
         deadline, {
         accounts: {
           ownerOrDelegate: owner,
-          nftAccount: positionNftAccount,
-          tokenizedPositionState,
+          nftAccount: positionANftAccount,
+          tokenizedPositionState: tokenizedPositionAState,
           factoryState,
-          poolState,
-          corePositionState,
-          tickLowerState,
-          tickUpperState,
-          bitmapLowerState,
-          bitmapUpperState,
-          latestObservationState,
-          nextObservationState,
+          poolState: poolAState,
+          corePositionState: corePositionAState,
+          tickLowerState: tickLowerAState,
+          tickUpperState: tickUpperAState,
+          bitmapLowerState: bitmapLowerAState,
+          bitmapUpperState: bitmapUpperAState,
+          latestObservationState: latestObservationAState,
+          nextObservationState: nextObservationAState,
           coreProgram: coreProgram.programId
         }
       }
@@ -1862,7 +2003,7 @@ describe('cyclos-core', async () => {
       transferTx.recentBlockhash = (await connection.getRecentBlockhash()).blockhash
       transferTx.add(Token.createTransferInstruction(
         TOKEN_PROGRAM_ID,
-        positionNftAccount,
+        positionANftAccount,
         temporaryNftHolder,
         owner,
         [],
@@ -1879,17 +2020,17 @@ describe('cyclos-core', async () => {
         deadline, {
         accounts: {
           ownerOrDelegate: owner,
-          nftAccount: positionNftAccount, // no balance
-          tokenizedPositionState,
+          nftAccount: positionANftAccount, // no balance
+          tokenizedPositionState: tokenizedPositionAState,
           factoryState,
-          poolState,
-          corePositionState,
-          tickLowerState,
-          tickUpperState,
-          bitmapLowerState,
-          bitmapUpperState,
-          latestObservationState,
-          nextObservationState,
+          poolState: poolAState,
+          corePositionState: corePositionAState,
+          tickLowerState: tickLowerAState,
+          tickUpperState: tickUpperAState,
+          bitmapLowerState: bitmapLowerAState,
+          bitmapUpperState: bitmapUpperAState,
+          latestObservationState: latestObservationAState,
+          nextObservationState: nextObservationAState,
           coreProgram: coreProgram.programId
         }
       }
@@ -1898,7 +2039,7 @@ describe('cyclos-core', async () => {
       // send the NFT back to the original owner
       await nftMint.transfer(
         temporaryNftHolder,
-        positionNftAccount,
+        positionANftAccount,
         mintAuthority,
         [],
         1
@@ -1910,7 +2051,7 @@ describe('cyclos-core', async () => {
       let listener: number
       let [_event, _slot] = await new Promise((resolve, _reject) => {
         listener = coreProgram.addEventListener("DecreaseLiquidityEvent", (event, slot) => {
-          assert((event.tokenId as web3.PublicKey).equals(nftMintKeypair.publicKey))
+          assert((event.tokenId as web3.PublicKey).equals(nftMintAKeypair.publicKey))
           assert((event.liquidity as BN).eq(liquidity))
           assert((event.amount0 as BN).eqn(0))
           assert((event.amount1 as BN).eq(amount1Desired))
@@ -1925,24 +2066,24 @@ describe('cyclos-core', async () => {
           deadline, {
           accounts: {
             ownerOrDelegate: owner,
-            nftAccount: positionNftAccount,
-            tokenizedPositionState,
+            nftAccount: positionANftAccount,
+            tokenizedPositionState: tokenizedPositionAState,
             factoryState,
-            poolState,
-            corePositionState,
-            tickLowerState,
-            tickUpperState,
-            bitmapLowerState,
-            bitmapUpperState,
-            latestObservationState,
-            nextObservationState,
+            poolState: poolAState,
+            corePositionState: corePositionAState,
+            tickLowerState: tickLowerAState,
+            tickUpperState: tickUpperAState,
+            bitmapLowerState: bitmapLowerAState,
+            bitmapUpperState: bitmapUpperAState,
+            latestObservationState: latestObservationAState,
+            nextObservationState: nextObservationAState,
             coreProgram: coreProgram.programId
           }
         }
         )
       })
       await coreProgram.removeEventListener(listener)
-      const tokenizedPositionData = await coreProgram.account.tokenizedPositionState.fetch(tokenizedPositionState)
+      const tokenizedPositionData = await coreProgram.account.tokenizedPositionState.fetch(tokenizedPositionAState)
       assert(tokenizedPositionData.tokensOwed0.eqn(0))
       assert(tokenizedPositionData.tokensOwed1.eqn(999999))
     })
@@ -1952,7 +2093,7 @@ describe('cyclos-core', async () => {
       approveTx.recentBlockhash = (await connection.getRecentBlockhash()).blockhash
       approveTx.add(Token.createApproveInstruction(
         TOKEN_PROGRAM_ID,
-        positionNftAccount,
+        positionANftAccount,
         mintAuthority.publicKey,
         owner,
         [],
@@ -1968,17 +2109,17 @@ describe('cyclos-core', async () => {
         deadline, {
         accounts: {
           ownerOrDelegate: mintAuthority.publicKey,
-          nftAccount: positionNftAccount,
-          tokenizedPositionState,
+          nftAccount: positionANftAccount,
+          tokenizedPositionState: tokenizedPositionAState,
           factoryState,
-          poolState,
-          corePositionState,
-          tickLowerState,
-          tickUpperState,
-          bitmapLowerState,
-          bitmapUpperState,
-          latestObservationState,
-          nextObservationState,
+          poolState: poolAState,
+          corePositionState: corePositionAState,
+          tickLowerState: tickLowerAState,
+          tickUpperState: tickUpperAState,
+          bitmapLowerState: bitmapLowerAState,
+          bitmapUpperState: bitmapUpperAState,
+          latestObservationState: latestObservationAState,
+          nextObservationState: nextObservationAState,
           coreProgram: coreProgram.programId
         }
       }
@@ -1992,7 +2133,7 @@ describe('cyclos-core', async () => {
       approveTx.recentBlockhash = (await connection.getRecentBlockhash()).blockhash
       approveTx.add(Token.createApproveInstruction(
         TOKEN_PROGRAM_ID,
-        positionNftAccount,
+        positionANftAccount,
         mintAuthority.publicKey,
         owner,
         [],
@@ -2014,17 +2155,17 @@ describe('cyclos-core', async () => {
           deadline, {
           accounts: {
             ownerOrDelegate: mintAuthority.publicKey,
-            nftAccount: positionNftAccount,
-            tokenizedPositionState,
+            nftAccount: positionANftAccount,
+            tokenizedPositionState: tokenizedPositionAState,
             factoryState,
-            poolState,
-            corePositionState,
-            tickLowerState,
-            tickUpperState,
-            bitmapLowerState,
-            bitmapUpperState,
-            latestObservationState,
-            nextObservationState,
+            poolState: poolAState,
+            corePositionState: corePositionAState,
+            tickLowerState: tickLowerAState,
+            tickUpperState: tickUpperAState,
+            bitmapLowerState: bitmapLowerAState,
+            bitmapUpperState: bitmapUpperAState,
+            latestObservationState: latestObservationAState,
+            nextObservationState: nextObservationAState,
             coreProgram: coreProgram.programId
           }
         }
@@ -2039,7 +2180,7 @@ describe('cyclos-core', async () => {
       revokeTx.recentBlockhash = (await connection.getRecentBlockhash()).blockhash
       revokeTx.add(Token.createRevokeInstruction(
         TOKEN_PROGRAM_ID,
-        positionNftAccount,
+        positionANftAccount,
         owner,
         [],
       ))
@@ -2053,17 +2194,17 @@ describe('cyclos-core', async () => {
         deadline, {
         accounts: {
           ownerOrDelegate: mintAuthority.publicKey,
-          nftAccount: positionNftAccount,
-          tokenizedPositionState,
+          nftAccount: positionANftAccount,
+          tokenizedPositionState: tokenizedPositionAState,
           factoryState,
-          poolState,
-          corePositionState,
-          tickLowerState,
-          tickUpperState,
-          bitmapLowerState,
-            bitmapUpperState,
-          latestObservationState,
-          nextObservationState,
+          poolState: poolAState,
+          corePositionState: corePositionAState,
+          tickLowerState: tickLowerAState,
+          tickUpperState: tickUpperAState,
+          bitmapLowerState: bitmapLowerAState,
+            bitmapUpperState: bitmapUpperAState,
+          latestObservationState: latestObservationAState,
+          nextObservationState: nextObservationAState,
           coreProgram: coreProgram.programId
         }
       }
@@ -2078,20 +2219,20 @@ describe('cyclos-core', async () => {
       await expect(coreProgram.rpc.collectFromTokenized(new BN(0), new BN(0), {
         accounts: {
           ownerOrDelegate: owner,
-          nftAccount: positionNftAccount,
-          tokenizedPositionState,
+          nftAccount: positionANftAccount,
+          tokenizedPositionState: tokenizedPositionAState,
           factoryState,
-          poolState,
-          corePositionState,
-          tickLowerState,
-          tickUpperState,
-          bitmapLowerState,
-          bitmapUpperState,
-          latestObservationState,
-          nextObservationState,
+          poolState: poolAState,
+          corePositionState: corePositionAState,
+          tickLowerState: tickLowerAState,
+          tickUpperState: tickUpperAState,
+          bitmapLowerState: bitmapLowerAState,
+          bitmapUpperState: bitmapUpperAState,
+          latestObservationState: latestObservationAState,
+          nextObservationState: nextObservationAState,
           coreProgram: coreProgram.programId,
-          vault0,
-          vault1,
+          vault0: vaultA0,
+          vault1: vaultA1,
           recipientWallet0: feeRecipientWallet0,
           recipientWallet1: feeRecipientWallet1,
           tokenProgram: TOKEN_PROGRAM_ID,
@@ -2103,20 +2244,20 @@ describe('cyclos-core', async () => {
       const tx = coreProgram.transaction.collectFromTokenized(new BN(0), new BN(10), {
         accounts: {
           ownerOrDelegate: notOwner.publicKey,
-          nftAccount: positionNftAccount,
-          tokenizedPositionState,
+          nftAccount: positionANftAccount,
+          tokenizedPositionState: tokenizedPositionAState,
           factoryState,
-          poolState,
-          corePositionState,
-          tickLowerState,
-          tickUpperState,
-          bitmapLowerState,
-          bitmapUpperState,
-          latestObservationState,
-          nextObservationState,
+          poolState: poolAState,
+          corePositionState: corePositionAState,
+          tickLowerState: tickLowerAState,
+          tickUpperState: tickUpperAState,
+          bitmapLowerState: bitmapLowerAState,
+          bitmapUpperState: bitmapUpperAState,
+          latestObservationState: latestObservationAState,
+          nextObservationState: nextObservationAState,
           coreProgram: coreProgram.programId,
-          vault0,
-          vault1,
+          vault0: vaultA0,
+          vault1: vaultA1,
           recipientWallet0: feeRecipientWallet0,
           recipientWallet1: feeRecipientWallet1,
           tokenProgram: TOKEN_PROGRAM_ID,
@@ -2130,7 +2271,7 @@ describe('cyclos-core', async () => {
       approveTx.recentBlockhash = (await connection.getRecentBlockhash()).blockhash
       approveTx.add(Token.createApproveInstruction(
         TOKEN_PROGRAM_ID,
-        positionNftAccount,
+        positionANftAccount,
         mintAuthority.publicKey,
         owner,
         [],
@@ -2141,20 +2282,20 @@ describe('cyclos-core', async () => {
       const tx = coreProgram.transaction.collectFromTokenized(new BN(0), new BN(10), {
         accounts: {
           ownerOrDelegate: mintAuthority.publicKey,
-          nftAccount: positionNftAccount,
-          tokenizedPositionState,
+          nftAccount: positionANftAccount,
+          tokenizedPositionState: tokenizedPositionAState,
           factoryState,
-          poolState,
-          corePositionState,
-          tickLowerState,
-          tickUpperState,
-          bitmapLowerState,
-          bitmapUpperState,
-          latestObservationState,
-          nextObservationState,
+          poolState: poolAState,
+          corePositionState: corePositionAState,
+          tickLowerState: tickLowerAState,
+          tickUpperState: tickUpperAState,
+          bitmapLowerState: bitmapLowerAState,
+          bitmapUpperState: bitmapUpperAState,
+          latestObservationState: latestObservationAState,
+          nextObservationState: nextObservationAState,
           coreProgram: coreProgram.programId,
-          vault0,
-          vault1,
+          vault0: vaultA0,
+          vault1: vaultA1,
           recipientWallet0: feeRecipientWallet0,
           recipientWallet1: feeRecipientWallet1,
           tokenProgram: TOKEN_PROGRAM_ID,
@@ -2168,7 +2309,7 @@ describe('cyclos-core', async () => {
       transferTx.recentBlockhash = (await connection.getRecentBlockhash()).blockhash
       transferTx.add(Token.createTransferInstruction(
         TOKEN_PROGRAM_ID,
-        positionNftAccount,
+        positionANftAccount,
         temporaryNftHolder,
         owner,
         [],
@@ -2179,20 +2320,20 @@ describe('cyclos-core', async () => {
       await expect(coreProgram.rpc.collectFromTokenized(new BN(0), new BN(10), {
         accounts: {
           ownerOrDelegate: owner,
-          nftAccount: positionNftAccount,
-          tokenizedPositionState,
+          nftAccount: positionANftAccount,
+          tokenizedPositionState: tokenizedPositionAState,
           factoryState,
-          poolState,
-          corePositionState,
-          tickLowerState,
-          tickUpperState,
-          bitmapLowerState,
-          bitmapUpperState,
-          latestObservationState,
-          nextObservationState,
+          poolState: poolAState,
+          corePositionState: corePositionAState,
+          tickLowerState: tickLowerAState,
+          tickUpperState: tickUpperAState,
+          bitmapLowerState: bitmapLowerAState,
+          bitmapUpperState: bitmapUpperAState,
+          latestObservationState: latestObservationAState,
+          nextObservationState: nextObservationAState,
           coreProgram: coreProgram.programId,
-          vault0,
-          vault1,
+          vault0: vaultA0,
+          vault1: vaultA1,
           recipientWallet0: feeRecipientWallet0,
           recipientWallet1: feeRecipientWallet1,
           tokenProgram: TOKEN_PROGRAM_ID,
@@ -2202,7 +2343,7 @@ describe('cyclos-core', async () => {
       // send the NFT back to the original owner
       await nftMint.transfer(
         temporaryNftHolder,
-        positionNftAccount,
+        positionANftAccount,
         mintAuthority,
         [],
         1
@@ -2215,7 +2356,7 @@ describe('cyclos-core', async () => {
       let listener: number
       let [_event, _slot] = await new Promise((resolve, _reject) => {
         listener = coreProgram.addEventListener("CollectTokenizedEvent", (event, slot) => {
-          assert((event.tokenId as web3.PublicKey).equals(nftMintKeypair.publicKey))
+          assert((event.tokenId as web3.PublicKey).equals(nftMintAKeypair.publicKey))
           assert((event.amount0 as BN).eq(amount0Max))
           assert((event.amount1 as BN).eq(amount1Max))
           assert((event.recipientWallet0 as web3.PublicKey).equals(feeRecipientWallet0))
@@ -2227,20 +2368,20 @@ describe('cyclos-core', async () => {
         coreProgram.rpc.collectFromTokenized(amount0Max, amount1Max, {
           accounts: {
             ownerOrDelegate: owner,
-            nftAccount: positionNftAccount,
-            tokenizedPositionState,
+            nftAccount: positionANftAccount,
+            tokenizedPositionState: tokenizedPositionAState,
             factoryState,
-            poolState,
-            corePositionState,
-            tickLowerState,
-            tickUpperState,
-            bitmapLowerState,
-            bitmapUpperState,
-            latestObservationState,
-            nextObservationState,
+            poolState: poolAState,
+            corePositionState: corePositionAState,
+            tickLowerState: tickLowerAState,
+            tickUpperState: tickUpperAState,
+            bitmapLowerState: bitmapLowerAState,
+            bitmapUpperState: bitmapUpperAState,
+            latestObservationState: latestObservationAState,
+            nextObservationState: nextObservationAState,
             coreProgram: coreProgram.programId,
-            vault0,
-            vault1,
+            vault0: vaultA0,
+            vault1: vaultA1,
             recipientWallet0: feeRecipientWallet0,
             recipientWallet1: feeRecipientWallet1,
             tokenProgram: TOKEN_PROGRAM_ID,
@@ -2249,11 +2390,11 @@ describe('cyclos-core', async () => {
       })
       await coreProgram.removeEventListener(listener)
 
-      const corePositionData = await coreProgram.account.positionState.fetch(corePositionState)
+      const corePositionData = await coreProgram.account.positionState.fetch(corePositionAState)
       assert(corePositionData.tokensOwed0.eqn(0))
       assert(corePositionData.tokensOwed1.eqn(1000489)) // minus 10
 
-      const tokenizedPositionData = await coreProgram.account.tokenizedPositionState.fetch(tokenizedPositionState)
+      const tokenizedPositionData = await coreProgram.account.tokenizedPositionState.fetch(tokenizedPositionAState)
       assert(tokenizedPositionData.tokensOwed0.eqn(0))
       assert(tokenizedPositionData.tokensOwed1.eqn(1000489))
 
@@ -2262,8 +2403,8 @@ describe('cyclos-core', async () => {
       assert(recipientWallet0Info.amount.eqn(0))
       assert(recipientWallet1Info.amount.eqn(10))
 
-      const vault0Info = await token0.getAccountInfo(vault0)
-      const vault1Info = await token1.getAccountInfo(vault1)
+      const vault0Info = await token0.getAccountInfo(vaultA0)
+      const vault1Info = await token1.getAccountInfo(vaultA1)
       assert(vault0Info.amount.eqn(0))
       assert(vault1Info.amount.eqn(1999990)) // minus 10
     })
@@ -2273,7 +2414,7 @@ describe('cyclos-core', async () => {
       approveTx.recentBlockhash = (await connection.getRecentBlockhash()).blockhash
       approveTx.add(Token.createApproveInstruction(
         TOKEN_PROGRAM_ID,
-        positionNftAccount,
+        positionANftAccount,
         mintAuthority.publicKey,
         owner,
         [],
@@ -2286,7 +2427,7 @@ describe('cyclos-core', async () => {
       let listener: number
       let [_event, _slot] = await new Promise((resolve, _reject) => {
         listener = coreProgram.addEventListener("CollectTokenizedEvent", (event, slot) => {
-          assert((event.tokenId as web3.PublicKey).equals(nftMintKeypair.publicKey))
+          assert((event.tokenId as web3.PublicKey).equals(nftMintAKeypair.publicKey))
           assert((event.amount0 as BN).eq(amount0Max))
           assert((event.amount1 as BN).eq(amount1Max))
           assert((event.recipientWallet0 as web3.PublicKey).equals(feeRecipientWallet0))
@@ -2298,20 +2439,20 @@ describe('cyclos-core', async () => {
         const tx = coreProgram.transaction.collectFromTokenized(new BN(0), new BN(10), {
           accounts: {
             ownerOrDelegate: mintAuthority.publicKey,
-            nftAccount: positionNftAccount,
-            tokenizedPositionState,
+            nftAccount: positionANftAccount,
+            tokenizedPositionState: tokenizedPositionAState,
             factoryState,
-            poolState,
-            corePositionState,
-            tickLowerState,
-            tickUpperState,
-            bitmapLowerState,
-            bitmapUpperState,
-            latestObservationState,
-            nextObservationState,
+            poolState: poolAState,
+            corePositionState: corePositionAState,
+            tickLowerState: tickLowerAState,
+            tickUpperState: tickUpperAState,
+            bitmapLowerState: bitmapLowerAState,
+            bitmapUpperState: bitmapUpperAState,
+            latestObservationState: latestObservationAState,
+            nextObservationState: nextObservationAState,
             coreProgram: coreProgram.programId,
-            vault0,
-            vault1,
+            vault0: vaultA0,
+            vault1: vaultA1,
             recipientWallet0: feeRecipientWallet0,
             recipientWallet1: feeRecipientWallet1,
             tokenProgram: TOKEN_PROGRAM_ID,
@@ -2321,11 +2462,11 @@ describe('cyclos-core', async () => {
       })
       await coreProgram.removeEventListener(listener)
 
-      const corePositionData = await coreProgram.account.positionState.fetch(corePositionState)
+      const corePositionData = await coreProgram.account.positionState.fetch(corePositionAState)
       assert(corePositionData.tokensOwed0.eqn(0))
       assert(corePositionData.tokensOwed1.eqn(1000479))
 
-      const tokenizedPositionData = await coreProgram.account.tokenizedPositionState.fetch(tokenizedPositionState)
+      const tokenizedPositionData = await coreProgram.account.tokenizedPositionState.fetch(tokenizedPositionAState)
       assert(tokenizedPositionData.tokensOwed0.eqn(0))
       assert(tokenizedPositionData.tokensOwed1.eqn(1000479))
 
@@ -2334,8 +2475,8 @@ describe('cyclos-core', async () => {
       assert(recipientWallet0Info.amount.eqn(0))
       assert(recipientWallet1Info.amount.eqn(20))
 
-      const vault0Info = await token0.getAccountInfo(vault0)
-      const vault1Info = await token1.getAccountInfo(vault1)
+      const vault0Info = await token0.getAccountInfo(vaultA0)
+      const vault1Info = await token1.getAccountInfo(vaultA1)
       assert(vault0Info.amount.eqn(0))
       assert(vault1Info.amount.eqn(1999980))
     })
@@ -2362,31 +2503,27 @@ describe('cyclos-core', async () => {
         {
           accounts: {
             signer: owner,
-            poolState,
+            poolState: poolAState,
             inputTokenAccount: minterWallet0,
             outputTokenAccount: minterWallet1,
-            inputVault: vault0,
-            outputVault: vault1,
-            // tokenAccount0: minterWallet0,
-            // tokenAccount1: minterWallet1,
-            // vault0,
-            // vault1,
-            latestObservationState,
-            nextObservationState,
+            inputVault: vaultA0,
+            outputVault: vaultA1,
+            latestObservationState: latestObservationAState,
+            nextObservationState: nextObservationAState,
             coreProgram: coreProgram.programId,
             tokenProgram: TOKEN_PROGRAM_ID,
           }, remainingAccounts: [{
-            pubkey: bitmapLowerState,
+            pubkey: bitmapLowerAState,
             isSigner: false,
             isWritable: true
           },
           // price moves downwards in zero for one swap
           {
-            pubkey: tickUpperState,
+            pubkey: tickUpperAState,
             isSigner: false,
             isWritable: true
           }, {
-            pubkey: tickLowerState,
+            pubkey: tickLowerAState,
             isSigner: false,
             isWritable: true
           }]
@@ -2407,48 +2544,45 @@ describe('cyclos-core', async () => {
         {
           accounts: {
             signer: owner,
-            poolState,
+            poolState: poolAState,
             inputTokenAccount: minterWallet0,
             outputTokenAccount: minterWallet1,
-            inputVault: vault0,
-            outputVault: vault1,
-            latestObservationState,
-            nextObservationState,
+            inputVault: vaultA0,
+            outputVault: vaultA1,
+            latestObservationState: latestObservationAState,
+            nextObservationState: nextObservationAState,
             coreProgram: coreProgram.programId,
             tokenProgram: TOKEN_PROGRAM_ID,
           }, remainingAccounts: [{
-            pubkey: bitmapLowerState,
+            pubkey: bitmapLowerAState,
             isSigner: false,
             isWritable: true
           },
           // price moves downwards in zero for one swap
+          // Tick state is required only if the tick is crossed
           {
-            pubkey: tickUpperState,
-            isSigner: false,
-            isWritable: true
-          }, {
-            pubkey: tickLowerState,
+            pubkey: tickUpperAState,
             isSigner: false,
             isWritable: true
           }]
         }
       )
 
-      let poolStateData = await coreProgram.account.poolState.fetch(poolState)
+      let poolStateData = await coreProgram.account.poolState.fetch(poolAState)
       assert(poolStateData.sqrtPriceX32.eq(sqrtPriceLimitX32))
     })
 
     it('performs a zero for one swap without a limit price', async () => {
-      let poolStateDataBefore = await coreProgram.account.poolState.fetch(poolState)
+      let poolStateDataBefore = await coreProgram.account.poolState.fetch(poolAState)
       console.log('pool price', poolStateDataBefore.sqrtPriceX32.toNumber())
       console.log('pool tick', poolStateDataBefore.tick)
 
       const {
         observationIndex,
         observationCardinalityNext
-      } = await coreProgram.account.poolState.fetch(poolState)
+      } = await coreProgram.account.poolState.fetch(poolAState)
 
-      latestObservationState = (await PublicKey.findProgramAddress(
+      latestObservationAState = (await PublicKey.findProgramAddress(
         [
           OBSERVATION_SEED,
           token0.publicKey.toBuffer(),
@@ -2459,7 +2593,7 @@ describe('cyclos-core', async () => {
         coreProgram.programId
       ))[0]
 
-      nextObservationState = (await PublicKey.findProgramAddress(
+      nextObservationAState = (await PublicKey.findProgramAddress(
         [
           OBSERVATION_SEED,
           token0.publicKey.toBuffer(),
@@ -2482,35 +2616,415 @@ describe('cyclos-core', async () => {
         {
           accounts: {
             signer: owner,
-            poolState,
+            poolState: poolAState,
             inputTokenAccount: minterWallet0,
             outputTokenAccount: minterWallet1,
-            inputVault: vault0,
-            outputVault: vault1,
-            // tokenAccount0: minterWallet0,
-            // tokenAccount1: minterWallet1,
-            // vault0,
-            // vault1,
-            latestObservationState,
-            nextObservationState,
+            inputVault: vaultA0,
+            outputVault: vaultA1,
+            latestObservationState: latestObservationAState,
+            nextObservationState: nextObservationAState,
             coreProgram: coreProgram.programId,
             tokenProgram: TOKEN_PROGRAM_ID,
           }, remainingAccounts: [{
-            pubkey: bitmapLowerState,
-            isSigner: false,
-            isWritable: true
-          },
-          // price moves downwards in zero for one swap
-          {
-            pubkey: tickLowerState,
+            pubkey: bitmapLowerAState,
             isSigner: false,
             isWritable: true
           }]
         }
       )
-      const poolStateDataAfter = await coreProgram.account.poolState.fetch(poolState)
+      const poolStateDataAfter = await coreProgram.account.poolState.fetch(poolAState)
       console.log('pool price after', poolStateDataAfter.sqrtPriceX32.toNumber())
       console.log('pool tick after', poolStateDataAfter.tick)
+    })
+  })
+
+  describe('#exact_input', () => {
+    
+    const deadline = new BN(Date.now() / 1000 + 10_000)
+    it('performs a single pool swap', async () => {
+      const poolStateDataBefore = await coreProgram.account.poolState.fetch(poolAState)
+      console.log('pool price', poolStateDataBefore.sqrtPriceX32.toNumber())
+      console.log('pool tick', poolStateDataBefore.tick)
+
+      const {
+        observationIndex,
+        observationCardinalityNext
+      } = await coreProgram.account.poolState.fetch(poolAState)
+
+      latestObservationAState = (await PublicKey.findProgramAddress(
+        [
+          OBSERVATION_SEED,
+          token0.publicKey.toBuffer(),
+          token1.publicKey.toBuffer(),
+          u32ToSeed(fee),
+          u16ToSeed(observationIndex)
+        ],
+        coreProgram.programId
+      ))[0]
+
+      nextObservationAState = (await PublicKey.findProgramAddress(
+        [
+          OBSERVATION_SEED,
+          token0.publicKey.toBuffer(),
+          token1.publicKey.toBuffer(),
+          u32ToSeed(fee),
+          u16ToSeed((observationIndex + 1) % observationCardinalityNext)
+        ],
+        coreProgram.programId
+      ))[0]
+
+      const amountIn = new BN(100_000)
+      const amountOutMinimum = new BN(0)
+      await coreProgram.rpc.exactInput(
+        deadline,
+        amountIn,
+        amountOutMinimum,
+        Buffer.from([1]),
+        {
+          accounts: {
+            signer: owner,
+            inputTokenAccount: minterWallet0,
+            coreProgram: coreProgram.programId,
+            tokenProgram: TOKEN_PROGRAM_ID,
+          }, remainingAccounts: [{
+            pubkey: poolAState,
+            isSigner: false,
+            isWritable: true
+          },{
+            pubkey: minterWallet1, // outputTokenAccount
+            isSigner: false,
+            isWritable: true
+          },{
+            pubkey: vaultA0, // input vault
+            isSigner: false,
+            isWritable: true
+          },{
+            pubkey: vaultA1, // output vault
+            isSigner: false,
+            isWritable: true
+          },{
+            pubkey: latestObservationAState,
+            isSigner: false,
+            isWritable: true
+          },{
+            pubkey: nextObservationAState,
+            isSigner: false,
+            isWritable: true
+          },
+            {
+            pubkey: bitmapLowerAState,
+            isSigner: false,
+            isWritable: true
+          },
+        ]
+        }
+      )
+
+      const poolStateDataAfter = await coreProgram.account.poolState.fetch(poolAState)
+      console.log('pool price after', poolStateDataAfter.sqrtPriceX32.toNumber())
+      console.log('pool tick after', poolStateDataAfter.tick)
+    })
+
+    it('creates a second liquidity pool', async () => {
+      await coreProgram.rpc.createAndInitPool(poolBStateBump, initialObservationBumpB, initialPriceX32, {
+        accounts: {
+          poolCreator: owner,
+          token0: token1.publicKey,
+          token1: token2.publicKey,
+          feeState,
+          poolState: poolBState,
+          initialObservationState: initialObservationStateB,
+          vault0: vaultB1,
+          vault1: vaultB2,
+          systemProgram: SystemProgram.programId,
+          rent: web3.SYSVAR_RENT_PUBKEY,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID
+        }
+      })
+
+     
+      const {
+        observationIndex,
+        observationCardinalityNext
+      } = await coreProgram.account.poolState.fetch(poolBState)
+
+      latestObservationBState = (await PublicKey.findProgramAddress(
+        [
+          OBSERVATION_SEED,
+          token1.publicKey.toBuffer(),
+          token2.publicKey.toBuffer(),
+          u32ToSeed(fee),
+          u16ToSeed(observationIndex)
+        ],
+        coreProgram.programId
+      ))[0]
+
+      nextObservationBState = (await PublicKey.findProgramAddress(
+        [
+          OBSERVATION_SEED,
+          token1.publicKey.toBuffer(),
+          token2.publicKey.toBuffer(),
+          u32ToSeed(fee),
+          u16ToSeed((observationIndex + 1) % observationCardinalityNext)
+        ],
+        coreProgram.programId
+      ))[0]
+
+      // create tick and bitmap accounts
+      // can't combine with createTokenizedPosition due to size limit
+
+      const tx = new web3.Transaction()
+      tx.recentBlockhash = (await connection.getRecentBlockhash()).blockhash
+      tx.instructions = [
+        coreProgram.instruction.initTickAccount(tickLowerBStateBump, tickLower, {
+          accounts: {
+            signer: owner,
+            poolState: poolBState,
+            tickState: tickLowerBState,
+            systemProgram: SystemProgram.programId,
+          }
+        }),
+        coreProgram.instruction.initTickAccount(tickUpperBStateBump, tickUpper, {
+          accounts: {
+            signer: owner,
+            poolState: poolBState,
+            tickState: tickUpperBState,
+            systemProgram: SystemProgram.programId,
+          }
+        }),
+        coreProgram.instruction.initBitmapAccount(bitmapLowerBBump, wordPosLower, {
+          accounts: {
+            signer: owner,
+            poolState: poolBState,
+            bitmapState: bitmapLowerBState,
+            systemProgram: SystemProgram.programId,
+          }
+        }),
+        coreProgram.instruction.initPositionAccount(corePositionBBump, {
+          accounts: {
+            signer: owner,
+            recipient: factoryState,
+            poolState: poolBState,
+            tickLowerState: tickLowerBState,
+            tickUpperState: tickUpperBState,
+            positionState: corePositionBState,
+            systemProgram: SystemProgram.programId,
+          }
+        })
+      ]
+      await anchor.getProvider().send(tx)
+
+      console.log('creating tokenized position')
+      await coreProgram.rpc.mintTokenizedPosition(tokenizedPositionBBump,
+        amount0Desired,
+        amount1Desired,
+        new BN(0),
+        new BN(0),
+        deadline, {
+        accounts: {
+          minter: owner,
+          recipient: owner,
+          factoryState,
+          nftMint: nftMintBKeypair.publicKey,
+          nftAccount: positionBNftAccount,
+          poolState: poolBState,
+          corePositionState: corePositionBState,
+          tickLowerState: tickLowerBState,
+          tickUpperState: tickUpperBState,
+          bitmapLowerState: bitmapLowerBState,
+          bitmapUpperState: bitmapUpperBState,
+          tokenAccount0: minterWallet1,
+          tokenAccount1: minterWallet2,
+          vault0: vaultB1,
+          vault1: vaultB2,
+          latestObservationState: latestObservationBState,
+          nextObservationState: nextObservationBState,
+          tokenizedPositionState: tokenizedPositionBState,
+
+          coreProgram: coreProgram.programId,
+          systemProgram: SystemProgram.programId,
+          rent: web3.SYSVAR_RENT_PUBKEY,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID
+        }, signers: [nftMintBKeypair],
+      })
+    })
+
+    it('perform a two pool swap', async () => {
+      const poolStateDataBefore = await coreProgram.account.poolState.fetch(poolAState)
+      console.log('pool price', poolStateDataBefore.sqrtPriceX32.toNumber())
+      console.log('pool tick', poolStateDataBefore.tick)
+
+      const {
+        observationIndex: observationAIndex,
+        observationCardinalityNext: observationCardinalityANext
+      } = await coreProgram.account.poolState.fetch(poolAState)
+
+      latestObservationAState = (await PublicKey.findProgramAddress(
+        [
+          OBSERVATION_SEED,
+          token0.publicKey.toBuffer(),
+          token1.publicKey.toBuffer(),
+          u32ToSeed(fee),
+          u16ToSeed(observationAIndex)
+        ],
+        coreProgram.programId
+      ))[0]
+
+      nextObservationAState = (await PublicKey.findProgramAddress(
+        [
+          OBSERVATION_SEED,
+          token0.publicKey.toBuffer(),
+          token1.publicKey.toBuffer(),
+          u32ToSeed(fee),
+          u16ToSeed((observationAIndex + 1) % observationCardinalityANext)
+        ],
+        coreProgram.programId
+      ))[0]
+
+      const {
+        observationIndex: observationBIndex,
+        observationCardinalityNext: observationCardinalityBNext
+      } = await coreProgram.account.poolState.fetch(poolBState)
+
+      latestObservationBState = (await PublicKey.findProgramAddress(
+        [
+          OBSERVATION_SEED,
+          token1.publicKey.toBuffer(),
+          token2.publicKey.toBuffer(),
+          u32ToSeed(fee),
+          u16ToSeed(observationBIndex)
+        ],
+        coreProgram.programId
+      ))[0]
+
+      nextObservationBState = (await PublicKey.findProgramAddress(
+        [
+          OBSERVATION_SEED,
+          token1.publicKey.toBuffer(),
+          token2.publicKey.toBuffer(),
+          u32ToSeed(fee),
+          u16ToSeed((observationBIndex + 1) % observationCardinalityBNext)
+        ],
+        coreProgram.programId
+      ))[0]
+
+      let vaultBalanceA0 = await token0.getAccountInfo(vaultA0)
+      let vaultBalanceA1 = await token1.getAccountInfo(vaultA1)
+      let vaultBalanceB1 = await token1.getAccountInfo(vaultB1)
+      let vaultBalanceB2 = await token2.getAccountInfo(vaultB2)
+      console.log(
+        'vault balances before', 
+        vaultBalanceA0.amount.toNumber(),
+        vaultBalanceA1.amount.toNumber(),
+        vaultBalanceB1.amount.toNumber(),
+        vaultBalanceB2.amount.toNumber()
+      )
+      let token2AccountInfo = await token2.getAccountInfo(minterWallet2)
+      console.log('token 2 balance before', token2AccountInfo.amount.toNumber())
+
+      console.log('pool B address', poolBState.toString())
+
+      const amountIn = new BN(100_000)
+      const amountOutMinimum = new BN(0)
+      await coreProgram.rpc.exactInput(
+        deadline,
+        amountIn,
+        amountOutMinimum,
+        Buffer.from([1, 2]),
+        {
+          accounts: {
+            signer: owner,
+            inputTokenAccount: minterWallet0,
+            coreProgram: coreProgram.programId,
+            tokenProgram: TOKEN_PROGRAM_ID,
+          }, remainingAccounts: [{
+            pubkey: poolAState,
+            isSigner: false,
+            isWritable: true
+          },{
+            pubkey: minterWallet1, // outputTokenAccount
+            isSigner: false,
+            isWritable: true
+          },{
+            pubkey: vaultA0, // input vault
+            isSigner: false,
+            isWritable: true
+          },{
+            pubkey: vaultA1, // output vault
+            isSigner: false,
+            isWritable: true
+          },{
+            pubkey: latestObservationAState,
+            isSigner: false,
+            isWritable: true
+          },{
+            pubkey: nextObservationAState,
+            isSigner: false,
+            isWritable: true
+          },
+            {
+            pubkey: bitmapLowerAState,
+            isSigner: false,
+            isWritable: true
+          },
+          // second pool
+          {
+            pubkey: poolBState,
+            isSigner: false,
+            isWritable: true
+          },{
+            pubkey: minterWallet2, // outputTokenAccount
+            isSigner: false,
+            isWritable: true
+          },{
+            pubkey: vaultB1, // input vault
+            isSigner: false,
+            isWritable: true
+          },{
+            pubkey: vaultB2, // output vault
+            isSigner: false,
+            isWritable: true
+          },{
+            pubkey: latestObservationBState,
+            isSigner: false,
+            isWritable: true
+          },{
+            pubkey: nextObservationBState,
+            isSigner: false,
+            isWritable: true
+          },
+            {
+            pubkey: bitmapLowerBState,
+            isSigner: false,
+            isWritable: true
+          }, {
+            pubkey: tickUpperBState,
+            isSigner: false,
+            isWritable: true
+          }
+        ]
+        }
+      )
+      vaultBalanceA0 = await token0.getAccountInfo(vaultA0)
+      vaultBalanceA1 = await token1.getAccountInfo(vaultA1)
+      vaultBalanceB1 = await token1.getAccountInfo(vaultB1)
+      vaultBalanceB2 = await token2.getAccountInfo(vaultB2)
+      console.log(
+        'vault balances after', 
+        vaultBalanceA0.amount.toNumber(),
+        vaultBalanceA1.amount.toNumber(),
+        vaultBalanceB1.amount.toNumber(),
+        vaultBalanceB2.amount.toNumber()
+      )
+
+      const poolStateDataAfter = await coreProgram.account.poolState.fetch(poolAState)
+      console.log('pool A price after', poolStateDataAfter.sqrtPriceX32.toNumber())
+      console.log('pool A tick after', poolStateDataAfter.tick)
+
+      token2AccountInfo = await token2.getAccountInfo(minterWallet2)
+      console.log('token 2 balance after', token2AccountInfo.amount.toNumber())
     })
   })
 })
