@@ -168,11 +168,8 @@ pub struct SetFeeProtocol<'info> {
     pub owner: Signer<'info>,
 
     /// Factory state stores the protocol owner address
-    pub factory_state: Loader<'info, FactoryState>,
-
-    /// Set protocol fee for this pool
     #[account(mut)]
-    pub pool_state: Loader<'info, PoolState>,
+    pub factory_state: Loader<'info, FactoryState>,
 }
 
 #[derive(Accounts)]
@@ -524,6 +521,9 @@ pub struct SwapContext<'info> {
     /// SPL program for token transfers
     pub token_program: Program<'info, Token>,
 
+    /// The factory state to read protocol fees
+    pub factory_state: UncheckedAccount<'info>,
+    
     /// The program account of the pool in which the swap will be performed
     #[account(mut)]
     pub pool_state: UncheckedAccount<'info>,
@@ -887,6 +887,9 @@ pub struct ExactInputSingle<'info> {
     #[account(mut)]
     pub signer: Signer<'info>,
 
+    /// The factory state to read protocol fees
+    pub factory_state: UncheckedAccount<'info>,
+
     /// The program account of the pool in which the swap will be performed
     #[account(mut)]
     pub pool_state: UncheckedAccount<'info>,
@@ -928,6 +931,9 @@ pub struct ExactInput<'info> {
     #[account(mut)]
     pub signer: Signer<'info>,
 
+    /// The factory state to read protocol fees
+    pub factory_state: UncheckedAccount<'info>,
+    
     #[account(mut)]
     pub input_token_account: UncheckedAccount<'info>,
 

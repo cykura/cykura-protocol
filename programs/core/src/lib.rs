@@ -64,6 +64,7 @@ pub mod cyclos_core {
         let mut factory_state = ctx.accounts.factory_state.load_init()?;
         factory_state.bump = factory_state_bump;
         factory_state.owner = ctx.accounts.owner.key();
+        factory_state.fee_protocol = 3; // 1/3 = 33.33%
 
         emit!(OwnerChanged {
             old_owner: Pubkey::default(),
@@ -147,7 +148,6 @@ pub mod cyclos_core {
         observation_state_bump: u8,
         sqrt_price_x32: u64,
     ) -> ProgramResult {
-        msg!("inside create and init pool");
         let mut pool_state = ctx.accounts.pool_state.load_init()?;
         let mut initial_observation_state = ctx.accounts.initial_observation_state.load_init()?;
         let fee_state = ctx.accounts.fee_state.load()?;
@@ -275,41 +275,31 @@ pub mod cyclos_core {
     // ---------------------------------------------------------------------
     // Pool owner instructions
 
-    /// Set the denominator of the protocol's % share of the fees
+    /// Set the denominator of the protocol's % share of the fees.
+    /// 
+    /// Unlike Uniswap, protocol fee is globally set. It can be updated by factory owner
+    /// at any time.
     ///
     /// # Arguments
     ///
     /// * `ctx` - Checks for valid owner by looking at signer and factory owner addresses.
-    /// Holds the Pool State account where protocol fee will be saved.
-    /// * `fee_protocol_0` - new protocol fee for token_0 of the pool
-    /// * `fee_protocol_1` - new protocol fee for token_1 of the pool
+    /// Holds the Factory State account where protocol fee will be saved.
+    /// * `fee_protocol` - new protocol fee for all pools
     ///
     pub fn set_fee_protocol(
         ctx: Context<SetFeeProtocol>,
-        fee_protocol_0: u8,
-        fee_protocol_1: u8,
+        fee_protocol: u8,
     ) -> ProgramResult {
-        let mut pool_state = ctx.accounts.pool_state.load_mut()?;
-        require!(pool_state.unlocked, ErrorCode::LOK);
-        pool_state.unlocked = false;
-
-        assert!(
-            (fee_protocol_0 == 0 || (fee_protocol_0 >= 4 && fee_protocol_0 <= 10))
-                && (fee_protocol_1 == 0 || (fee_protocol_1 >= 4 && fee_protocol_1 <= 10))
-        );
-
-        let fee_protocol_old = pool_state.fee_protocol;
-        pool_state.fee_protocol = (fee_protocol_1 << 4) + fee_protocol_0;
+        assert!(fee_protocol >= 2 && fee_protocol <= 10);
+        let mut factory_state = ctx.accounts.factory_state.load_mut()?;
+        let fee_protocol_old = factory_state.fee_protocol;
+        factory_state.fee_protocol = fee_protocol;
 
         emit!(SetFeeProtocolEvent {
-            pool_state: ctx.accounts.pool_state.key(),
-            fee_protocol_0_old: fee_protocol_old % 16,
-            fee_protocol_1_old: fee_protocol_old >> 4,
-            fee_protocol_0,
-            fee_protocol_1,
+            fee_protocol_old,
+            fee_protocol
         });
 
-        pool_state.unlocked = true;
         Ok(())
     }
 
@@ -565,7 +555,6 @@ pub mod cyclos_core {
     /// * `amount` - The amount of liquidity to mint
     ///
     pub fn mint(ctx: Context<MintContext>, amount: u64) -> ProgramResult {
-        msg!("inside mint");
         let mut pool = ctx.accounts.pool_state.load_mut()?;
 
         assert!(
@@ -1172,8 +1161,9 @@ pub mod cyclos_core {
         amount_specified: i64,
         sqrt_price_limit_x32: u64,
     ) -> ProgramResult {
-        msg!("inside swap");
         require!(amount_specified != 0, ErrorCode::AS);
+
+        let factory_state = Loader::<FactoryState>::try_from(&ID, &ctx.accounts.factory_state.to_account_info())?;
 
         let pool_loader =
             Loader::<PoolState>::try_from(&ID, &ctx.accounts.pool_state.to_account_info())?;
@@ -1256,15 +1246,10 @@ pub mod cyclos_core {
         );
 
         pool.unlocked = false;
-        msg!("pool locked");
         let mut cache = SwapCache {
             liquidity_start: pool.liquidity,
             block_timestamp: oracle::_block_timestamp(),
-            fee_protocol: if zero_for_one {
-                pool.fee_protocol % 16
-            } else {
-                pool.fee_protocol >> 4
-            },
+            fee_protocol: factory_state.load()?.fee_protocol,
             seconds_per_liquidity_cumulative_x32: 0,
             tick_cumulative: 0,
             computed_latest_observation: false,
@@ -1293,13 +1278,11 @@ pub mod cyclos_core {
         let mut bitmap: Option<TickBitmapState> = None;
         while state.amount_specified_remaining != 0 && state.sqrt_price_x32 != sqrt_price_limit_x32
         {
-            msg!("in loop");
             let mut step = StepComputations::default();
             step.sqrt_price_start_x32 = state.sqrt_price_x32;
 
             // if zero_for_one(lte = true) start with the word containing the current tick
             // else use the word of the next tick
-            // what about looping?
             let mut compressed = state.tick / pool.tick_spacing as i32;
             if state.tick < 0 && state.tick % pool.tick_spacing as i32 != 0 {
                 compressed -= 1;
@@ -1309,18 +1292,13 @@ pub mod cyclos_core {
             }
 
             let Position { word_pos, bit_pos } = tick_bitmap::position(compressed);
-            msg!("loop starting");
-            // msg!("bitmap word pos {}", bitmap.unwrap().word_pos);
             if bitmap.is_none() || bitmap.unwrap().word_pos != word_pos {
-                msg!("loading bitmap");
-                msg!("remaining acc length {}", remaining_accounts.len());
                 let bitmap_loader = Loader::<TickBitmapState>::try_from(
                     &cyclos_core::id(),
                     remaining_accounts.next().unwrap(),
                 )?;
                 
                 let bitmap_state = bitmap_loader.load()?;
-                msg!("bitmap loaded");
 
                 let bitmap_account_seeds = [
                     BITMAP_SEED.as_bytes(),
@@ -1341,7 +1319,6 @@ pub mod cyclos_core {
                 drop(bitmap_state);
             }
 
-            msg!("outside loop");
             let next_initialized_bit = bitmap.unwrap().next_initialized_bit(bit_pos, zero_for_one);
             step.tick_next = (compressed + next_initialized_bit.next) * pool.tick_spacing as i32;
             step.initialized = next_initialized_bit.initialized;
@@ -1556,6 +1533,7 @@ pub mod cyclos_core {
                 )?;
             }
             let balance_0_before = vault_0.amount;
+
             // transfer tokens to pool in callback
             let swap_callback_ix = cyclos_core::instruction::SwapCallback {
                 amount_0_delta: amount_0,
@@ -1621,7 +1599,6 @@ pub mod cyclos_core {
         });
         pool_loader.load_mut()?.unlocked = true;
 
-        msg!("remaining accounts at end of swap {}", remaining_accounts.len());
         Ok(())
     }
 
@@ -1724,7 +1701,6 @@ pub mod cyclos_core {
             ),
             1,
         )?;
-        msg!("nft minted");
 
         // Write tokenized position metadata
         let mut tokenized_position = ctx.accounts.tokenized_position_state.load_init()?;
@@ -2118,6 +2094,7 @@ pub mod cyclos_core {
         let amount_out = exact_input_internal(
             &mut SwapContext {
                 signer: ctx.accounts.signer.clone(),
+                factory_state: ctx.accounts.factory_state.clone(),
                 input_token_account: ctx.accounts.input_token_account.clone(),
                 output_token_account: ctx.accounts.output_token_account.clone(),
                 input_vault: ctx.accounts.input_vault.clone(),
@@ -2135,7 +2112,6 @@ pub mod cyclos_core {
             amount_in,
             sqrt_price_limit_x32,
         )?;
-        msg!("exact input single output amount {}", amount_out);
         require!(
             amount_out >= amount_out_minimum,
             ErrorCode::TooLittleReceived
@@ -2161,69 +2137,46 @@ pub mod cyclos_core {
         amount_out_minimum: u64,
         additional_accounts_per_pool: Vec<u8>,
     ) -> ProgramResult {
-        msg!("additional per pool {:?}", additional_accounts_per_pool);
         let mut remaining_accounts = ctx.remaining_accounts.iter();
         
         let mut amount_in_internal = amount_in;
         let mut input_token_account = ctx.accounts.input_token_account.clone();
         for i in 0..additional_accounts_per_pool.len() {
-            msg!("pool loop, remaining accounts {}", remaining_accounts.len());
             let pool_state = UncheckedAccount::try_from(remaining_accounts.next().unwrap().clone());
             let output_token_account = UncheckedAccount::try_from(remaining_accounts.next().unwrap().clone());
             let input_vault = Box::new(Account::<TokenAccount>::try_from(remaining_accounts.next().unwrap())?);
             let output_vault = Box::new(Account::<TokenAccount>::try_from(remaining_accounts.next().unwrap())?);
-            msg!("accounts loaded");
-            // the outputs of prior swaps become the inputs to subsequent ones
-            let swap_ctx = &mut SwapContext {
-                signer: ctx.accounts.signer.clone(),
-                input_token_account: input_token_account.clone(),
-                pool_state,
-                output_token_account: output_token_account.clone(),
-                input_vault,
-                output_vault,
-                latest_observation_state: UncheckedAccount::try_from(remaining_accounts.next().unwrap().clone()),
-                next_observation_state: UncheckedAccount::try_from(remaining_accounts.next().unwrap().clone()),
-                token_program: ctx.accounts.token_program.clone(),
-                callback_handler: UncheckedAccount::try_from(
-                    ctx.accounts.core_program.to_account_info(),
-                ),
-            };
 
-            // let mut rem_slice = &mut *remaining_accounts.as_slice();
             amount_in_internal = exact_input_internal(
-                // &mut SwapContext {
-                //     signer: ctx.accounts.signer.clone(),
-                //     input_token_account: input_token_account.clone(),
-                //     pool_state,
-                //     output_token_account: output_token_account.clone(),
-                //     input_vault,
-                //     output_vault,
-                //     latest_observation_state: UncheckedAccount::try_from(remaining_accounts.next().unwrap().clone()),
-                //     next_observation_state: UncheckedAccount::try_from(remaining_accounts.next().unwrap().clone()),
-                //     token_program: ctx.accounts.token_program.clone(),
-                //     callback_handler: UncheckedAccount::try_from(
-                //         ctx.accounts.core_program.to_account_info(),
-                //     ),
-
-                // },
-                swap_ctx,
+                &mut SwapContext {
+                    signer: ctx.accounts.signer.clone(),
+                    factory_state: ctx.accounts.factory_state.clone(),
+                    input_token_account: input_token_account.clone(),
+                    pool_state,
+                    output_token_account: output_token_account.clone(),
+                    input_vault,
+                    output_vault,
+                    latest_observation_state: UncheckedAccount::try_from(remaining_accounts.next().unwrap().clone()),
+                    next_observation_state: UncheckedAccount::try_from(remaining_accounts.next().unwrap().clone()),
+                    token_program: ctx.accounts.token_program.clone(),
+                    callback_handler: UncheckedAccount::try_from(
+                        ctx.accounts.core_program.to_account_info(),
+                    ),
+                },
                 remaining_accounts.as_slice(),
-                // rem_slice,
                 amount_in_internal,
                 0,
             )?;
-            msg!("output amount after swap {}", amount_in_internal);
             
 
             if i < additional_accounts_per_pool.len() - 1 {
-                for j in 0..additional_accounts_per_pool[i] {
+                for _j in 0..additional_accounts_per_pool[i] {
                     remaining_accounts.next();
                 }
                 // output token account is the new input
                 input_token_account = output_token_account;
             }
         }
-        msg!("remaining account length at end {}", remaining_accounts.len());
         require!(amount_in_internal >= amount_out_minimum, ErrorCode::TooLittleReceived);
 
         Ok(())

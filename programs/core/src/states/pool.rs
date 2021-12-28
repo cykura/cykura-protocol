@@ -52,13 +52,6 @@ pub struct PoolState {
     pub fee_growth_global_0_x32: u64,
     pub fee_growth_global_1_x32: u64,
 
-    /// The current protocol fee as a percentage of the swap fee taken on withdrawal
-    /// represented as an integer denominator (1/x)%
-    /// Encoded as two 4 bit values, where the protocol fee of token_1 is shifted 4 bits and the
-    /// protocol fee of token_0 is the lower 4 bits. Used as the denominator of a fraction of
-    /// the swap fee, e.g. 4 means 1/4th of the swap fee.
-    pub fee_protocol: u8,
-
     /// The amounts of token_0 and token_1 that are owed to the protocol.
     /// Protocol fees will never exceed u64::MAX in either token
     pub protocol_fees_token_0: u64,
@@ -99,26 +92,6 @@ pub struct PoolCreatedAndInitialized {
 
     /// The initial tick of the pool, i.e. log base 1.0001 of the starting price of the pool
     pub tick: i32,
-}
-
-/// Emitted when the protocol fee is changed for a pool
-#[event]
-pub struct SetFeeProtocolEvent {
-    /// The pool whose protocol fee is changed
-    #[index]
-    pub pool_state: Pubkey,
-
-    /// The previous value of the token_0 protocol fee
-    pub fee_protocol_0_old: u8,
-
-    /// The previous value of the token_1 protocol fee
-    pub fee_protocol_1_old: u8,
-
-    /// The updated value of the token_0 protocol fee
-    pub fee_protocol_0: u8,
-
-    /// The updated value of the token_1 protocol fee
-    pub fee_protocol_1: u8,
 }
 
 /// Emitted when the collected protocol fees are withdrawn by the factory owner

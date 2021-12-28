@@ -287,6 +287,7 @@ describe('cyclos-core', async () => {
       const factoryStateData = await coreProgram.account.factoryState.fetch(factoryState)
       assert.equal(factoryStateData.bump, factoryStateBump)
       assert(factoryStateData.owner.equals(owner))
+      assert.equal(factoryStateData.feeProtocol, 3)
     });
 
     it('Trying to re-initialize factory fails', async () => {
@@ -719,7 +720,6 @@ describe('cyclos-core', async () => {
       assert.equal(poolStateData.observationCardinalityNext, 1)
       assert(poolStateData.feeGrowthGlobal0X32.eq(new BN(0)))
       assert(poolStateData.feeGrowthGlobal1X32.eq(new BN(0)))
-      assert.equal(poolStateData.feeProtocol, 0)
       assert(poolStateData.protocolFeesToken0.eq(new BN(0)))
       assert(poolStateData.protocolFeesToken1.eq(new BN(0)))
       assert(poolStateData.unlocked)
@@ -1084,59 +1084,58 @@ describe('cyclos-core', async () => {
 
   describe('#set_fee_protocol', () => {
     it('cannot be changed by addresses that are not owner', async () => {
-      await expect(coreProgram.rpc.setFeeProtocol(6, 6, {
+      await expect(coreProgram.rpc.setFeeProtocol(6, {
         accounts: {
           owner: notOwner.publicKey,
-          poolState: poolAState,
           factoryState,
         }, signers: [notOwner]
       })).to.be.rejectedWith(Error)
     })
 
     it('cannot be changed out of bounds', async () => {
-      await expect(coreProgram.rpc.setFeeProtocol(3, 3, {
+      await expect(coreProgram.rpc.setFeeProtocol(1, {
         accounts: {
           owner,
-          poolState: poolAState,
           factoryState,
         }
       })).to.be.rejectedWith(Error)
 
-      await expect(coreProgram.rpc.setFeeProtocol(11, 11, {
+      await expect(coreProgram.rpc.setFeeProtocol(11, {
         accounts: {
           owner,
-          poolState: poolAState,
           factoryState,
         }
       })).to.be.rejectedWith(Error)
     })
 
     it('can be changed by owner', async () => {
-      let listener: number
-      let [_event, _slot] = await new Promise((resolve, _reject) => {
-        listener = coreProgram.addEventListener("SetFeeProtocolEvent", (event, slot) => {
-          assert((event.poolState as web3.PublicKey).equals(poolAState))
-          assert.equal(event.feeProtocol0Old, 0)
-          assert.equal(event.feeProtocol1Old, 0)
-          assert.equal(event.feeProtocol0, 6)
-          assert.equal(event.feeProtocol1, 6)
+      // let listener: number
+      // let [_event, _slot] = await new Promise((resolve, _reject) => {
+      //   listener = coreProgram.addEventListener("SetFeeProtocolEvent", (event, slot) => {
+      //     assert.equal(event.feeProtocolOld, 3)
+      //     assert.equal(event.feeProtocol, 6)
 
-          resolve([event, slot]);
-        });
+      //     resolve([event, slot]);
+      //   });
 
-        coreProgram.rpc.setFeeProtocol(6, 6, {
-          accounts: {
-            owner,
-            poolState: poolAState,
-            factoryState,
-          }
-        })
+      //   coreProgram.rpc.setFeeProtocol(6, {
+      //     accounts: {
+      //       owner,
+      //       factoryState,
+      //     }
+      //   })
+      // })
+      // await coreProgram.removeEventListener(listener)
+
+      await coreProgram.rpc.setFeeProtocol(6, {
+        accounts: {
+          owner,
+          factoryState,
+        }
       })
-      await coreProgram.removeEventListener(listener)
 
-      const poolStateData = await coreProgram.account.poolState.fetch(poolAState)
-      assert.equal((6 << 4) + 6, 102)
-      assert.equal(poolStateData.feeProtocol, 102)
+      const factoryStateData = await coreProgram.account.factoryState.fetch(factoryState)
+      assert.equal(factoryStateData.feeProtocol, 6)
     })
   })
 
@@ -2503,6 +2502,7 @@ describe('cyclos-core', async () => {
         {
           accounts: {
             signer: owner,
+            factoryState,
             poolState: poolAState,
             inputTokenAccount: minterWallet0,
             outputTokenAccount: minterWallet1,
@@ -2544,6 +2544,7 @@ describe('cyclos-core', async () => {
         {
           accounts: {
             signer: owner,
+            factoryState,
             poolState: poolAState,
             inputTokenAccount: minterWallet0,
             outputTokenAccount: minterWallet1,
@@ -2616,6 +2617,7 @@ describe('cyclos-core', async () => {
         {
           accounts: {
             signer: owner,
+            factoryState,
             poolState: poolAState,
             inputTokenAccount: minterWallet0,
             outputTokenAccount: minterWallet1,
@@ -2683,6 +2685,7 @@ describe('cyclos-core', async () => {
         {
           accounts: {
             signer: owner,
+            factoryState,
             inputTokenAccount: minterWallet0,
             coreProgram: coreProgram.programId,
             tokenProgram: TOKEN_PROGRAM_ID,
@@ -2936,6 +2939,7 @@ describe('cyclos-core', async () => {
         {
           accounts: {
             signer: owner,
+            factoryState,
             inputTokenAccount: minterWallet0,
             coreProgram: coreProgram.programId,
             tokenProgram: TOKEN_PROGRAM_ID,

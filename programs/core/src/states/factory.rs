@@ -18,6 +18,9 @@ pub struct FactoryState {
 
     /// Address of the protocol owner
     pub owner: Pubkey,
+
+    /// The global protocol fee
+    pub fee_protocol: u8,
 }
 
 /// Emitted when the owner of the factory is changed
@@ -30,4 +33,14 @@ pub struct OwnerChanged {
     /// The owner after the owner was changed
     #[index]
     pub new_owner: Pubkey,
+}
+
+/// Emitted when the protocol fee is changed for a pool
+#[event]
+pub struct SetFeeProtocolEvent {
+    /// The previous value of the protocol fee
+    pub fee_protocol_old: u8,
+    
+    /// The updated value of the protocol fee
+    pub fee_protocol: u8,
 }
