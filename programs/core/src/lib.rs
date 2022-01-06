@@ -501,7 +501,6 @@ pub mod cyclos_core {
     /// # Arguments
     ///
     /// * `ctx` - Token accounts for payment
-    /// * `exact_input` - Whether an exact input swap or an exact output swap
     /// * `amount_0_delta` - The amount of token_0 that was sent (negative) or must be received (positive) by the pool by
     /// the end of the swap. If positive, the callback must send that amount of token_0 to the pool.
     /// * `amount_1_delta` - The amount of token_1 that was sent (negative) or must be received (positive) by the pool by
@@ -509,39 +508,31 @@ pub mod cyclos_core {
     ///
     pub fn swap_callback(
         ctx: Context<SwapCallback>,
-        exact_input: bool,
         amount_0_delta: i64,
         amount_1_delta: i64,
     ) -> ProgramResult {
-        // TODO check caller address and implement for exact output swaps
-        assert!(amount_0_delta > 0 || amount_1_delta > 0); // swaps entirely within 0-liquidity regions are not supported
+        msg!("swap callback, amount 0 delta {}, amount_1_delta {}", amount_1_delta, amount_1_delta);
 
-        assert!(exact_input); // exact output not yet implemented
-        if amount_0_delta > 0 {
+        let (exact_input, amount_to_pay) = if amount_0_delta > 0 {
+            (ctx.accounts.input_vault.mint < ctx.accounts.output_vault.mint, amount_0_delta as u64)
+        } else {
+            (ctx.accounts.output_vault.mint < ctx.accounts.input_vault.mint, amount_1_delta as u64)
+        };
+        if exact_input {
             token::transfer(
                 CpiContext::new(
                     ctx.accounts.token_program.to_account_info(),
                     token::Transfer {
-                        from: ctx.accounts.token_account_0.to_account_info(),
-                        to: ctx.accounts.vault_0.to_account_info(),
+                        from: ctx.accounts.input_token_account.to_account_info(),
+                        to: ctx.accounts.input_vault.to_account_info(),
                         authority: ctx.accounts.signer.to_account_info(),
                     },
                 ),
-                amount_0_delta as u64,
+                amount_to_pay,
             )?;
         } else {
-            token::transfer(
-                CpiContext::new(
-                    ctx.accounts.token_program.to_account_info(),
-                    token::Transfer {
-                        from: ctx.accounts.token_account_1.to_account_info(),
-                        to: ctx.accounts.vault_1.to_account_info(),
-                        authority: ctx.accounts.signer.to_account_info(),
-                    },
-                ),
-                amount_1_delta as u64,
-            )?;
-        }
+            msg!("exact output not implemented");
+        };
 
         Ok(())
     }
@@ -1161,6 +1152,7 @@ pub mod cyclos_core {
         amount_specified: i64,
         sqrt_price_limit_x32: u64,
     ) -> ProgramResult {
+        msg!("in swap");
         require!(amount_specified != 0, ErrorCode::AS);
 
         let factory_state = Loader::<FactoryState>::try_from(&ID, &ctx.accounts.factory_state.to_account_info())?;
@@ -1193,7 +1185,7 @@ pub mod cyclos_core {
         };
         assert!(vault_0.key() == get_associated_token_address(&pool_loader.key(), &pool.token_0));
         assert!(vault_1.key() == get_associated_token_address(&pool_loader.key(), &pool.token_1));
-
+        msg!("vaults validated");
         let latest_observation_state = Loader::<ObservationState>::try_from(
             &ID,
             &ctx.accounts.latest_observation_state.to_account_info(),
@@ -1232,6 +1224,7 @@ pub mod cyclos_core {
                     &ID
                 )?,
         );
+        msg!("observation accounts validated");
 
         require!(pool.unlocked, ErrorCode::LOK);
         require!(
@@ -1278,6 +1271,7 @@ pub mod cyclos_core {
         let mut bitmap: Option<TickBitmapState> = None;
         while state.amount_specified_remaining != 0 && state.sqrt_price_x32 != sqrt_price_limit_x32
         {
+            msg!("in swap loop");
             let mut step = StepComputations::default();
             step.sqrt_price_start_x32 = state.sqrt_price_x32;
 
@@ -1293,12 +1287,14 @@ pub mod cyclos_core {
 
             let Position { word_pos, bit_pos } = tick_bitmap::position(compressed);
             if bitmap.is_none() || bitmap.unwrap().word_pos != word_pos {
+                msg!("loading bitmap");
                 let bitmap_loader = Loader::<TickBitmapState>::try_from(
                     &cyclos_core::id(),
                     remaining_accounts.next().unwrap(),
                 )?;
                 
                 let bitmap_state = bitmap_loader.load()?;
+                msg!("bitmap loaded");
 
                 let bitmap_account_seeds = [
                     BITMAP_SEED.as_bytes(),
@@ -1315,11 +1311,13 @@ pub mod cyclos_core {
                             &ctx.program_id
                         )?,
                 );
+                msg!("bitmap validated");
                 bitmap = Some(*bitmap_state.deref());
                 drop(bitmap_state);
             }
 
             let next_initialized_bit = bitmap.unwrap().next_initialized_bit(bit_pos, zero_for_one);
+            msg!("got next init bit");
             step.tick_next = (compressed + next_initialized_bit.next) * pool.tick_spacing as i32;
             step.initialized = next_initialized_bit.initialized;
 
@@ -1350,6 +1348,7 @@ pub mod cyclos_core {
             step.amount_out = swap_step.amount_out;
             step.fee_amount = swap_step.fee_amount;
 
+            msg!("calculating amounts");
             if exact_input {
                 state.amount_specified_remaining -=
                     i64::try_from(step.amount_in + step.fee_amount).unwrap();
@@ -1382,6 +1381,7 @@ pub mod cyclos_core {
 
             // shift tick if we reached the next price
             if state.sqrt_price_x32 == step.sqrt_price_next_x32 {
+                msg!("shifting tick");
                 // if the tick is initialized, run the tick transition
                 if step.initialized {
                     // check for the placeholder value for the oracle observation, which we replace with the
@@ -1397,6 +1397,7 @@ pub mod cyclos_core {
                         cache.computed_latest_observation = true;
                     }
 
+                    msg!("loading tick");
                     let tick_loader = Loader::<TickState>::try_from(
                         &cyclos_core::id(),
                         remaining_accounts.next().unwrap(),
@@ -1538,7 +1539,7 @@ pub mod cyclos_core {
             let swap_callback_ix = cyclos_core::instruction::SwapCallback {
                 amount_0_delta: amount_0,
                 amount_1_delta: amount_1,
-                exact_input,
+                // exact_input,
             };
             let ix = Instruction::new_with_bytes(
                 ctx.accounts.callback_handler.key(),
@@ -1567,11 +1568,12 @@ pub mod cyclos_core {
                 )?;
             }
             let balance_1_before = vault_1.amount;
+            msg!("amount 0 delta {}, amount 1 delta {}", amount_0, amount_1);
             // transfer tokens to pool in callback
             let swap_callback_ix = cyclos_core::instruction::SwapCallback {
                 amount_0_delta: amount_0,
                 amount_1_delta: amount_1,
-                exact_input,
+                // exact_input,
             };
             let ix = Instruction::new_with_bytes(
                 ctx.accounts.callback_handler.key(),
@@ -1579,9 +1581,13 @@ pub mod cyclos_core {
                 ctx.accounts.to_account_metas(None),
             );
             solana_program::program::invoke(&ix, &ctx.accounts.to_account_infos())?;
-            vault_1.reload()?;
+            // Token 1 not transferred
+            msg!("vault 1 balance before {}", balance_1_before);
+            msg!("receiving amount 1 {}", amount_1);
+            vault_1.reload()?; // not reloading
+            msg!("vault 1 balance after {}", vault_1.amount);
             require!(
-                balance_1_before.checked_add(amount_0 as u64).unwrap() <= vault_1.amount,
+                balance_1_before.checked_add(amount_1 as u64).unwrap() <= vault_1.amount,
                 ErrorCode::IIA
             );
         }
@@ -2137,11 +2143,13 @@ pub mod cyclos_core {
         amount_out_minimum: u64,
         additional_accounts_per_pool: Vec<u8>,
     ) -> ProgramResult {
+        msg!("in exact input");
         let mut remaining_accounts = ctx.remaining_accounts.iter();
         
         let mut amount_in_internal = amount_in;
         let mut input_token_account = ctx.accounts.input_token_account.clone();
         for i in 0..additional_accounts_per_pool.len() {
+            msg!("in loop");
             let pool_state = UncheckedAccount::try_from(remaining_accounts.next().unwrap().clone());
             let output_token_account = UncheckedAccount::try_from(remaining_accounts.next().unwrap().clone());
             let input_vault = Box::new(Account::<TokenAccount>::try_from(remaining_accounts.next().unwrap())?);
@@ -2232,6 +2240,7 @@ pub fn exact_input_internal<'info>(
     amount_in: u64,
     sqrt_price_limit_x32: u64,
 ) -> Result<u64, ProgramError> {
+    msg!("in exact input internal");
     let pool_state = Loader::<PoolState>::try_from(&ID, &accounts.pool_state)?;
     let zero_for_one = accounts.input_vault.mint == pool_state.load()?.token_0;
 

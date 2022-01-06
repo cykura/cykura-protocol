@@ -36,7 +36,7 @@ import keypairFile from './keypair.json';
             [FEE_SEED, u32ToSeed(fee)],
             coreProgram.programId
         );
-        await coreProgram.rpc.enableFeeAmount(feeStateBump, fee, tickSpacing, {
+        const tx = coreProgram.transaction.enableFeeAmount(feeStateBump, fee, tickSpacing, {
             accounts: {
                 owner,
                 factoryState,
@@ -44,6 +44,7 @@ import keypairFile from './keypair.json';
                 systemProgram: web3.SystemProgram.programId,
             }
         })
+        await provider.send(tx)
 
         // verify
         const feeStateData = await coreProgram.account.feeState.fetch(feeState)

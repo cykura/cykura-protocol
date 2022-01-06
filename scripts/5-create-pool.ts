@@ -70,7 +70,7 @@ async function main() {
     true
   )
 
-  await coreProgram.rpc.createAndInitPool(poolAStateBump, initialObservationBumpA, new anchor.BN(4294967296), {
+  const tx = coreProgram.transaction.createAndInitPool(poolAStateBump, initialObservationBumpA, new anchor.BN(4294967296), {
     accounts: {
       poolCreator: owner,
       token0: usdtMint,
@@ -86,6 +86,9 @@ async function main() {
       associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID
     }
   })
+
+  // create a new position
+  await provider.send(tx)
 }
 
 main().then(

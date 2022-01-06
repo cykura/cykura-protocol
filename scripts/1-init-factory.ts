@@ -19,13 +19,14 @@ import keypairFile from './keypair.json';
   const coreProgram = anchor.workspace.CyclosCore as Program<CyclosCore>
 
   const [factoryState, factoryStateBump] = await web3.PublicKey.findProgramAddress([], coreProgram.programId)
-  await coreProgram.rpc.initFactory(factoryStateBump, {
+  const tx = coreProgram.transaction.initFactory(factoryStateBump, {
     accounts: {
       owner,
       factoryState,
       systemProgram: web3.SystemProgram.programId,
     }
   })
+  await provider.send(tx)
 
   // verify
   const factoryStateData = await coreProgram.account.factoryState.fetch(factoryState)

@@ -405,19 +405,21 @@ pub struct SwapCallback<'info> {
     /// Pays for the swap
     pub signer: Signer<'info>,
 
-    /// The payer token account in zero for one swaps, or the recipient token account
-    /// in one for zero swaps
-    pub token_account_0: UncheckedAccount<'info>,
+    /// The user token account for input token
+    #[account(mut)]
+    pub input_token_account: UncheckedAccount<'info>,
 
-    /// The payer token account in one for zero swaps, or the recipient token account
-    /// in zero for one swaps
-    pub token_account_1: UncheckedAccount<'info>,
+    /// The user token account for output token
+    #[account(mut)]
+    pub output_token_account: UncheckedAccount<'info>,
 
-    /// The address that holds pool tokens for token_0
-    pub vault_0: UncheckedAccount<'info>,
+    /// The vault token account for input token
+    #[account(mut)]
+    pub input_vault: Box<Account<'info, TokenAccount>>,
 
-    /// The address that holds pool tokens for token_1
-    pub vault_1: UncheckedAccount<'info>,
+    /// The vault token account for output token
+    #[account(mut)]
+    pub output_vault: Box<Account<'info, TokenAccount>>,
 
     /// The SPL program to perform token transfers
     pub token_program: UncheckedAccount<'info>,
