@@ -19,6 +19,7 @@ use anchor_lang::AccountsClose;
 use anchor_lang::{solana_program::instruction::Instruction, InstructionData};
 use anchor_spl::associated_token::get_associated_token_address;
 use anchor_spl::token;
+use anchor_spl::token::{Token, TokenAccount};
 use context::*;
 use libraries::liquidity_math;
 use libraries::sqrt_price_math;
@@ -35,7 +36,6 @@ use std::convert::TryFrom;
 use std::mem::size_of;
 use std::ops::Neg;
 use std::ops::{Deref, DerefMut};
-use anchor_spl::token::{Token, TokenAccount};
 
 use crate::{
     libraries::{fixed_point_x32, swap_math},
@@ -276,7 +276,7 @@ pub mod cyclos_core {
     // Pool owner instructions
 
     /// Set the denominator of the protocol's % share of the fees.
-    /// 
+    ///
     /// Unlike Uniswap, protocol fee is globally set. It can be updated by factory owner
     /// at any time.
     ///
@@ -286,10 +286,7 @@ pub mod cyclos_core {
     /// Holds the Factory State account where protocol fee will be saved.
     /// * `fee_protocol` - new protocol fee for all pools
     ///
-    pub fn set_fee_protocol(
-        ctx: Context<SetFeeProtocol>,
-        fee_protocol: u8,
-    ) -> ProgramResult {
+    pub fn set_fee_protocol(ctx: Context<SetFeeProtocol>, fee_protocol: u8) -> ProgramResult {
         assert!(fee_protocol >= 2 && fee_protocol <= 10);
         let mut factory_state = ctx.accounts.factory_state.load_mut()?;
         let fee_protocol_old = factory_state.fee_protocol;
@@ -511,12 +508,22 @@ pub mod cyclos_core {
         amount_0_delta: i64,
         amount_1_delta: i64,
     ) -> ProgramResult {
-        msg!("swap callback, amount 0 delta {}, amount_1_delta {}", amount_1_delta, amount_1_delta);
+        msg!(
+            "swap callback, amount 0 delta {}, amount_1_delta {}",
+            amount_1_delta,
+            amount_1_delta
+        );
 
         let (exact_input, amount_to_pay) = if amount_0_delta > 0 {
-            (ctx.accounts.input_vault.mint < ctx.accounts.output_vault.mint, amount_0_delta as u64)
+            (
+                ctx.accounts.input_vault.mint < ctx.accounts.output_vault.mint,
+                amount_0_delta as u64,
+            )
         } else {
-            (ctx.accounts.output_vault.mint < ctx.accounts.input_vault.mint, amount_1_delta as u64)
+            (
+                ctx.accounts.output_vault.mint < ctx.accounts.input_vault.mint,
+                amount_1_delta as u64,
+            )
         };
         if exact_input {
             token::transfer(
@@ -1155,7 +1162,8 @@ pub mod cyclos_core {
         msg!("in swap");
         require!(amount_specified != 0, ErrorCode::AS);
 
-        let factory_state = Loader::<FactoryState>::try_from(&ID, &ctx.accounts.factory_state.to_account_info())?;
+        let factory_state =
+            Loader::<FactoryState>::try_from(&ID, &ctx.accounts.factory_state.to_account_info())?;
 
         let pool_loader =
             Loader::<PoolState>::try_from(&ID, &ctx.accounts.pool_state.to_account_info())?;
@@ -1292,7 +1300,7 @@ pub mod cyclos_core {
                     &cyclos_core::id(),
                     remaining_accounts.next().unwrap(),
                 )?;
-                
+
                 let bitmap_state = bitmap_loader.load()?;
                 msg!("bitmap loaded");
 
@@ -2112,7 +2120,6 @@ pub mod cyclos_core {
                 callback_handler: UncheckedAccount::try_from(
                     ctx.accounts.core_program.to_account_info(),
                 ),
-
             },
             ctx.remaining_accounts,
             amount_in,
@@ -2145,15 +2152,20 @@ pub mod cyclos_core {
     ) -> ProgramResult {
         msg!("in exact input");
         let mut remaining_accounts = ctx.remaining_accounts.iter();
-        
+
         let mut amount_in_internal = amount_in;
         let mut input_token_account = ctx.accounts.input_token_account.clone();
         for i in 0..additional_accounts_per_pool.len() {
             msg!("in loop");
             let pool_state = UncheckedAccount::try_from(remaining_accounts.next().unwrap().clone());
-            let output_token_account = UncheckedAccount::try_from(remaining_accounts.next().unwrap().clone());
-            let input_vault = Box::new(Account::<TokenAccount>::try_from(remaining_accounts.next().unwrap())?);
-            let output_vault = Box::new(Account::<TokenAccount>::try_from(remaining_accounts.next().unwrap())?);
+            let output_token_account =
+                UncheckedAccount::try_from(remaining_accounts.next().unwrap().clone());
+            let input_vault = Box::new(Account::<TokenAccount>::try_from(
+                remaining_accounts.next().unwrap(),
+            )?);
+            let output_vault = Box::new(Account::<TokenAccount>::try_from(
+                remaining_accounts.next().unwrap(),
+            )?);
 
             amount_in_internal = exact_input_internal(
                 &mut SwapContext {
@@ -2164,8 +2176,12 @@ pub mod cyclos_core {
                     output_token_account: output_token_account.clone(),
                     input_vault,
                     output_vault,
-                    latest_observation_state: UncheckedAccount::try_from(remaining_accounts.next().unwrap().clone()),
-                    next_observation_state: UncheckedAccount::try_from(remaining_accounts.next().unwrap().clone()),
+                    latest_observation_state: UncheckedAccount::try_from(
+                        remaining_accounts.next().unwrap().clone(),
+                    ),
+                    next_observation_state: UncheckedAccount::try_from(
+                        remaining_accounts.next().unwrap().clone(),
+                    ),
                     token_program: ctx.accounts.token_program.clone(),
                     callback_handler: UncheckedAccount::try_from(
                         ctx.accounts.core_program.to_account_info(),
@@ -2175,7 +2191,6 @@ pub mod cyclos_core {
                 amount_in_internal,
                 0,
             )?;
-            
 
             if i < additional_accounts_per_pool.len() - 1 {
                 for _j in 0..additional_accounts_per_pool[i] {
@@ -2185,7 +2200,10 @@ pub mod cyclos_core {
                 input_token_account = output_token_account;
             }
         }
-        require!(amount_in_internal >= amount_out_minimum, ErrorCode::TooLittleReceived);
+        require!(
+            amount_in_internal >= amount_out_minimum,
+            ErrorCode::TooLittleReceived
+        );
 
         Ok(())
     }
@@ -2357,7 +2375,9 @@ pub fn _modify_position<'info>(
             // write oracle observation
             let timestamp = oracle::_block_timestamp();
             let next_observation_start = (latest_observation.block_timestamp / 14 + 1) * 14;
-            let mut next_observation = if timestamp >= next_observation_start {
+            let mut next_observation = if timestamp >= next_observation_start
+                && next_observation_state.key() != latest_observation_state.key()
+            {
                 next_observation_state.load_mut()?
             } else {
                 latest_observation
