@@ -1865,36 +1865,79 @@ describe('cyclos-core', async () => {
   })
 
   describe('#increase_liquidity', () => {
-    // it('fails if past deadline', async () => {
-    //   const deadline = new BN(Date.now() / 1000 - 100_000)
-    //   await expect(coreProgram.rpc.increaseLiquidity(
-    //     amount0Desired,
-    //     amount1Desired,
-    //     amount0Minimum,
-    //     amount1Minimum,
-    //     deadline, {
-    //     accounts: {
-    //       payer: owner,
-    //       factoryState,
-    //       poolState: poolAState,
-    //       corePositionState: corePositionAState,
-    //       tickLowerState: tickLowerAState,
-    //       tickUpperState: tickUpperAState,
-    //       bitmapLowerState: bitmapLowerAState,
-    //       bitmapUpperState: bitmapUpperAState,
-    //       tokenAccount0: minterWallet0,
-    //       tokenAccount1: minterWallet1,
-    //       vault0: vaultA0,
-    //       vault1: vaultA1,
-    //       latestObservationState: latestObservationAState,
-    //       nextObservationState: nextObservationAState,
-    //       tokenizedPositionState: tokenizedPositionAState,
-    //       coreProgram: coreProgram.programId,
-    //       tokenProgram: TOKEN_PROGRAM_ID,
-    //     },
-    //   }
-    //   )).to.be.rejectedWith('Transaction too old')
-    // })
+    it('fails if past deadline', async () => {
+      const deadline = new BN(Date.now() / 1000 - 100_000)
+      await expect(coreProgram.rpc.increaseLiquidity(
+        amount0Desired,
+        amount1Desired,
+        amount0Minimum,
+        amount1Minimum,
+        deadline, {
+        accounts: {
+          payer: owner,
+          factoryState,
+          poolState: poolAState,
+          corePositionState: corePositionAState,
+          tickLowerState: tickLowerAState,
+          tickUpperState: tickUpperAState,
+          bitmapLowerState: bitmapLowerAState,
+          bitmapUpperState: bitmapUpperAState,
+          tokenAccount0: minterWallet0,
+          tokenAccount1: minterWallet1,
+          vault0: vaultA0,
+          vault1: vaultA1,
+          latestObservationState: latestObservationAState,
+          nextObservationState: nextObservationAState,
+          tokenizedPositionState: tokenizedPositionAState,
+          coreProgram: coreProgram.programId,
+          tokenProgram: TOKEN_PROGRAM_ID,
+        },
+      }
+      )).to.be.rejectedWith('Transaction too old')
+    })
+
+    it('update observation accounts', async () => {
+      const {
+        observationIndex,
+        observationCardinalityNext
+      } = await coreProgram.account.poolState.fetch(poolAState)
+
+      const { blockTimestamp: lastBlockTime } = await coreProgram.account.observationState.fetch(latestObservationAState)
+
+      const slot = await connection.getSlot()
+      const blockTimestamp = await connection.getBlockTime(slot)
+
+      // If current observation account will expire in 3 seconds, we sleep for this time
+      // before recalculating the observation states
+      if (Math.floor(lastBlockTime / 14) == Math.floor(blockTimestamp / 14) && lastBlockTime % 14 >= 11) {
+        await new Promise(r => setTimeout(r, 3000))
+      }
+      if (Math.floor(lastBlockTime / 14) > Math.floor(blockTimestamp / 14)) {
+        latestObservationAState = (await PublicKey.findProgramAddress(
+          [
+            OBSERVATION_SEED,
+            token0.publicKey.toBuffer(),
+            token1.publicKey.toBuffer(),
+            u32ToSeed(fee),
+            u16ToSeed(observationIndex)
+          ],
+          coreProgram.programId
+        ))[0]
+  
+        nextObservationAState = (await PublicKey.findProgramAddress(
+          [
+            OBSERVATION_SEED,
+            token0.publicKey.toBuffer(),
+            token1.publicKey.toBuffer(),
+            u32ToSeed(fee),
+            u16ToSeed((observationIndex + 1) % observationCardinalityNext)
+          ],
+          coreProgram.programId
+        ))[0]
+      }
+
+    })
+
     it('Add token 1 to the position', async () => {
       const deadline = new BN(Date.now() / 1000 + 10_000)
 
@@ -1981,6 +2024,47 @@ describe('cyclos-core', async () => {
   describe('#decrease_liquidity', () => {
     const liquidity = new BN(1999599283)
     const amount1Desired = new BN(999999)
+
+    it('update observation accounts', async () => {
+      const {
+        observationIndex,
+        observationCardinalityNext
+      } = await coreProgram.account.poolState.fetch(poolAState)
+
+      const { blockTimestamp: lastBlockTime } = await coreProgram.account.observationState.fetch(latestObservationAState)
+
+      const slot = await connection.getSlot()
+      const blockTimestamp = await connection.getBlockTime(slot)
+
+      // If current observation account will expire in 3 seconds, we sleep for this time
+      // before recalculating the observation states
+      if (Math.floor(lastBlockTime / 14) == Math.floor(blockTimestamp / 14) && lastBlockTime % 14 >= 11) {
+        await new Promise(r => setTimeout(r, 3000))
+      }
+      if (Math.floor(lastBlockTime / 14) > Math.floor(blockTimestamp / 14)) {
+        latestObservationAState = (await PublicKey.findProgramAddress(
+          [
+            OBSERVATION_SEED,
+            token0.publicKey.toBuffer(),
+            token1.publicKey.toBuffer(),
+            u32ToSeed(fee),
+            u16ToSeed(observationIndex)
+          ],
+          coreProgram.programId
+        ))[0]
+  
+        nextObservationAState = (await PublicKey.findProgramAddress(
+          [
+            OBSERVATION_SEED,
+            token0.publicKey.toBuffer(),
+            token1.publicKey.toBuffer(),
+            u32ToSeed(fee),
+            u16ToSeed((observationIndex + 1) % observationCardinalityNext)
+          ],
+          coreProgram.programId
+        ))[0]
+      }
+    })
 
     it('fails if past deadline', async () => {
       const deadline = new BN(Date.now() / 1000 - 100_000)
