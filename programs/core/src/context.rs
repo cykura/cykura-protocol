@@ -635,7 +635,7 @@ pub struct MintTokenizedPosition<'info> {
     /// Sysvar for token mint and ATA creation
     pub rent: Sysvar<'info, Rent>,
 
-    // /// The core program where liquidity is minted
+    /// The core program where liquidity is minted
     pub core_program: Program<'info, CyclosCore>,
 
     /// Program to create the position manager state account

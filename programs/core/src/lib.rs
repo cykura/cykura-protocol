@@ -607,7 +607,7 @@ pub mod cyclos_core {
                         pool.token_0.as_ref(),
                         pool.token_1.as_ref(),
                         &pool.fee.to_be_bytes(),
-                        &((tick_lower.tick >> 8) as i16).to_be_bytes(),
+                        &(((tick_lower.tick / pool.tick_spacing as i32) >> 8) as i16).to_be_bytes(),
                         &[bitmap_lower_state.load()?.bump],
                     ],
                     &ID
@@ -625,7 +625,7 @@ pub mod cyclos_core {
                         pool.token_0.as_ref(),
                         pool.token_1.as_ref(),
                         &pool.fee.to_be_bytes(),
-                        &((tick_upper.tick >> 8) as i16).to_be_bytes(),
+                        &(((tick_upper.tick / pool.tick_spacing as i32) >> 8) as i16).to_be_bytes(),
                         &[bitmap_upper_state.load()?.bump],
                     ],
                     &ID
@@ -828,7 +828,7 @@ pub mod cyclos_core {
                         pool.token_0.as_ref(),
                         pool.token_1.as_ref(),
                         &pool.fee.to_be_bytes(),
-                        &((tick_lower.tick >> 8) as i16).to_be_bytes(),
+                        &(((tick_lower.tick / pool.tick_spacing as i32) >> 8) as i16).to_be_bytes(),
                         &[bitmap_lower_state.load()?.bump],
                     ],
                     &ID
@@ -846,7 +846,7 @@ pub mod cyclos_core {
                         pool.token_0.as_ref(),
                         pool.token_1.as_ref(),
                         &pool.fee.to_be_bytes(),
-                        &((tick_upper.tick >> 8) as i16).to_be_bytes(),
+                        &(((tick_upper.tick / pool.tick_spacing as i32) >> 8) as i16).to_be_bytes(),
                         &[bitmap_upper_state.load()?.bump],
                     ],
                     &ID
