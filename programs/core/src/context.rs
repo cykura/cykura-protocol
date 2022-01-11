@@ -6,7 +6,7 @@ use crate::states::oracle::{ObservationState, OBSERVATION_SEED};
 use crate::states::pool::{PoolState, POOL_SEED};
 use crate::states::position::{PositionState, POSITION_SEED};
 use crate::states::tick::{TickState, TICK_SEED};
-use crate::states::tick_bitmap::{TickBitmapState, BITMAP_SEED};
+use crate::states::tick_bitmath::{TickBitmapState, BITMAP_SEED};
 use crate::states::tokenized_position::TokenizedPositionState;
 use anchor_lang::prelude::*;
 use anchor_spl::associated_token::AssociatedToken;

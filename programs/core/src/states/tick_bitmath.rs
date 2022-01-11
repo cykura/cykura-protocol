@@ -111,11 +111,12 @@ pub fn position(tick_by_spacing: i32) -> Position {
 /// * `lte` - Whether to search for the next initialized tick to the left (less than or equal to the starting tick)
 ///
 pub fn next_initialized_bit(word: U256, bit_pos: u8, lte: bool) -> NextBit {
-    // let word = U256(word_slice);
+    msg!("word {:?}, bit_pos {:?}, lte {:?}", word, bit_pos, lte);
     if lte {
         // all the 1s at or to the right of the current bit_pos
         let mask = (U256::from(1) << bit_pos) - 1 + (U256::from(1) << bit_pos);
         let masked = word & mask;
+        msg!("masked {:?}", masked);
 
         // if there are no initialized ticks to the right of or at the current tick, return rightmost in the word
         let initialized = mask != U256::default();
@@ -171,14 +172,16 @@ impl TickBitmapState {
     /// * `lte` - Whether to search for the next initialized tick to the left (less than or equal to the starting tick)
     ///
     pub fn next_initialized_bit(&self, bit_pos: u8, lte: bool) -> NextBit {
+        msg!("getting next initialized bit");
         let word = U256(self.word);
         if lte {
             // all the 1s at or to the right of the current bit_pos
             let mask = (U256::from(1) << bit_pos) - 1 + (U256::from(1) << bit_pos);
             let masked = word & mask;
+            msg!("masked {}", masked);
 
             // if there are no initialized ticks to the right of or at the current tick, return rightmost in the word
-            let initialized = mask != U256::default();
+            let initialized = masked != U256::default();
 
             // overflow/underflow is possible, but prevented externally by limiting both tick_spacing and tick
             let next = -(if initialized {

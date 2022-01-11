@@ -31,7 +31,7 @@ use states::fee::*;
 use states::pool::*;
 use states::position::*;
 use states::tick::*;
-use states::tick_bitmap::*;
+use states::tick_bitmath::*;
 use std::convert::TryFrom;
 use std::mem::size_of;
 use std::ops::Neg;
@@ -39,7 +39,7 @@ use std::ops::{Deref, DerefMut};
 
 use crate::{
     libraries::{fixed_point_x32, swap_math},
-    states::{oracle::OBSERVATION_SEED, tick_bitmap},
+    states::{oracle::OBSERVATION_SEED, tick_bitmath},
 };
 
 declare_id!("cysonxupBUVurvLe3Kz9mYrwmNfh43gEP4MgXwHmsUk");
@@ -1293,7 +1293,7 @@ pub mod cyclos_core {
                 compressed += 1;
             }
 
-            let Position { word_pos, bit_pos } = tick_bitmap::position(compressed);
+            let Position { word_pos, bit_pos } = tick_bitmath::position(compressed);
             if bitmap.is_none() || bitmap.unwrap().word_pos != word_pos {
                 msg!("loading bitmap");
                 let bitmap_loader = Loader::<TickBitmapState>::try_from(
@@ -1325,7 +1325,6 @@ pub mod cyclos_core {
             }
 
             let next_initialized_bit = bitmap.unwrap().next_initialized_bit(bit_pos, zero_for_one);
-            msg!("got next init bit");
             step.tick_next = (compressed + next_initialized_bit.next) * pool.tick_spacing as i32;
             step.initialized = next_initialized_bit.initialized;
 
