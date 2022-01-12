@@ -7,12 +7,7 @@
 use crate::libraries::big_num::U256;
 use crate::libraries::bit_math;
 use anchor_lang::prelude::*;
-use bitmaps::Bitmap;
-use bitmaps::Bits;
-use bitmaps::BitsImpl;
-use std::ops::BitOr;
 use std::ops::BitXor;
-use std::ops::BitXorAssign;
 
 /// Seed to derive account address and signature
 pub const BITMAP_SEED: &str = "b";
