@@ -27,7 +27,7 @@ pub struct PoolState {
     /// This value has no relationship to the total liquidity across all ticks.
     pub liquidity: u64,
 
-    /// The current price of the pool as a sqrt(token_1/token_0) Q64.96 value
+    /// The current price of the pool as a sqrt(token_1/token_0) Q32.32 value
     pub sqrt_price_x32: u64,
 
     /// The current tick of the pool, i.e. according to the last tick transition that was run.

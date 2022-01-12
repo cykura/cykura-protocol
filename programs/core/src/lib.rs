@@ -1730,7 +1730,7 @@ pub mod cyclos_core {
         )?
         .load()?
         .fee_growth_inside_0_last_x32;
-        tokenized_position.fee_growth_inside_0_last_x32 = Loader::<PositionState>::try_from(
+        tokenized_position.fee_growth_inside_1_last_x32 = Loader::<PositionState>::try_from(
             &cyclos_core::id(),
             &ctx.accounts.core_position_state.to_account_info(),
         )?
@@ -1886,7 +1886,7 @@ pub mod cyclos_core {
             .unwrap();
 
         position.fee_growth_inside_0_last_x32 = fee_growth_inside_0_last_x32;
-        position.fee_growth_inside_0_last_x32 = fee_growth_inside_1_last_x32;
+        position.fee_growth_inside_1_last_x32 = fee_growth_inside_1_last_x32;
         position.liquidity += liquidity;
 
         emit!(IncreaseLiquidityEvent {
@@ -1969,7 +1969,7 @@ pub mod cyclos_core {
                 .unwrap();
 
         tokenized_position.fee_growth_inside_0_last_x32 = fee_growth_inside_0_last_x32;
-        tokenized_position.fee_growth_inside_0_last_x32 = fee_growth_inside_1_last_x32;
+        tokenized_position.fee_growth_inside_1_last_x32 = fee_growth_inside_1_last_x32;
         tokenized_position.liquidity -= liquidity;
 
         emit!(DecreaseLiquidityEvent {
