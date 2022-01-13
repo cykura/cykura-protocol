@@ -92,9 +92,32 @@ async function main() {
       null // freeze authority (we use null first, the auth can let you freeze user's token account)
     )
   );
-  // tx.feePayer = owner;
 
-  const txhash = await provider.send(tx, [USDCmint, USDTmint, SOLmint])
+  // _______________________________________________________________
+  let cysMint = Keypair.fromSecretKey(
+    Uint8Array.from([170, 204, 133, 206, 215, 135, 147, 69, 202, 136, 132, 212, 28, 149, 110, 252, 100, 236, 7, 172, 87, 170, 80, 207, 122, 181, 91, 120, 31, 198, 72, 62, 9, 54, 24, 114, 208, 200, 16, 126, 237, 6, 101, 43, 79, 108, 255, 88, 254, 188, 218, 124, 116, 214, 182, 25, 219, 28, 183, 227, 101, 197, 44, 71])
+  ); // cxWg5RTK5AiSbBZh7NRg5btsbSrc8ETLXGf7tk3MUez.json
+  console.log(`cysMint: ${cysMint.publicKey.toString()}`);
+  tx.add(
+    // create account
+    SystemProgram.createAccount({
+      fromPubkey: owner,
+      newAccountPubkey: cysMint.publicKey,
+      space: SPLToken.MintLayout.span,
+      lamports: await SPLToken.Token.getMinBalanceRentForExemptMint(connection),
+      programId: SPLToken.TOKEN_PROGRAM_ID,
+    }),
+    // init mint
+    SPLToken.Token.createInitMintInstruction(
+      SPLToken.TOKEN_PROGRAM_ID, // program id, always token program id
+      cysMint.publicKey, // mint account public key
+      6, // decimals
+      FAUCET_AUTHORITY.publicKey, // mint authority (an auth to mint token)
+      null // freeze authority (we use null first, the auth can let you freeze user's token account)
+    )
+  );
+
+  const txhash = await provider.send(tx, [USDCmint, USDTmint, cysMint, SOLmint])
   console.log(`txhash: ${txhash}`);
 }
 
