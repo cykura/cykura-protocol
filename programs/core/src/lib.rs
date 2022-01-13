@@ -42,7 +42,7 @@ use crate::{
     states::{oracle::OBSERVATION_SEED, tick_bitmath},
 };
 
-declare_id!("cysonxupBUVurvLe3Kz9mYrwmNfh43gEP4MgXwHmsUk");
+declare_id!("cysGRNzZvgRxx9XgSDo3q5kqVTtvwxp2p3Bzs4K2LvX");
 
 #[program]
 pub mod cyclos_core {
