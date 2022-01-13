@@ -2498,8 +2498,8 @@ pub fn _update_position<'info>(
     }
     // Update fees accrued to the position
     let (fee_growth_inside_0_x32, fee_growth_inside_1_x32) = TickState::get_fee_growth_inside(
-        tick_upper.deref(),
         tick_lower.deref(),
+        tick_upper.deref(),
         pool_state.tick,
         pool_state.fee_growth_global_0_x32,
         pool_state.fee_growth_global_1_x32,
