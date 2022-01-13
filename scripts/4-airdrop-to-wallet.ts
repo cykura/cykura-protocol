@@ -13,6 +13,7 @@ export const FAUCET_AUTHORITY = Keypair.fromSecretKey(
 const usdcMint = new web3.PublicKey('GyH7fsFCvD1Wt8DbUGEk6Hzt68SVqwRKDHSvyBS16ZHm')
 const usdtMint = new web3.PublicKey('7HvgZSj1VqsGADkpb8jLXCVqyzniDHP5HzQCymHnrn1t')
 const wsolMint = new web3.PublicKey('EC1x3JZ1PBW4MqH711rqfERaign6cxLTBNb3mi5LK9vP')
+const cysMint = new web3.PublicKey('cxWg5RTK5AiSbBZh7NRg5btsbSrc8ETLXGf7tk3MUez')
 
 async function main() {
 
@@ -50,6 +51,12 @@ async function main() {
     wsolMint,
     dest
   )
+  const cysAccount = await SPLToken.Token.getAssociatedTokenAddress(
+    SPLToken.ASSOCIATED_TOKEN_PROGRAM_ID,
+    SPLToken.TOKEN_PROGRAM_ID,
+    cysMint,
+    dest
+  )
   tx.instructions = [
     SPLToken.Token.createAssociatedTokenAccountInstruction(
       SPLToken.ASSOCIATED_TOKEN_PROGRAM_ID,
@@ -83,18 +90,34 @@ async function main() {
       [],
       100_000_000_000
     ),
+    // SPLToken.Token.createAssociatedTokenAccountInstruction(
+    //   SPLToken.ASSOCIATED_TOKEN_PROGRAM_ID,
+    //   SPLToken.TOKEN_PROGRAM_ID,
+    //   wsolMint,
+    //   wsolAccount,
+    //   dest,
+    //   wallet.publicKey
+    // ),
+    // SPLToken.Token.createMintToInstruction(
+    //   SPLToken.TOKEN_PROGRAM_ID,
+    //   wsolMint,
+    //   wsolAccount,
+    //   FAUCET_AUTHORITY.publicKey,
+    //   [],
+    //   100_000_000_000
+    // ),
     SPLToken.Token.createAssociatedTokenAccountInstruction(
       SPLToken.ASSOCIATED_TOKEN_PROGRAM_ID,
       SPLToken.TOKEN_PROGRAM_ID,
-      wsolMint,
-      wsolAccount,
+      cysMint,
+      cysAccount,
       dest,
       wallet.publicKey
     ),
     SPLToken.Token.createMintToInstruction(
       SPLToken.TOKEN_PROGRAM_ID,
-      wsolMint,
-      wsolAccount,
+      cysMint,
+      cysAccount,
       FAUCET_AUTHORITY.publicKey,
       [],
       100_000_000_000

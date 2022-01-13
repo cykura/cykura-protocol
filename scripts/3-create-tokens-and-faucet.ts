@@ -96,7 +96,7 @@ async function main() {
   // _______________________________________________________________
   let cysMint = Keypair.fromSecretKey(
     Uint8Array.from([170, 204, 133, 206, 215, 135, 147, 69, 202, 136, 132, 212, 28, 149, 110, 252, 100, 236, 7, 172, 87, 170, 80, 207, 122, 181, 91, 120, 31, 198, 72, 62, 9, 54, 24, 114, 208, 200, 16, 126, 237, 6, 101, 43, 79, 108, 255, 88, 254, 188, 218, 124, 116, 214, 182, 25, 219, 28, 183, 227, 101, 197, 44, 71])
-  ); // cxWg5RTK5AiSbBZh7NRg5btsbSrc8ETLXGf7tk3MUez.json
+  ); // cxWg5RTK5AiSbBZh7NRg5btsbSrc8ETLXGf7tk3MUez
   console.log(`cysMint: ${cysMint.publicKey.toString()}`);
   tx.add(
     // create account
