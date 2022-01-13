@@ -2517,7 +2517,7 @@ pub fn _update_position<'info>(
             tick_lower_state.close(lamport_destination.clone())?;
         }
         if flipped_upper {
-            tick_lower_state.close(lamport_destination)?;
+            tick_upper_state.close(lamport_destination)?;
         }
     }
     Ok(())
