@@ -23,6 +23,7 @@ import {
   u16ToSeed,
   u32ToSeed
 } from './utils'
+import { Transaction } from '@solana/web3.js'
 
 const { metadata: { Metadata } } = metaplex.programs
 
@@ -92,7 +93,7 @@ describe('cyclos-core', async () => {
 
   const nftMintAKeypair = new Keypair()
   const nftMintBKeypair = new web3.Keypair()
-  
+
   let tickLowerAState: web3.PublicKey
   let tickLowerAStateBump: number
   let tickLowerBState: web3.PublicKey
@@ -185,7 +186,7 @@ describe('cyclos-core', async () => {
       token1 = temp
     }
 
-    while(token1.publicKey.toString() > token2.publicKey.toString()) {
+    while (token1.publicKey.toString() > token2.publicKey.toString()) {
       token2 = await Token.createMint(
         connection,
         mintAuthority,
@@ -1288,7 +1289,7 @@ describe('cyclos-core', async () => {
     ],
       coreProgram.programId
     );
-    
+
     [bitmapLowerBState, bitmapLowerBBump] = await PublicKey.findProgramAddress([
       BITMAP_SEED,
       token1.publicKey.toBuffer(),
@@ -1923,7 +1924,7 @@ describe('cyclos-core', async () => {
           ],
           coreProgram.programId
         ))[0]
-  
+
         nextObservationAState = (await PublicKey.findProgramAddress(
           [
             OBSERVATION_SEED,
@@ -2052,7 +2053,7 @@ describe('cyclos-core', async () => {
           ],
           coreProgram.programId
         ))[0]
-  
+
         nextObservationAState = (await PublicKey.findProgramAddress(
           [
             OBSERVATION_SEED,
@@ -2198,67 +2199,45 @@ describe('cyclos-core', async () => {
 
     it('burn half of the position liquidity as owner', async () => {
       const deadline = new BN(Date.now() / 1000 + 10_000)
-      await coreProgram.rpc.decreaseLiquidity(
-        liquidity,
-        new BN(0),
-        amount1Desired,
-        deadline, {
-        accounts: {
-          ownerOrDelegate: owner,
-          nftAccount: positionANftAccount,
-          tokenizedPositionState: tokenizedPositionAState,
-          factoryState,
-          poolState: poolAState,
-          corePositionState: corePositionAState,
-          tickLowerState: tickLowerAState,
-          tickUpperState: tickUpperAState,
-          bitmapLowerState: bitmapLowerAState,
-          bitmapUpperState: bitmapUpperAState,
-          latestObservationState: latestObservationAState,
-          nextObservationState: nextObservationAState,
-          coreProgram: coreProgram.programId
+
+      let listener: number
+      let [_event, _slot] = await new Promise((resolve, _reject) => {
+        listener = coreProgram.addEventListener("DecreaseLiquidityEvent", (event, slot) => {
+          assert((event.tokenId as web3.PublicKey).equals(nftMintAKeypair.publicKey))
+          assert((event.liquidity as BN).eq(liquidity))
+          assert((event.amount0 as BN).eqn(0))
+          assert((event.amount1 as BN).eq(amount1Desired))
+
+          resolve([event, slot]);
+        });
+
+        coreProgram.rpc.decreaseLiquidity(
+          liquidity,
+          new BN(0),
+          amount1Desired,
+          deadline, {
+          accounts: {
+            ownerOrDelegate: owner,
+            nftAccount: positionANftAccount,
+            tokenizedPositionState: tokenizedPositionAState,
+            factoryState,
+            poolState: poolAState,
+            corePositionState: corePositionAState,
+            tickLowerState: tickLowerAState,
+            tickUpperState: tickUpperAState,
+            bitmapLowerState: bitmapLowerAState,
+            bitmapUpperState: bitmapUpperAState,
+            latestObservationState: latestObservationAState,
+            nextObservationState: nextObservationAState,
+            coreProgram: coreProgram.programId
+          }
         }
-      }
-      )
-
-      // let listener: number
-      // let [_event, _slot] = await new Promise((resolve, _reject) => {
-      //   listener = coreProgram.addEventListener("DecreaseLiquidityEvent", (event, slot) => {
-      //     assert((event.tokenId as web3.PublicKey).equals(nftMintAKeypair.publicKey))
-      //     assert((event.liquidity as BN).eq(liquidity))
-      //     assert((event.amount0 as BN).eqn(0))
-      //     assert((event.amount1 as BN).eq(amount1Desired))
-
-      //     resolve([event, slot]);
-      //   });
-
-      //   coreProgram.rpc.decreaseLiquidity(
-      //     liquidity,
-      //     new BN(0),
-      //     amount1Desired,
-      //     deadline, {
-      //     accounts: {
-      //       ownerOrDelegate: owner,
-      //       nftAccount: positionANftAccount,
-      //       tokenizedPositionState: tokenizedPositionAState,
-      //       factoryState,
-      //       poolState: poolAState,
-      //       corePositionState: corePositionAState,
-      //       tickLowerState: tickLowerAState,
-      //       tickUpperState: tickUpperAState,
-      //       bitmapLowerState: bitmapLowerAState,
-      //       bitmapUpperState: bitmapUpperAState,
-      //       latestObservationState: latestObservationAState,
-      //       nextObservationState: nextObservationAState,
-      //       coreProgram: coreProgram.programId
-      //     }
-      //   }
-      //   )
-      // })
-      // await coreProgram.removeEventListener(listener)
-      // const tokenizedPositionData = await coreProgram.account.tokenizedPositionState.fetch(tokenizedPositionAState)
-      // assert(tokenizedPositionData.tokensOwed0.eqn(0))
-      // assert(tokenizedPositionData.tokensOwed1.eqn(999999))
+        )
+      })
+      await coreProgram.removeEventListener(listener)
+      const tokenizedPositionData = await coreProgram.account.tokenizedPositionState.fetch(tokenizedPositionAState)
+      assert(tokenizedPositionData.tokensOwed0.eqn(0))
+      assert(tokenizedPositionData.tokensOwed1.eqn(999999))
     })
 
     it('fails if 0 tokens are delegated', async () => {
@@ -2815,7 +2794,7 @@ describe('cyclos-core', async () => {
   })
 
   describe('#exact_input', () => {
-    
+
     const deadline = new BN(Date.now() / 1000 + 10_000)
     it('performs a single pool swap', async () => {
       const poolStateDataBefore = await coreProgram.account.poolState.fetch(poolAState)
@@ -2920,7 +2899,7 @@ describe('cyclos-core', async () => {
         }
       })
 
-     
+
       const {
         observationIndex,
         observationCardinalityNext
@@ -3203,6 +3182,95 @@ describe('cyclos-core', async () => {
 
       token2AccountInfo = await token2.getAccountInfo(minterWallet2)
       console.log('token 2 balance after', token2AccountInfo.amount.toNumber())
+    })
+  })
+
+  describe('Completely close position and deallocate ticks', () => {
+    it('update observation accounts', async () => {
+      const {
+        observationIndex,
+        observationCardinalityNext
+      } = await coreProgram.account.poolState.fetch(poolAState)
+
+      const { blockTimestamp: lastBlockTime } = await coreProgram.account.observationState.fetch(latestObservationAState)
+
+      const slot = await connection.getSlot()
+      const blockTimestamp = await connection.getBlockTime(slot)
+
+      // If current observation account will expire in 3 seconds, we sleep for this time
+      // before recalculating the observation states
+      if (Math.floor(lastBlockTime / 14) == Math.floor(blockTimestamp / 14) && lastBlockTime % 14 >= 11) {
+        await new Promise(r => setTimeout(r, 3000))
+      }
+      if (Math.floor(lastBlockTime / 14) > Math.floor(blockTimestamp / 14)) {
+        latestObservationAState = (await PublicKey.findProgramAddress(
+          [
+            OBSERVATION_SEED,
+            token0.publicKey.toBuffer(),
+            token1.publicKey.toBuffer(),
+            u32ToSeed(fee),
+            u16ToSeed(observationIndex)
+          ],
+          coreProgram.programId
+        ))[0]
+
+        nextObservationAState = (await PublicKey.findProgramAddress(
+          [
+            OBSERVATION_SEED,
+            token0.publicKey.toBuffer(),
+            token1.publicKey.toBuffer(),
+            u32ToSeed(fee),
+            u16ToSeed((observationIndex + 1) % observationCardinalityNext)
+          ],
+          coreProgram.programId
+        ))[0]
+      }
+    })
+
+    it('burn entire of the position liquidity as owner', async () => {
+      const { liquidity } = await coreProgram.account.tokenizedPositionState.fetch(tokenizedPositionAState)
+      console.log('liquidity in position', liquidity)
+      const deadline = new BN(Date.now() / 1000 + 10_000)
+
+      const tx = new Transaction()
+      tx.instructions = [
+        coreProgram.instruction.decreaseLiquidity(
+          liquidity,
+          new BN(0),
+          new BN(0),
+          deadline, {
+          accounts: {
+            ownerOrDelegate: owner,
+            nftAccount: positionANftAccount,
+            tokenizedPositionState: tokenizedPositionAState,
+            factoryState,
+            poolState: poolAState,
+            corePositionState: corePositionAState,
+            tickLowerState: tickLowerAState,
+            tickUpperState: tickUpperAState,
+            bitmapLowerState: bitmapLowerAState,
+            bitmapUpperState: bitmapUpperAState,
+            latestObservationState: latestObservationAState,
+            nextObservationState: nextObservationAState,
+            coreProgram: coreProgram.programId
+          },
+        }
+        ),
+        coreProgram.instruction.closeTickAccount({
+          accounts: {
+            recipient: owner,
+            tickState: tickLowerAState,
+          }
+        }),
+        coreProgram.instruction.closeTickAccount({
+          accounts: {
+            recipient: owner,
+            tickState: tickUpperAState,
+          }
+        })
+      ]
+      tx.recentBlockhash = (await connection.getRecentBlockhash()).blockhash
+      await anchor.getProvider().send(tx)
     })
   })
 })

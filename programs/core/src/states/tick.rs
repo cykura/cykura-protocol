@@ -12,7 +12,7 @@ pub const TICK_SEED: &str = "t";
 /// PDA of `[TICK_SEED, token_0, token_1, fee, tick]`
 ///
 #[account(zero_copy)]
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct TickState {
     /// Bump to identify PDA
     pub bump: u8,
@@ -190,21 +190,32 @@ impl TickState {
         self.liquidity_net
     }
 
-    // Clear stored data
-    // Delete account after clearing
-    // TODO replace- clear() should de-initialize tick account
-    // pub fn clear(&mut self) {
-    //     self.bump = 0;
-    //     self.token_0 = Pubkey::default();
-    //     self.token_1 = Pubkey::default();
-    //     self.fee = 0;
-    //     self.tick = 0;
-    //     self.liquidity_net = 0;
-    //     self.liquidity_gross = 0;
-    //     self.fee_growth_outside_0_x32 = 0;
-    //     self.fee_growth_outside_1_x32 = 0;
-    //     self.initialized = false;
-    // }
+    /// Clears tick data. Variables other than bump and tick are cleared
+    ///
+    /// # Arguments
+    ///
+    /// * `self` - The tick account to be cleared
+    ///
+    pub fn clear(&mut self) {
+        self.liquidity_net = 0;
+        self.liquidity_gross = 0;
+        self.fee_growth_outside_0_x32 = 0;
+        self.fee_growth_outside_1_x32 = 0;
+        self.tick_cumulative_outside = 0;
+        self.seconds_per_liquidity_outside_x32 = 0;
+        self.seconds_outside = 0;
+    }
+
+    pub fn is_clear(self) -> bool {
+        msg!("tick state when clearing {:?}", self);
+        self.liquidity_net == 0
+            && self.liquidity_gross == 0
+            && self.fee_growth_outside_0_x32 == 0
+            && self.fee_growth_outside_1_x32 == 0
+            && self.tick_cumulative_outside == 0
+            && self.seconds_per_liquidity_outside_x32 == 0
+            && self.seconds_outside == 0
+    }
 }
 
 /// Derives max liquidity per tick from given tick spacing

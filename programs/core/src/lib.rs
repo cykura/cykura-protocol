@@ -402,6 +402,16 @@ pub mod cyclos_core {
         Ok(())
     }
 
+    /// Reclaims lamports from a cleared tick account
+    /// 
+    /// # Arguments
+    /// 
+    /// * `ctx` - Holds tick and recipient accounts with validation and closure code
+    /// 
+    pub fn close_tick_account(_ctx: Context<CloseTickAccount>) -> ProgramResult {
+        Ok(())
+    }
+
     /// Initializes an empty program account for a tick bitmap
     ///
     /// # Arguments
@@ -697,7 +707,6 @@ pub mod cyclos_core {
             &bitmap_upper_state,
             &latest_observation_state,
             &next_observation_state,
-            ctx.accounts.minter.to_account_info(),
             i64::try_from(amount).unwrap(),
         )?;
 
@@ -770,6 +779,7 @@ pub mod cyclos_core {
     ///
     pub fn burn(ctx: Context<BurnContext>, amount: u64) -> ProgramResult {
         // assert!(ctx.accounts.owner.is_signer);
+        msg!("inside burn");
         let pool_state =
             Loader::<PoolState>::try_from(&ID, &ctx.accounts.pool_state.to_account_info())?;
         let mut pool = pool_state.load_mut()?;
@@ -904,6 +914,7 @@ pub mod cyclos_core {
                     &ID
                 )?,
         );
+        msg!("accounts validated");
 
         require!(pool.unlocked, ErrorCode::LOK);
         pool.unlocked = false;
@@ -917,7 +928,6 @@ pub mod cyclos_core {
             &bitmap_upper_state,
             &latest_observation_state,
             &next_observation_state,
-            ctx.accounts.lamport_destination.to_account_info(),
             -i64::try_from(amount).unwrap(),
         )?;
 
@@ -1922,9 +1932,6 @@ pub mod cyclos_core {
         core_position_owner.is_signer = true;
         let mut accounts = BurnContext {
             owner: Signer::try_from(&core_position_owner)?,
-            lamport_destination: UncheckedAccount::try_from(
-                ctx.accounts.owner_or_delegate.to_account_info(),
-            ),
             pool_state: ctx.accounts.pool_state.clone(),
             tick_lower_state: ctx.accounts.tick_lower_state.clone(),
             tick_upper_state: ctx.accounts.tick_upper_state.clone(),
@@ -1935,7 +1942,6 @@ pub mod cyclos_core {
             next_observation_state: ctx.accounts.next_observation_state.clone(),
         };
         burn(Context::new(&ID, &mut accounts, &[]), liquidity)?;
-
         let updated_core_position = accounts.position_state.load()?;
         let amount_0 = updated_core_position.tokens_owed_0 - tokens_owed_0_before;
         let amount_1 = updated_core_position.tokens_owed_1 - tokens_owed_1_before;
@@ -2005,9 +2011,6 @@ pub mod cyclos_core {
             core_position_owner.is_signer = true;
             let mut burn_accounts = BurnContext {
                 owner: Signer::try_from(&core_position_owner)?,
-                lamport_destination: UncheckedAccount::try_from(
-                    ctx.accounts.owner_or_delegate.to_account_info(),
-                ),
                 pool_state: ctx.accounts.pool_state.clone(),
                 tick_lower_state: ctx.accounts.tick_lower_state.clone(),
                 tick_upper_state: ctx.accounts.tick_upper_state.clone(),
@@ -2325,9 +2328,9 @@ pub fn _modify_position<'info>(
     bitmap_upper: &Loader<'info, TickBitmapState>,
     latest_observation_state: &Loader<'info, ObservationState>,
     next_observation_state: &Loader<'info, ObservationState>,
-    lamport_destination: AccountInfo<'info>,
     liquidity_delta: i64,
 ) -> Result<(i64, i64), ProgramError> {
+    msg!("inside _modify_position()");
     check_ticks(tick_lower_state.load()?.tick, tick_upper_state.load()?.tick)?;
 
     let latest_observation = latest_observation_state.load_mut()?;
@@ -2340,14 +2343,14 @@ pub fn _modify_position<'info>(
         bitmap_lower,
         bitmap_upper,
         latest_observation.deref(),
-        lamport_destination,
         liquidity_delta,
     )?;
+    msg!("outside _update_position()");
 
     let mut amount_0 = 0;
     let mut amount_1 = 0;
 
-    let tick_lower = tick_lower_state.load()?.tick;
+let tick_lower = tick_lower_state.load()?.tick;
     let tick_upper = tick_upper_state.load()?.tick;
 
     if liquidity_delta != 0 {
@@ -2432,7 +2435,6 @@ pub fn _update_position<'info>(
     bitmap_lower: &Loader<'info, TickBitmapState>,
     bitmap_upper: &Loader<'info, TickBitmapState>,
     latest_observation_state: &ObservationState,
-    lamport_destination: AccountInfo<'info>,
     liquidity_delta: i64,
 ) -> ProgramResult {
     let mut tick_lower = tick_lower_state.load_mut()?;
@@ -2505,10 +2507,10 @@ pub fn _update_position<'info>(
     // A tick is un-initialized on flip if liquidity_delta is negative
     if liquidity_delta < 0 {
         if flipped_lower {
-            tick_lower_state.close(lamport_destination.clone())?;
+            tick_lower.clear();
         }
         if flipped_upper {
-            tick_upper_state.close(lamport_destination)?;
+            tick_upper.clear();
         }
     }
     Ok(())

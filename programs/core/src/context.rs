@@ -243,6 +243,21 @@ pub struct InitTickAccount<'info> {
 }
 
 #[derive(Accounts)]
+pub struct CloseTickAccount<'info> {
+    /// The tick account to be initialized
+    #[account(
+        mut,
+        close = recipient,
+        constraint = tick_state.load()?.is_clear()
+    )]
+    pub tick_state: Loader<'info, TickState>,
+
+    /// Destination for reclaimed lamports
+    #[account(mut)]
+    pub recipient: UncheckedAccount<'info>,
+}
+
+#[derive(Accounts)]
 #[instruction(bump: u8, word_pos: i16)]
 pub struct InitBitmapAccount<'info> {
     /// Pays to create bitmap account
@@ -429,9 +444,6 @@ pub struct SwapCallback<'info> {
 pub struct BurnContext<'info> {
     /// The position owner
     pub owner: Signer<'info>,
-
-    /// Destination address for freed lamports
-    pub lamport_destination: UncheckedAccount<'info>,
 
     /// Burn liquidity for this pool
     #[account(mut)]
