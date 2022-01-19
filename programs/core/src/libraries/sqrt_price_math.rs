@@ -1,10 +1,10 @@
 ///! Helper functions to find price changes for change in token
 ///! supply and vice versa
 
-extern crate muldiv;
+use super::full_math::MulDiv;
 use super::unsafe_math::UnsafeMathTrait;
 use super::fixed_point_x32;
-use muldiv::MulDiv;
+use super::big_num::U128;
 
 /// Gets the next sqrt price √P' given a delta of token_0
 ///
@@ -50,43 +50,39 @@ pub fn get_next_sqrt_price_from_amount_0_rounding_up(
     if amount == 0 {
         return sqrt_p_x32;
     };
-    let numerator_1 = (liquidity as u128) << fixed_point_x32::RESOLUTION; // U32.32
+    let numerator_1 = (U128::from(liquidity)) << fixed_point_x32::RESOLUTION; // U32.32
 
     if add {
         // Used native overflow check instead of the `a * b / b == a` Solidity method
         // https://stackoverflow.com/q/70143451/7721443
 
         if let Some(product) = amount.checked_mul(sqrt_p_x32) {
-            let denominator = numerator_1 + product as u128;
+            let denominator = numerator_1 + U128::from(product);
             if denominator >= numerator_1 {
                 return numerator_1
-                    .mul_div_ceil(sqrt_p_x32 as u128, denominator)
-                    .unwrap() as u64;
+                    .mul_div_ceil(U128::from(sqrt_p_x32), denominator)
+                    .unwrap().as_u64();
             };
         }
         // Alternate form if overflow - `√P' = L / (L/√P + Δx)`
 
-        // let a: u128 = 5;
-        // u128::div_rounding_up(a, 6 as u128);
-
-        // div_rounding_up(5 as u128, 5 as u128);
-        u128::div_rounding_up(
+        U128::div_rounding_up(
             numerator_1,
-            (numerator_1 / sqrt_p_x32 as u128)
-                .checked_add(amount as u128)
+            (numerator_1 / U128::from(sqrt_p_x32))
+                .checked_add(U128::from(amount))
                 .unwrap(),
-        ) as u64
+        ).as_u64()
     } else {
         // if the product overflows, we know the denominator underflows
         // in addition, we must check that the denominator does not underflow
         // assert!(product / amount == sqrt_p_x32 && numerator_1 > product);
-        let product = amount.checked_mul(sqrt_p_x32).unwrap() as u128;
+        let product = U128::from(amount.checked_mul(sqrt_p_x32).unwrap());
         assert!(numerator_1 > product);
 
         let denominator = numerator_1 - product;
         numerator_1
-            .mul_div_ceil(sqrt_p_x32 as u128, denominator)
-            .unwrap() as u64
+            .mul_div_ceil(U128::from(sqrt_p_x32), denominator)
+            .unwrap().as_u64()
     }
 }
 
@@ -225,24 +221,24 @@ pub fn get_amount_0_delta_unsigned(
         std::mem::swap(&mut sqrt_ratio_a_x32, &mut sqrt_ratio_b_x32);
     };
 
-    let numerator_1 = (liquidity as u128) << fixed_point_x32::RESOLUTION;
-    let numerator_2 = (sqrt_ratio_b_x32 - sqrt_ratio_a_x32) as u128;
+    let numerator_1 = U128::from(liquidity) << fixed_point_x32::RESOLUTION;
+    let numerator_2 = U128::from(sqrt_ratio_b_x32 - sqrt_ratio_a_x32);
 
     assert!(sqrt_ratio_a_x32 > 0);
 
     if round_up {
-        u128::div_rounding_up(
+        U128::div_rounding_up(
             numerator_1
-                .mul_div_ceil(numerator_2, sqrt_ratio_b_x32 as u128)
+                .mul_div_ceil(numerator_2, U128::from(sqrt_ratio_b_x32))
                 .unwrap(),
-            sqrt_ratio_a_x32 as u128,
-        ) as u64
+            U128::from(sqrt_ratio_a_x32),
+        ).as_u64()
     } else {
         (numerator_1
-            .mul_div_floor(numerator_2, sqrt_ratio_b_x32 as u128)
+            .mul_div_floor(numerator_2, U128::from(sqrt_ratio_b_x32))
             .unwrap()
-            / (sqrt_ratio_a_x32 as u128)
-        ) as u64
+            / U128::from(sqrt_ratio_a_x32)
+        ).as_u64()
     }
 }
 
@@ -685,7 +681,7 @@ mod sqrt_math {
 
         /// Functions should handle overflow  of intermediary values without loss of precision
         ///
-        /// This is ensured by the muldiv crate
+        /// This is ensured by the fullmath library
         ///
         /// Since `price: u64 = sqrt(reserve_1 / reserve_0) * 2^32`, it will overflow when
         /// reserve_1 > 2^32

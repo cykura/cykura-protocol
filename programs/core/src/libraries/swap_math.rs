@@ -1,7 +1,7 @@
-// // Helper library to find result of a swap within a single tick range, i.e. a single tick
+// Helper library to find result of a swap within a single tick range, i.e. a single tick
 
 use super::sqrt_price_math;
-use muldiv::MulDiv;
+use super::full_math::MulDiv;
 
 /// Result of a swap step
 #[derive(Default, Debug)]
@@ -43,7 +43,6 @@ pub fn compute_swap_step(
     let zero_for_one = sqrt_ratio_current_x32 >= sqrt_ratio_target_x32;
     let exact_in = amount_remaining >= 0;
     let mut swap_step = SwapStep::default();
-
     if exact_in {
         // round up amount_in
         // In exact input case, amount_remaining is positive
@@ -51,6 +50,7 @@ pub fn compute_swap_step(
             .mul_div_floor((1_000_000 - fee_pips).into(), 1_000_000)
             .unwrap();
 
+        // error here- gives 0 instead of 998996
         swap_step.amount_in = if zero_for_one {
             sqrt_price_math::get_amount_0_delta_unsigned(
                 sqrt_ratio_target_x32,

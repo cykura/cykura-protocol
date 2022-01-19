@@ -1,8 +1,9 @@
 ///! Liquidity amount functions
 ///! Provides functions for computing liquidity amounts from token amounts and prices
 ///! Implements formula 6.29 and 6.30
-///
-use muldiv::MulDiv;
+
+use super::big_num::U128;
+use super::full_math::MulDiv;
 use super::fixed_point_x32;
 
 /// Computes the amount of liquidity received for a given amount of token_0 and price range
@@ -116,13 +117,13 @@ pub fn get_amount_0_for_liquidity(
     };
 
     // Token amount can't exceed u64
-    (((liquidity as u128) << fixed_point_x32::RESOLUTION)
+    ((U128::from(liquidity) << fixed_point_x32::RESOLUTION)
         .mul_div_floor(
-            (sqrt_ratio_b_x32 - sqrt_ratio_a_x32) as u128,
-            sqrt_ratio_b_x32 as u128,
+            U128::from(sqrt_ratio_b_x32 - sqrt_ratio_a_x32),
+            U128::from(sqrt_ratio_b_x32),
         )
         .unwrap()
-        / (sqrt_ratio_a_x32 as u128)) as u64
+        / U128::from(sqrt_ratio_a_x32)).as_u64()
 }
 
 /// Computes the amount of token_1 for a given amount of liquidity and a price range

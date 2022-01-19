@@ -19,12 +19,12 @@ use anchor_lang::AccountsClose;
 use anchor_lang::{solana_program::instruction::Instruction, InstructionData};
 use anchor_spl::associated_token::get_associated_token_address;
 use anchor_spl::token;
-use anchor_spl::token::{Token, TokenAccount};
+use anchor_spl::token::TokenAccount;
 use context::*;
 use libraries::liquidity_math;
 use libraries::sqrt_price_math;
 use metaplex_token_metadata::{instruction::create_metadata_accounts, state::Creator};
-use muldiv::MulDiv;
+use libraries::full_math::MulDiv;
 use spl_token::instruction::AuthorityType;
 use states::factory::*;
 use states::fee::*;
@@ -508,12 +508,6 @@ pub mod cyclos_core {
         amount_0_delta: i64,
         amount_1_delta: i64,
     ) -> ProgramResult {
-        msg!(
-            "swap callback, amount 0 delta {}, amount_1_delta {}",
-            amount_1_delta,
-            amount_1_delta
-        );
-
         let (exact_input, amount_to_pay) = if amount_0_delta > 0 {
             (
                 ctx.accounts.input_vault.mint < ctx.accounts.output_vault.mint,
@@ -1105,6 +1099,7 @@ pub mod cyclos_core {
     }
 
     // the top level state of the swap, the results of which are recorded in storage at the end
+    #[derive(Debug)]
     pub struct SwapState {
         // the amount remaining to be swapped in/out of the input/output asset
         pub amount_specified_remaining: i64,
@@ -1337,15 +1332,16 @@ pub mod cyclos_core {
 
             step.sqrt_price_next_x32 = tick_math::get_sqrt_ratio_at_tick(step.tick_next)?;
 
+            let target_price = if (zero_for_one && step.sqrt_price_next_x32 < sqrt_price_limit_x32)
+                || (!zero_for_one && step.sqrt_price_next_x32 > sqrt_price_limit_x32)
+            {
+                sqrt_price_limit_x32
+            } else {
+                step.sqrt_price_next_x32
+            };
             let swap_step = swap_math::compute_swap_step(
                 state.sqrt_price_x32,
-                if (zero_for_one && step.sqrt_price_next_x32 < sqrt_price_limit_x32)
-                    || (!zero_for_one && step.sqrt_price_next_x32 > sqrt_price_limit_x32)
-                {
-                    sqrt_price_limit_x32
-                } else {
-                    step.sqrt_price_next_x32
-                },
+                target_price,
                 state.liquidity,
                 state.amount_specified_remaining,
                 pool.fee,
@@ -1355,7 +1351,6 @@ pub mod cyclos_core {
             step.amount_out = swap_step.amount_out;
             step.fee_amount = swap_step.fee_amount;
 
-            msg!("calculating amounts");
             if exact_input {
                 state.amount_specified_remaining -=
                     i64::try_from(step.amount_in + step.fee_amount).unwrap();
@@ -1588,11 +1583,7 @@ pub mod cyclos_core {
                 ctx.accounts.to_account_metas(None),
             );
             solana_program::program::invoke(&ix, &ctx.accounts.to_account_infos())?;
-            // Token 1 not transferred
-            msg!("vault 1 balance before {}", balance_1_before);
-            msg!("receiving amount 1 {}", amount_1);
-            vault_1.reload()?; // not reloading
-            msg!("vault 1 balance after {}", vault_1.amount);
+            vault_1.reload()?;
             require!(
                 balance_1_before.checked_add(amount_1 as u64).unwrap() <= vault_1.amount,
                 ErrorCode::IIA
@@ -2104,6 +2095,7 @@ pub mod cyclos_core {
         amount_out_minimum: u64,
         sqrt_price_limit_x32: u64,
     ) -> ProgramResult {
+        msg!("in exact_input_single");
         let amount_out = exact_input_internal(
             &mut SwapContext {
                 signer: ctx.accounts.signer.clone(),
@@ -2149,7 +2141,6 @@ pub mod cyclos_core {
         amount_out_minimum: u64,
         additional_accounts_per_pool: Vec<u8>,
     ) -> ProgramResult {
-        msg!("in exact input");
         let mut remaining_accounts = ctx.remaining_accounts.iter();
 
         let mut amount_in_internal = amount_in;

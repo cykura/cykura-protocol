@@ -1,3 +1,5 @@
+use super::big_num::U128;
+
 ///! Math functions that do not check inputs or outputs
 ///! Contains methods that perform common math functions but do not do any
 ///! overflow or underflow checks
@@ -22,9 +24,9 @@ impl UnsafeMathTrait for u64 {
     }
 }
 
-impl UnsafeMathTrait for u128 {
+impl UnsafeMathTrait for U128 {
     fn div_rounding_up(x: Self, y: Self) -> Self {
-        x / y + ((x % y > 0) as u128)
+        x / y + U128::from((x % y > U128::default()) as u8)
     }
 }
 

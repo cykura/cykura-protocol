@@ -425,7 +425,7 @@ dependencies = [
  "anchor-lang",
  "anchor-spl",
  "metaplex-token-metadata",
- "muldiv",
+ "quickcheck",
  "spl-token",
  "uint",
 ]
@@ -467,6 +467,16 @@ checksum = "e78d4f1cc4ae33bbfc157ed5d5a5ef3bc29227303d595861deb238fcec4e9457"
 
 [[package]]
 name = "env_logger"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "44533bbbb3bb3c1fa17d9f2e4e38bbbaf8396ba82193c4cb1b6445d711445d36"
+dependencies = [
+ "log",
+ "regex",
+]
+
+[[package]]
+name = "env_logger"
 version = "0.8.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a19187fea3ac7e84da7dacf48de0c45d63c6a76f9490dae389aead16c243fce3"
@@ -477,12 +487,6 @@ dependencies = [
  "regex",
  "termcolor",
 ]
-
-[[package]]
-name = "ethnum"
-version = "1.0.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "887dc6b1e1f9ef25ac52649e19ce610a2520b4c55b48429030782b6c8a70e78a"
 
 [[package]]
 name = "feature-probe"
@@ -717,14 +721,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "muldiv"
-version = "1.0.0"
-source = "git+https://github.com/zkwarlock/rust-muldiv?branch=128-bit#c4dcccad085fdc8c071f6fd4972d9bc9e5fbb5fe"
-dependencies = [
- "ethnum",
-]
-
-[[package]]
 name = "num-derive"
 version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -817,6 +813,18 @@ dependencies = [
  "syn",
  "version_check",
  "yansi",
+]
+
+[[package]]
+name = "quickcheck"
+version = "0.9.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a44883e74aa97ad63db83c4bf8ca490f02b2fc02f92575e720c8551e843c945f"
+dependencies = [
+ "env_logger 0.7.1",
+ "log",
+ "rand",
+ "rand_core",
 ]
 
 [[package]]
@@ -1025,7 +1033,7 @@ version = "1.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "356fc4bc5395d26e7d0f3c7e6272b1a28dc591a81f1ee6e577c1d8859e946422"
 dependencies = [
- "env_logger",
+ "env_logger 0.8.4",
  "lazy_static",
  "log",
 ]

@@ -81,7 +81,7 @@ describe('cyclos-core', async () => {
   let temporaryNftHolder: web3.PublicKey
 
   const tickLower = 0
-  const tickUpper = 2550
+  const tickUpper = 10
   const wordPosLower = (tickLower / tickSpacing) >> 8
   const wordPosUpper = (tickUpper / tickSpacing) >> 8
 

@@ -4,8 +4,7 @@
 
 use anchor_lang::prelude::*;
 use crate::{error::ErrorCode, libraries::{liquidity_math, fixed_point_x32}};
-extern crate muldiv;
-use muldiv::MulDiv;
+use crate::libraries::full_math::MulDiv;
 
 /// Seed to derive account address and signature
 pub const POSITION_SEED: &str = "ps";

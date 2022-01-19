@@ -18,7 +18,9 @@ default = []
 [dependencies]
 anchor-lang = "0.18.0"
 anchor-spl = "0.18.0"
-muldiv = { git = "https://github.com/zkwarlock/rust-muldiv", branch = "128-bit" }
 uint = "0.9.1"
 metaplex-token-metadata = { version = "0.0.1", features = ["no-entrypoint"] }
 spl-token = { version = "3.2.0", features = ["no-entrypoint"] }
+
+[dev-dependencies]
+quickcheck = "0.9"
