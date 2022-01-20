@@ -42,7 +42,7 @@ use crate::{
     states::{oracle::OBSERVATION_SEED, tick_bitmath},
 };
 
-declare_id!("cysGRNzZvgRxx9XgSDo3q5kqVTtvwxp2p3Bzs4K2LvX");
+declare_id!("cysPXAjehMpVKUapzbMCCnpFxUFFryEWEaLgnb9NrR8");
 
 #[program]
 pub mod cyclos_core {
@@ -1766,7 +1766,7 @@ pub mod cyclos_core {
             ctx.accounts.factory_state.key(),
             String::from("Cyclos Positions NFT-V1"),
             String::from("CYS-POS"),
-            format!("https://asia-south1-cyclos-finance.cloudfunctions.net/nft?mint={}&devnet=true", ctx.accounts.nft_mint.key()),
+            format!("https://asia-south1-cyclos-finance.cloudfunctions.net/nft?mint={}", ctx.accounts.nft_mint.key()),
             Some(vec![Creator {
                 address: ctx.accounts.factory_state.key(),
                 verified: true,
