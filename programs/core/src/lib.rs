@@ -15,7 +15,6 @@ use crate::states::tokenized_position::{
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program;
 use anchor_lang::solana_program::system_instruction::create_account;
-use anchor_lang::AccountsClose;
 use anchor_lang::{solana_program::instruction::Instruction, InstructionData};
 use anchor_spl::associated_token::get_associated_token_address;
 use anchor_spl::token;
@@ -31,7 +30,7 @@ use states::fee::*;
 use states::pool::*;
 use states::position::*;
 use states::tick::*;
-use states::tick_bitmath::*;
+use states::tick_bitmap::*;
 use std::convert::TryFrom;
 use std::mem::size_of;
 use std::ops::Neg;
@@ -39,7 +38,7 @@ use std::ops::{Deref, DerefMut};
 
 use crate::{
     libraries::{fixed_point_x32, swap_math},
-    states::{oracle::OBSERVATION_SEED, tick_bitmath},
+    states::{oracle::OBSERVATION_SEED, tick_bitmap},
 };
 
 declare_id!("cysPXAjehMpVKUapzbMCCnpFxUFFryEWEaLgnb9NrR8");
@@ -1294,11 +1293,14 @@ pub mod cyclos_core {
             if state.tick < 0 && state.tick % pool.tick_spacing as i32 != 0 {
                 compressed -= 1;
             }
+            // In lte = false (one for zero) case, start from the word of the next tick, since the
+            // current tick doesn't matter
             if !zero_for_one {
                 compressed += 1;
             }
 
-            let Position { word_pos, bit_pos } = tick_bitmath::position(compressed);
+            let Position { word_pos, bit_pos } = tick_bitmap::position(compressed);
+            // load the bitmap holding the tick state for the pool's current tick
             if bitmap.is_none() || bitmap.unwrap().word_pos != word_pos {
                 msg!("loading bitmap");
                 let bitmap_loader = Loader::<TickBitmapState>::try_from(
@@ -1329,8 +1331,9 @@ pub mod cyclos_core {
                 drop(bitmap_state);
             }
 
+            // get relative position of the next initialized tick. Use it to derive absolute position
             let next_initialized_bit = bitmap.unwrap().next_initialized_bit(bit_pos, zero_for_one);
-            step.tick_next = (compressed + next_initialized_bit.next) * pool.tick_spacing as i32;
+            step.tick_next = (256 * word_pos as i32 + next_initialized_bit.next as i32) * pool.tick_spacing as i32; // convert relative to absolute
             step.initialized = next_initialized_bit.initialized;
 
             // ensure that we do not overshoot the min/max tick, as the tick bitmap is not aware of these bounds

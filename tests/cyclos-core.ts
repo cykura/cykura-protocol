@@ -11,6 +11,7 @@ import { CyclosCore } from '../target/types/cyclos_core'
 import {
   BITMAP_SEED,
   FEE_SEED,
+  generateBitmapWord,
   MaxU64,
   MAX_SQRT_RATIO,
   MAX_TICK,
@@ -1836,7 +1837,7 @@ describe('cyclos-core', async () => {
       assert.equal(metadata.data.updateAuthority, factoryState.toString())
       assert.equal(metadata.data.data.name, 'Cyclos Positions NFT-V1')
       assert.equal(metadata.data.data.symbol, 'CYS-POS')
-      assert.equal(metadata.data.data.uri, 'https://api.cyclos.io/mint=' + nftMint.publicKey.toString())
+      assert.equal(metadata.data.data.uri, 'https://asia-south1-cyclos-finance.cloudfunctions.net/nft?mint=' + nftMint.publicKey.toString())
       assert.deepEqual(metadata.data.data.creators, [{
         address: factoryState.toString(),
         // @ts-ignore
@@ -3182,6 +3183,50 @@ describe('cyclos-core', async () => {
 
       token2AccountInfo = await token2.getAccountInfo(minterWallet2)
       console.log('token 2 balance after', token2AccountInfo.amount.toNumber())
+    })
+  })
+
+  describe('Find ticks and bitmaps for a swap', () => {
+    it('get ticks and bitmaps', async () => {
+      const { tick: currentTick } = await coreProgram.account.poolState.fetch(poolAState)
+      const compressed = Math.floor(currentTick / tickSpacing)
+      const wordPos = compressed << 8
+      const bitPos = Math.abs(compressed) % 256
+      const currentBitmapAddr = (await PublicKey.findProgramAddress([
+        BITMAP_SEED,
+        token0.publicKey.toBuffer(),
+        token1.publicKey.toBuffer(),
+        u32ToSeed(fee),
+        u16ToSeed(wordPos),
+      ], coreProgram.programId))[0]
+      const currentBitmap = await coreProgram.account.tickBitmapState.fetch(currentBitmapAddr)
+      // upward direction
+      const word = generateBitmapWord(currentBitmap.word)
+
+      const amount0In = new BN(1000)
+      // ..0101 (next gt tick is at bit_pos = 1. This tick has liquidity 500)
+      // progressively traverse the ticks until input amount is consumed
+      const lte = true
+      if (lte) { // less than or equal to current tick
+        // get initialized tick
+        const mask = new BN(1).shln(bitPos).subn(1).add(new BN(1).shln(bitPos))
+        const masked = word.and(mask)
+        const initialized = !masked.eqn(0)
+        // const next = -(initialized ? bitPos - mostSignificantBit(masked) : bitPos)
+      } else {
+
+      }
+      console.log('bitmap word', word)
+      // see whether the next bit can absorb the amount
+      // get active bits less or equal to the current bit pos
+      // loop from 0 to bit_pos
+      const activeBitsBelow = []
+      for (let i = 0; i <= bitPos; i++) {
+        const mask = new BN(1).shln(i)
+        if (!word.and(mask).eqn(0)) {
+
+        }
+      }
     })
   })
 

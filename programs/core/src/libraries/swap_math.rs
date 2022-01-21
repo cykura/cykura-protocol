@@ -50,7 +50,6 @@ pub fn compute_swap_step(
             .mul_div_floor((1_000_000 - fee_pips).into(), 1_000_000)
             .unwrap();
 
-        // error here- gives 0 instead of 998996
         swap_step.amount_in = if zero_for_one {
             sqrt_price_math::get_amount_0_delta_unsigned(
                 sqrt_ratio_target_x32,

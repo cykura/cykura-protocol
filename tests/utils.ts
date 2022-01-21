@@ -45,3 +45,48 @@ export const POSITION_SEED = Buffer.from('ps')
 export const OBSERVATION_SEED = Buffer.from('o')
 export const TICK_SEED = Buffer.from('t')
 export const FEE_SEED = Buffer.from('f')
+
+export function generateBitmapWord(x: BN[]) {
+  return x[0]
+    .add(x[1].shln(64))
+    .add(x[2].shln(126))
+    .add(x[3].shln(192))
+}
+
+export function mostSignificantBit(x: BN) {
+  return x.bitLength() - 1
+}
+
+export function leastSignificantBit(x: BN) {
+  return x.zeroBits()
+}
+
+export type NextBit = {
+  next: number,
+  initialized: boolean,
+}
+
+/**
+ * Get the next initialized bit in the bitmap
+ * @param word 
+ * @param bitPos 
+ * @param lte 
+ * @returns 
+ */
+export function nextInitializedBit(word: BN, bitPos: number, lte: boolean): NextBit {
+  const nextBit: NextBit = {
+    next: 0,
+    initialized: false,
+  }
+  if (lte) {
+    const mask = new BN(1).shln(bitPos).subn(1).add(new BN(1).shln(bitPos))
+    const masked = word.and(mask)
+    nextBit.initialized = !masked.eqn(0)
+    nextBit.next = nextBit.initialized
+      ? mostSignificantBit(masked) - bitPos
+      : - bitPos
+  } else {
+    // TODO
+  }
+  return nextBit
+}
