@@ -67,26 +67,51 @@ export type NextBit = {
 }
 
 /**
- * Get the next initialized bit in the bitmap
- * @param word 
- * @param bitPos 
- * @param lte 
- * @returns 
+ * Returns the bitmap index (0 - 255) for the next initialized tick.
+ * 
+ * If no initialized tick is available, returns the first bit (index 0) the word in lte case,
+ * and the last bit in gte case.
+ * @param word The bitmap word as a u256 number
+ * @param bitPos The starting bit position
+ * @param lte Whether to search for the next initialized tick to the left (less than or equal to the starting tick),
+ * or to the right (greater than or equal to)
+ * @returns Bit index and whether it is initialized
  */
 export function nextInitializedBit(word: BN, bitPos: number, lte: boolean): NextBit {
-  const nextBit: NextBit = {
-    next: 0,
-    initialized: false,
-  }
   if (lte) {
+    // all the 1s at or to the right of the current bit_pos
     const mask = new BN(1).shln(bitPos).subn(1).add(new BN(1).shln(bitPos))
     const masked = word.and(mask)
-    nextBit.initialized = !masked.eqn(0)
-    nextBit.next = nextBit.initialized
-      ? mostSignificantBit(masked) - bitPos
-      : - bitPos
+    const initialized = !masked.eqn(0)
+    const next = initialized
+      ? mostSignificantBit(masked)
+      : 0
+    return { next, initialized }
   } else {
-    // TODO
+    // all the 1s at or to the left of the bit_pos
+    const mask = new BN(1).shln(bitPos).subn(1).notn(256)
+    const masked = word.and(mask)
+    const initialized = !masked.eqn(0)
+    const next = initialized
+      ? mostSignificantBit(masked)
+      : 255
+    return { next, initialized }
   }
-  return nextBit
+}
+
+export type Position = {
+  wordPos: number,
+  bitPos: number
+}
+
+/**
+ * Computes the bitmap position for a bit.
+ * @param tickBySpacing Tick divided by spacing
+ * @returns the word and bit position for the given tick
+ */
+export function tickPosition(tickBySpacing: number): Position {
+  return {
+    wordPos: tickBySpacing >> 8,
+    bitPos: Math.abs(tickBySpacing % 256),
+  }
 }
