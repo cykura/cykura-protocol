@@ -2903,7 +2903,7 @@ describe('cyclos-core', async () => {
           associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID
         }
       })
-
+      console.log('second pool created')
 
       const {
         observationIndex,
@@ -3190,166 +3190,170 @@ describe('cyclos-core', async () => {
     })
   })
 
-  describe('Find ticks and bitmaps for a swap', () => {
-    it('get ticks and bitmaps', async () => {
-      const { tick: currentTick, sqrtPriceX32, liquidity } = await coreProgram.account.poolState.fetch(poolAState)
-      console.log('current tick', currentTick)
-      const compressed = Math.floor(currentTick / tickSpacing)
-      let { wordPos, bitPos } = tickPosition(compressed)
+  // describe('Find ticks and bitmaps for a swap', () => {
+
+  //   it('build tick provider', async () => {
+
+  //   })
+  //   it('get ticks and bitmaps', async () => {
+  //     const { tick: currentTick, sqrtPriceX32, liquidity } = await coreProgram.account.poolState.fetch(poolAState)
+  //     console.log('current tick', currentTick)
+  //     const compressed = Math.floor(currentTick / tickSpacing)
+  //     let { wordPos, bitPos } = tickPosition(compressed)
       
-      const zeroForOne = true
+  //     const zeroForOne = true
 
-      const swapState = {
-        sqrtRatioCurrentX32: sqrtPriceX32,
-        amountRemaining: new BN(1000),
-        liquidity,
-      }
-      let ticksChecked = 0
-      while (!swapState.amountRemaining.eqn(0) && ticksChecked < 10) {
-        // loop over bitmap accounts
-        const currentBitmapAddr = (await PublicKey.findProgramAddress([
-          BITMAP_SEED,
-          token0.publicKey.toBuffer(),
-          token1.publicKey.toBuffer(),
-          u32ToSeed(fee),
-          u16ToSeed(wordPos),
-        ], coreProgram.programId))[0]
+  //     const swapState = {
+  //       sqrtRatioCurrentX32: sqrtPriceX32,
+  //       amountRemaining: new BN(1000),
+  //       liquidity,
+  //     }
+  //     let ticksChecked = 0
+  //     while (!swapState.amountRemaining.eqn(0) && ticksChecked < 10) {
+  //       // loop over bitmap accounts
+  //       const currentBitmapAddr = (await PublicKey.findProgramAddress([
+  //         BITMAP_SEED,
+  //         token0.publicKey.toBuffer(),
+  //         token1.publicKey.toBuffer(),
+  //         u32ToSeed(fee),
+  //         u16ToSeed(wordPos),
+  //       ], coreProgram.programId))[0]
 
-        try {
-          const currentBitmap = await coreProgram.account.tickBitmapState.fetch(currentBitmapAddr)
-          const word = generateBitmapWord(currentBitmap.word)
-          console.log('bitmap word', word.toNumber())
+  //       try {
+  //         const currentBitmap = await coreProgram.account.tickBitmapState.fetch(currentBitmapAddr)
+  //         const word = generateBitmapWord(currentBitmap.word)
+  //         console.log('bitmap word', word.toNumber())
           
-          // loop over all bits in this bitmap
-          while (!swapState.amountRemaining.eqn(0)) {
-            const { next, initialized } = nextInitializedBit(word, bitPos, zeroForOne)
-            console.log('next bit', next, 'initialized', initialized)
+  //         // loop over all bits in this bitmap
+  //         while (!swapState.amountRemaining.eqn(0)) {
+  //           const { next, initialized } = nextInitializedBit(word, bitPos, zeroForOne)
+  //           console.log('next bit', next, 'initialized', initialized)
             
-            if (initialized) {
-              // find how much liquidity absorbed and deduct from remaining
-              // store the tick account address for later use
-              const sqrtRatioTargetX32 = TickMath.getSqrtRatioAtTick(next)
-              const step = SwapMath.computeSwapStep(
-                JSBI.BigInt(swapState.sqrtRatioCurrentX32),
-                sqrtRatioTargetX32,
-                JSBI.BigInt(swapState.amountRemaining),
-                JSBI.BigInt(swapState.liquidity),
-                500
-              )
-            }
+  //           if (initialized) {
+  //             // find how much liquidity absorbed and deduct from remaining
+  //             // store the tick account address for later use
+  //             const sqrtRatioTargetX32 = TickMath.getSqrtRatioAtTick(next)
+  //             const step = SwapMath.computeSwapStep(
+  //               JSBI.BigInt(swapState.sqrtRatioCurrentX32),
+  //               sqrtRatioTargetX32,
+  //               JSBI.BigInt(swapState.amountRemaining),
+  //               JSBI.BigInt(swapState.liquidity),
+  //               500
+  //             )
+  //           }
 
-            if (zeroForOne && bitPos === 0) {
-              bitPos = 255
-              break
-            } else if (!zeroForOne && bitPos == 255) {
-              bitPos = 0
-              break
-            }
-            bitPos = next
-          }
-        } catch(error) {
-          console.log('no bitmap for word', wordPos)
-        }
+  //           if (zeroForOne && bitPos === 0) {
+  //             bitPos = 255
+  //             break
+  //           } else if (!zeroForOne && bitPos == 255) {
+  //             bitPos = 0
+  //             break
+  //           }
+  //           bitPos = next
+  //         }
+  //       } catch(error) {
+  //         console.log('no bitmap for word', wordPos)
+  //       }
         
 
-        if (zeroForOne) {
-          wordPos -= 1
-        } else {
-          wordPos += 1
-        }
-        ticksChecked += 1
-      }
-      console.log('reached word', wordPos, 'bit', bitPos, 'remaining', amountRemaining.toNumber())
-      
-    })
-  })
-
-  // describe('Completely close position and deallocate ticks', () => {
-  //   it('update observation accounts', async () => {
-  //     const {
-  //       observationIndex,
-  //       observationCardinalityNext
-  //     } = await coreProgram.account.poolState.fetch(poolAState)
-
-  //     const { blockTimestamp: lastBlockTime } = await coreProgram.account.observationState.fetch(latestObservationAState)
-
-  //     const slot = await connection.getSlot()
-  //     const blockTimestamp = await connection.getBlockTime(slot)
-
-  //     // If current observation account will expire in 3 seconds, we sleep for this time
-  //     // before recalculating the observation states
-  //     if (Math.floor(lastBlockTime / 14) == Math.floor(blockTimestamp / 14) && lastBlockTime % 14 >= 11) {
-  //       await new Promise(r => setTimeout(r, 3000))
-  //     }
-  //     if (Math.floor(lastBlockTime / 14) > Math.floor(blockTimestamp / 14)) {
-  //       latestObservationAState = (await PublicKey.findProgramAddress(
-  //         [
-  //           OBSERVATION_SEED,
-  //           token0.publicKey.toBuffer(),
-  //           token1.publicKey.toBuffer(),
-  //           u32ToSeed(fee),
-  //           u16ToSeed(observationIndex)
-  //         ],
-  //         coreProgram.programId
-  //       ))[0]
-
-  //       nextObservationAState = (await PublicKey.findProgramAddress(
-  //         [
-  //           OBSERVATION_SEED,
-  //           token0.publicKey.toBuffer(),
-  //           token1.publicKey.toBuffer(),
-  //           u32ToSeed(fee),
-  //           u16ToSeed((observationIndex + 1) % observationCardinalityNext)
-  //         ],
-  //         coreProgram.programId
-  //       ))[0]
-  //     }
-  //   })
-
-  //   it('burn entire of the position liquidity as owner', async () => {
-  //     const { liquidity } = await coreProgram.account.tokenizedPositionState.fetch(tokenizedPositionAState)
-  //     console.log('liquidity in position', liquidity)
-  //     const deadline = new BN(Date.now() / 1000 + 10_000)
-
-  //     const tx = new Transaction()
-  //     tx.instructions = [
-  //       coreProgram.instruction.decreaseLiquidity(
-  //         liquidity,
-  //         new BN(0),
-  //         new BN(0),
-  //         deadline, {
-  //         accounts: {
-  //           ownerOrDelegate: owner,
-  //           nftAccount: positionANftAccount,
-  //           tokenizedPositionState: tokenizedPositionAState,
-  //           factoryState,
-  //           poolState: poolAState,
-  //           corePositionState: corePositionAState,
-  //           tickLowerState: tickLowerAState,
-  //           tickUpperState: tickUpperAState,
-  //           bitmapLowerState: bitmapLowerAState,
-  //           bitmapUpperState: bitmapUpperAState,
-  //           latestObservationState: latestObservationAState,
-  //           nextObservationState: nextObservationAState,
-  //           coreProgram: coreProgram.programId
-  //         },
+  //       if (zeroForOne) {
+  //         wordPos -= 1
+  //       } else {
+  //         wordPos += 1
   //       }
-  //       ),
-  //       coreProgram.instruction.closeTickAccount({
-  //         accounts: {
-  //           recipient: owner,
-  //           tickState: tickLowerAState,
-  //         }
-  //       }),
-  //       coreProgram.instruction.closeTickAccount({
-  //         accounts: {
-  //           recipient: owner,
-  //           tickState: tickUpperAState,
-  //         }
-  //       })
-  //     ]
-  //     tx.recentBlockhash = (await connection.getRecentBlockhash()).blockhash
-  //     await anchor.getProvider().send(tx)
+  //       ticksChecked += 1
+  //     }
+  //     console.log('reached word', wordPos, 'bit', bitPos, 'remaining', swapState.amountRemaining.toNumber())
+      
   //   })
   // })
+
+  describe('Completely close position and deallocate ticks', () => {
+    it('update observation accounts', async () => {
+      const {
+        observationIndex,
+        observationCardinalityNext
+      } = await coreProgram.account.poolState.fetch(poolAState)
+
+      const { blockTimestamp: lastBlockTime } = await coreProgram.account.observationState.fetch(latestObservationAState)
+
+      const slot = await connection.getSlot()
+      const blockTimestamp = await connection.getBlockTime(slot)
+
+      // If current observation account will expire in 3 seconds, we sleep for this time
+      // before recalculating the observation states
+      if (Math.floor(lastBlockTime / 14) == Math.floor(blockTimestamp / 14) && lastBlockTime % 14 >= 11) {
+        await new Promise(r => setTimeout(r, 3000))
+      }
+      if (Math.floor(lastBlockTime / 14) > Math.floor(blockTimestamp / 14)) {
+        latestObservationAState = (await PublicKey.findProgramAddress(
+          [
+            OBSERVATION_SEED,
+            token0.publicKey.toBuffer(),
+            token1.publicKey.toBuffer(),
+            u32ToSeed(fee),
+            u16ToSeed(observationIndex)
+          ],
+          coreProgram.programId
+        ))[0]
+
+        nextObservationAState = (await PublicKey.findProgramAddress(
+          [
+            OBSERVATION_SEED,
+            token0.publicKey.toBuffer(),
+            token1.publicKey.toBuffer(),
+            u32ToSeed(fee),
+            u16ToSeed((observationIndex + 1) % observationCardinalityNext)
+          ],
+          coreProgram.programId
+        ))[0]
+      }
+    })
+
+    it('burn entire of the position liquidity as owner', async () => {
+      const { liquidity } = await coreProgram.account.tokenizedPositionState.fetch(tokenizedPositionAState)
+      console.log('liquidity in position', liquidity)
+      const deadline = new BN(Date.now() / 1000 + 10_000)
+
+      const tx = new Transaction()
+      tx.instructions = [
+        coreProgram.instruction.decreaseLiquidity(
+          liquidity,
+          new BN(0),
+          new BN(0),
+          deadline, {
+          accounts: {
+            ownerOrDelegate: owner,
+            nftAccount: positionANftAccount,
+            tokenizedPositionState: tokenizedPositionAState,
+            factoryState,
+            poolState: poolAState,
+            corePositionState: corePositionAState,
+            tickLowerState: tickLowerAState,
+            tickUpperState: tickUpperAState,
+            bitmapLowerState: bitmapLowerAState,
+            bitmapUpperState: bitmapUpperAState,
+            latestObservationState: latestObservationAState,
+            nextObservationState: nextObservationAState,
+            coreProgram: coreProgram.programId
+          },
+        }
+        ),
+        coreProgram.instruction.closeTickAccount({
+          accounts: {
+            recipient: owner,
+            tickState: tickLowerAState,
+          }
+        }),
+        coreProgram.instruction.closeTickAccount({
+          accounts: {
+            recipient: owner,
+            tickState: tickUpperAState,
+          }
+        })
+      ]
+      tx.recentBlockhash = (await connection.getRecentBlockhash()).blockhash
+      await anchor.getProvider().send(tx)
+    })
+  })
 })

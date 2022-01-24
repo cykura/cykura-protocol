@@ -1150,7 +1150,9 @@ pub mod cyclos_core {
     ///
     /// # Arguments
     ///
-    /// * `ctx` - Accounts required for the swap
+    /// * `ctx` - Accounts required for the swap. Remaining accounts should contain each bitmap leading to
+    /// the end tickm accounts for each tick flipped
+    /// account leading to the destination tick
     /// * `deadline` - The time by which the transaction must be included to effect the change
     /// * `amount_specified` - The amount of the swap, which implicitly configures the swap as exact input (positive),
     /// or exact output (negative)
@@ -1276,11 +1278,13 @@ pub mod cyclos_core {
             liquidity: cache.liquidity_start,
         };
 
-        // continue swapping as long as we haven't used the entire input/output and haven't
-        // reached the price limit
         let latest_observation = latest_observation_state.load_mut()?;
         let mut remaining_accounts = ctx.remaining_accounts.iter();
+
+        // cache for previously loaded bitmap account
         let mut bitmap: Option<TickBitmapState> = None;
+        // continue swapping as long as we haven't used the entire input/output and haven't
+        // reached the price limit
         while state.amount_specified_remaining != 0 && state.sqrt_price_x32 != sqrt_price_limit_x32
         {
             msg!("in swap loop");
@@ -1300,39 +1304,37 @@ pub mod cyclos_core {
             }
 
             let Position { word_pos, bit_pos } = tick_bitmap::position(compressed);
-            // load the bitmap holding the tick state for the pool's current tick
+
+            // default values for the next initialized bit if the bitmap account is not initialized
+            let mut next_initialized_bit = NextBit { next: if zero_for_one {
+                0
+            } else {
+                255
+            }, initialized: false};
+            // load the next bitmap account if cache is empty, or if we have crossed out of this bitmap
             if bitmap.is_none() || bitmap.unwrap().word_pos != word_pos {
-                msg!("loading bitmap");
-                let bitmap_loader = Loader::<TickBitmapState>::try_from(
-                    &cyclos_core::id(),
-                    remaining_accounts.next().unwrap(),
-                )?;
+                let bitmap_account = remaining_accounts.next().unwrap();
 
-                let bitmap_state = bitmap_loader.load()?;
-                msg!("bitmap loaded");
-
-                let bitmap_account_seeds = [
+                // ensure this is a valid PDA, even if account is not initialized
+                assert!(bitmap_account.key() == Pubkey::find_program_address(&[
                     BITMAP_SEED.as_bytes(),
                     pool.token_0.as_ref(),
                     pool.token_1.as_ref(),
                     &pool.fee.to_be_bytes(),
                     &word_pos.to_be_bytes(),
-                    &[bitmap_state.bump],
-                ];
-                assert!(
-                    bitmap_loader.key()
-                        == Pubkey::create_program_address(
-                            &bitmap_account_seeds[..],
-                            &ctx.program_id
-                        )?,
-                );
-                msg!("bitmap validated");
-                bitmap = Some(*bitmap_state.deref());
-                drop(bitmap_state);
+                ], &cyclos_core::id()).0);
+
+                // read from bitmap if account is initialized, else use default values for next initialized bit
+                if let Ok(bitmap_loader) = Loader::<TickBitmapState>::try_from(
+                    &cyclos_core::id(),
+                    bitmap_account,
+                ) {
+                    let bitmap_state = bitmap_loader.load()?;
+                    next_initialized_bit = bitmap_state.next_initialized_bit(bit_pos, zero_for_one);
+                    bitmap = Some(*bitmap_state.deref());
+                }
             }
 
-            // get relative position of the next initialized tick. Use it to derive absolute position
-            let next_initialized_bit = bitmap.unwrap().next_initialized_bit(bit_pos, zero_for_one);
             step.tick_next = (256 * word_pos as i32 + next_initialized_bit.next as i32) * pool.tick_spacing as i32; // convert relative to absolute
             step.initialized = next_initialized_bit.initialized;
 
