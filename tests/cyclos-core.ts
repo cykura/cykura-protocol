@@ -2,7 +2,8 @@ import * as anchor from '@project-serum/anchor'
 import { Program, web3, BN, ProgramError } from '@project-serum/anchor'
 import * as metaplex from '@metaplex/js'
 import { Token, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID } from '@solana/spl-token'
-import { SwapMath, TickMath } from '@uniswap/v3-sdk'
+import { Pool, SwapMath, TickMath } from '@uniswap/v3-sdk'
+import { CurrencyAmount, Token as UniToken } from '@uniswap/sdk-core'
 import { assert, expect } from 'chai'
 import * as chai from 'chai'
 import chaiAsPromised from 'chai-as-promised'
@@ -22,6 +23,7 @@ import {
   OBSERVATION_SEED,
   POOL_SEED,
   POSITION_SEED,
+  SolanaTickDataProvider,
   tickPosition,
   TICK_SEED,
   u16ToSeed,
@@ -62,6 +64,12 @@ describe('cyclos-core', async () => {
   let token0: Token
   let token1: Token
   let token2: Token
+
+  let uniToken0: UniToken
+  let uniToken1: UniToken
+  let uniToken2: UniToken
+
+  let uniPoolA: Pool
 
   // ATAs to hold pool tokens
   let vaultA0: web3.PublicKey
@@ -180,16 +188,19 @@ describe('cyclos-core', async () => {
       TOKEN_PROGRAM_ID
     )
 
-    console.log('Token 0', token0.publicKey.toString())
-    console.log('Token 1', token1.publicKey.toString())
-    console.log('Token 2', token2.publicKey.toString())
-
     if (token0.publicKey.toString() > token1.publicKey.toString()) { // swap token mints
       console.log('Swap tokens for A')
       const temp = token0
       token0 = token1
       token1 = temp
     }
+
+    uniToken0 = new UniToken(0, token0.publicKey.toString(), 8)
+    uniToken1 = new UniToken(0, token1.publicKey.toString(), 8)
+    uniToken2 = new UniToken(0, token2.publicKey.toString(), 8)
+    console.log('Token 0', token0.publicKey.toString())
+    console.log('Token 1', token1.publicKey.toString())
+    console.log('Token 2', token2.publicKey.toString())
 
     while (token1.publicKey.toString() > token2.publicKey.toString()) {
       token2 = await Token.createMint(
@@ -2359,7 +2370,7 @@ describe('cyclos-core', async () => {
           tickLowerState: tickLowerAState,
           tickUpperState: tickUpperAState,
           bitmapLowerState: bitmapLowerAState,
-            bitmapUpperState: bitmapUpperAState,
+          bitmapUpperState: bitmapUpperAState,
           latestObservationState: latestObservationAState,
           nextObservationState: nextObservationAState,
           coreProgram: coreProgram.programId
@@ -2694,6 +2705,30 @@ describe('cyclos-core', async () => {
       const amountOutMinimum = new BN(0)
       const sqrtPriceLimitX32 = new BN(4297115200) // current price is 4297115210
 
+      const tickDataProvider = new SolanaTickDataProvider(coreProgram, {
+        token0: token0.publicKey,
+        token1: token1.publicKey,
+        fee,
+      })
+      const { tick: currentTick, sqrtPriceX32: currentSqrtPriceX32, liquidity: currentLiquidity } = await coreProgram.account.poolState.fetch(poolAState)
+
+      // output is one tick behind actual (8 instead of 9)
+      uniPoolA = new Pool(
+        uniToken0,
+        uniToken1,
+        fee,
+        JSBI.BigInt(currentSqrtPriceX32),
+        JSBI.BigInt(currentLiquidity),
+        currentTick,
+        tickDataProvider
+      )
+
+      const [expectedAmountOut, expectedNewPool, remainingAccounts] = await uniPoolA.getOutputAmount(
+        CurrencyAmount.fromRawAmount(uniToken0, amountIn.toNumber()),
+        JSBI.BigInt(sqrtPriceLimitX32),
+      )
+      assert.equal(expectedNewPool.sqrtRatioX32.toString(), sqrtPriceLimitX32.toString())
+
       await coreProgram.rpc.exactInputSingle(
         deadline,
         amountIn,
@@ -2712,23 +2747,15 @@ describe('cyclos-core', async () => {
             nextObservationState: nextObservationAState,
             coreProgram: coreProgram.programId,
             tokenProgram: TOKEN_PROGRAM_ID,
-          }, remainingAccounts: [{
-            pubkey: bitmapLowerAState,
-            isSigner: false,
-            isWritable: true
           },
-          // price moves downwards in zero for one swap
-          // Tick state is required only if the tick is crossed
-          {
-            pubkey: tickUpperAState,
-            isSigner: false,
-            isWritable: true
-          }]
+          remainingAccounts,
         }
       )
-
       let poolStateData = await coreProgram.account.poolState.fetch(poolAState)
       assert(poolStateData.sqrtPriceX32.eq(sqrtPriceLimitX32))
+
+      console.log('tick after swap', poolStateData.tick, 'price', poolStateData.sqrtPriceX32.toString())
+      uniPoolA = expectedNewPool
     })
 
     it('performs a zero for one swap without a limit price', async () => {
@@ -2766,6 +2793,13 @@ describe('cyclos-core', async () => {
       const amountIn = new BN(100_000)
       const amountOutMinimum = new BN(0)
       const sqrtPriceLimitX32 = new BN(0)
+
+      console.log('pool tick', uniPoolA.tickCurrent, 'price', uniPoolA.sqrtRatioX32.toString())
+      const [expectedAmountOut, expectedNewPool, remainingAccounts] = await uniPoolA.getOutputAmount(
+        CurrencyAmount.fromRawAmount(uniToken0, amountIn.toNumber())
+      )
+      console.log('expected pool', expectedNewPool)
+      
       await coreProgram.rpc.exactInputSingle(
         deadline,
         // true,
@@ -2785,16 +2819,14 @@ describe('cyclos-core', async () => {
             nextObservationState: nextObservationAState,
             coreProgram: coreProgram.programId,
             tokenProgram: TOKEN_PROGRAM_ID,
-          }, remainingAccounts: [{
-            pubkey: bitmapLowerAState,
-            isSigner: false,
-            isWritable: true
-          }]
+          }, remainingAccounts,
         }
       )
       const poolStateDataAfter = await coreProgram.account.poolState.fetch(poolAState)
       console.log('pool price after', poolStateDataAfter.sqrtPriceX32.toNumber())
       console.log('pool tick after', poolStateDataAfter.tick)
+
+      uniPoolA = expectedNewPool
     })
   })
 
@@ -2835,6 +2867,11 @@ describe('cyclos-core', async () => {
 
       const amountIn = new BN(100_000)
       const amountOutMinimum = new BN(0)
+      const [expectedAmountOut, expectedNewPool, swapAccounts] = await uniPoolA.getOutputAmount(
+        CurrencyAmount.fromRawAmount(uniToken0, amountIn.toNumber())
+      )
+      console.log('expected pool', expectedNewPool)
+
       await coreProgram.rpc.exactInput(
         deadline,
         amountIn,
@@ -2872,11 +2909,7 @@ describe('cyclos-core', async () => {
             isSigner: false,
             isWritable: true
           },
-            {
-            pubkey: bitmapLowerAState,
-            isSigner: false,
-            isWritable: true
-          },
+          ...swapAccounts
         ]
         }
       )
@@ -3012,261 +3045,183 @@ describe('cyclos-core', async () => {
       })
     })
 
-    it('perform a two pool swap', async () => {
-      const poolStateDataBefore = await coreProgram.account.poolState.fetch(poolAState)
-      console.log('pool price', poolStateDataBefore.sqrtPriceX32.toNumber())
-      console.log('pool tick', poolStateDataBefore.tick)
+  //   it('perform a two pool swap', async () => {
+  //     const poolStateDataBefore = await coreProgram.account.poolState.fetch(poolAState)
+  //     console.log('pool price', poolStateDataBefore.sqrtPriceX32.toNumber())
+  //     console.log('pool tick', poolStateDataBefore.tick)
 
-      const {
-        observationIndex: observationAIndex,
-        observationCardinalityNext: observationCardinalityANext
-      } = await coreProgram.account.poolState.fetch(poolAState)
+  //     const {
+  //       observationIndex: observationAIndex,
+  //       observationCardinalityNext: observationCardinalityANext
+  //     } = await coreProgram.account.poolState.fetch(poolAState)
 
-      latestObservationAState = (await PublicKey.findProgramAddress(
-        [
-          OBSERVATION_SEED,
-          token0.publicKey.toBuffer(),
-          token1.publicKey.toBuffer(),
-          u32ToSeed(fee),
-          u16ToSeed(observationAIndex)
-        ],
-        coreProgram.programId
-      ))[0]
-
-      nextObservationAState = (await PublicKey.findProgramAddress(
-        [
-          OBSERVATION_SEED,
-          token0.publicKey.toBuffer(),
-          token1.publicKey.toBuffer(),
-          u32ToSeed(fee),
-          u16ToSeed((observationAIndex + 1) % observationCardinalityANext)
-        ],
-        coreProgram.programId
-      ))[0]
-
-      const {
-        observationIndex: observationBIndex,
-        observationCardinalityNext: observationCardinalityBNext
-      } = await coreProgram.account.poolState.fetch(poolBState)
-
-      latestObservationBState = (await PublicKey.findProgramAddress(
-        [
-          OBSERVATION_SEED,
-          token1.publicKey.toBuffer(),
-          token2.publicKey.toBuffer(),
-          u32ToSeed(fee),
-          u16ToSeed(observationBIndex)
-        ],
-        coreProgram.programId
-      ))[0]
-
-      nextObservationBState = (await PublicKey.findProgramAddress(
-        [
-          OBSERVATION_SEED,
-          token1.publicKey.toBuffer(),
-          token2.publicKey.toBuffer(),
-          u32ToSeed(fee),
-          u16ToSeed((observationBIndex + 1) % observationCardinalityBNext)
-        ],
-        coreProgram.programId
-      ))[0]
-
-      let vaultBalanceA0 = await token0.getAccountInfo(vaultA0)
-      let vaultBalanceA1 = await token1.getAccountInfo(vaultA1)
-      let vaultBalanceB1 = await token1.getAccountInfo(vaultB1)
-      let vaultBalanceB2 = await token2.getAccountInfo(vaultB2)
-      console.log(
-        'vault balances before', 
-        vaultBalanceA0.amount.toNumber(),
-        vaultBalanceA1.amount.toNumber(),
-        vaultBalanceB1.amount.toNumber(),
-        vaultBalanceB2.amount.toNumber()
-      )
-      let token2AccountInfo = await token2.getAccountInfo(minterWallet2)
-      console.log('token 2 balance before', token2AccountInfo.amount.toNumber())
-
-      console.log('pool B address', poolBState.toString())
-
-      const amountIn = new BN(100_000)
-      const amountOutMinimum = new BN(0)
-      await coreProgram.rpc.exactInput(
-        deadline,
-        amountIn,
-        amountOutMinimum,
-        Buffer.from([1, 2]),
-        {
-          accounts: {
-            signer: owner,
-            factoryState,
-            inputTokenAccount: minterWallet0,
-            coreProgram: coreProgram.programId,
-            tokenProgram: TOKEN_PROGRAM_ID,
-          }, remainingAccounts: [{
-            pubkey: poolAState,
-            isSigner: false,
-            isWritable: true
-          },{
-            pubkey: minterWallet1, // outputTokenAccount
-            isSigner: false,
-            isWritable: true
-          },{
-            pubkey: vaultA0, // input vault
-            isSigner: false,
-            isWritable: true
-          },{
-            pubkey: vaultA1, // output vault
-            isSigner: false,
-            isWritable: true
-          },{
-            pubkey: latestObservationAState,
-            isSigner: false,
-            isWritable: true
-          },{
-            pubkey: nextObservationAState,
-            isSigner: false,
-            isWritable: true
-          },
-            {
-            pubkey: bitmapLowerAState,
-            isSigner: false,
-            isWritable: true
-          },
-          // second pool
-          {
-            pubkey: poolBState,
-            isSigner: false,
-            isWritable: true
-          },{
-            pubkey: minterWallet2, // outputTokenAccount
-            isSigner: false,
-            isWritable: true
-          },{
-            pubkey: vaultB1, // input vault
-            isSigner: false,
-            isWritable: true
-          },{
-            pubkey: vaultB2, // output vault
-            isSigner: false,
-            isWritable: true
-          },{
-            pubkey: latestObservationBState,
-            isSigner: false,
-            isWritable: true
-          },{
-            pubkey: nextObservationBState,
-            isSigner: false,
-            isWritable: true
-          },
-            {
-            pubkey: bitmapLowerBState,
-            isSigner: false,
-            isWritable: true
-          }, {
-            pubkey: tickUpperBState,
-            isSigner: false,
-            isWritable: true
-          }
-        ]
-        }
-      )
-      vaultBalanceA0 = await token0.getAccountInfo(vaultA0)
-      vaultBalanceA1 = await token1.getAccountInfo(vaultA1)
-      vaultBalanceB1 = await token1.getAccountInfo(vaultB1)
-      vaultBalanceB2 = await token2.getAccountInfo(vaultB2)
-      console.log(
-        'vault balances after', 
-        vaultBalanceA0.amount.toNumber(),
-        vaultBalanceA1.amount.toNumber(),
-        vaultBalanceB1.amount.toNumber(),
-        vaultBalanceB2.amount.toNumber()
-      )
-
-      const poolStateDataAfter = await coreProgram.account.poolState.fetch(poolAState)
-      console.log('pool A price after', poolStateDataAfter.sqrtPriceX32.toNumber())
-      console.log('pool A tick after', poolStateDataAfter.tick)
-
-      token2AccountInfo = await token2.getAccountInfo(minterWallet2)
-      console.log('token 2 balance after', token2AccountInfo.amount.toNumber())
-    })
-  })
-
-  // describe('Find ticks and bitmaps for a swap', () => {
-
-  //   it('build tick provider', async () => {
-
-  //   })
-  //   it('get ticks and bitmaps', async () => {
-  //     const { tick: currentTick, sqrtPriceX32, liquidity } = await coreProgram.account.poolState.fetch(poolAState)
-  //     console.log('current tick', currentTick)
-  //     const compressed = Math.floor(currentTick / tickSpacing)
-  //     let { wordPos, bitPos } = tickPosition(compressed)
-      
-  //     const zeroForOne = true
-
-  //     const swapState = {
-  //       sqrtRatioCurrentX32: sqrtPriceX32,
-  //       amountRemaining: new BN(1000),
-  //       liquidity,
-  //     }
-  //     let ticksChecked = 0
-  //     while (!swapState.amountRemaining.eqn(0) && ticksChecked < 10) {
-  //       // loop over bitmap accounts
-  //       const currentBitmapAddr = (await PublicKey.findProgramAddress([
-  //         BITMAP_SEED,
+  //     latestObservationAState = (await PublicKey.findProgramAddress(
+  //       [
+  //         OBSERVATION_SEED,
   //         token0.publicKey.toBuffer(),
   //         token1.publicKey.toBuffer(),
   //         u32ToSeed(fee),
-  //         u16ToSeed(wordPos),
-  //       ], coreProgram.programId))[0]
+  //         u16ToSeed(observationAIndex)
+  //       ],
+  //       coreProgram.programId
+  //     ))[0]
 
-  //       try {
-  //         const currentBitmap = await coreProgram.account.tickBitmapState.fetch(currentBitmapAddr)
-  //         const word = generateBitmapWord(currentBitmap.word)
-  //         console.log('bitmap word', word.toNumber())
-          
-  //         // loop over all bits in this bitmap
-  //         while (!swapState.amountRemaining.eqn(0)) {
-  //           const { next, initialized } = nextInitializedBit(word, bitPos, zeroForOne)
-  //           console.log('next bit', next, 'initialized', initialized)
-            
-  //           if (initialized) {
-  //             // find how much liquidity absorbed and deduct from remaining
-  //             // store the tick account address for later use
-  //             const sqrtRatioTargetX32 = TickMath.getSqrtRatioAtTick(next)
-  //             const step = SwapMath.computeSwapStep(
-  //               JSBI.BigInt(swapState.sqrtRatioCurrentX32),
-  //               sqrtRatioTargetX32,
-  //               JSBI.BigInt(swapState.amountRemaining),
-  //               JSBI.BigInt(swapState.liquidity),
-  //               500
-  //             )
-  //           }
+  //     nextObservationAState = (await PublicKey.findProgramAddress(
+  //       [
+  //         OBSERVATION_SEED,
+  //         token0.publicKey.toBuffer(),
+  //         token1.publicKey.toBuffer(),
+  //         u32ToSeed(fee),
+  //         u16ToSeed((observationAIndex + 1) % observationCardinalityANext)
+  //       ],
+  //       coreProgram.programId
+  //     ))[0]
 
-  //           if (zeroForOne && bitPos === 0) {
-  //             bitPos = 255
-  //             break
-  //           } else if (!zeroForOne && bitPos == 255) {
-  //             bitPos = 0
-  //             break
-  //           }
-  //           bitPos = next
+  //     const {
+  //       observationIndex: observationBIndex,
+  //       observationCardinalityNext: observationCardinalityBNext
+  //     } = await coreProgram.account.poolState.fetch(poolBState)
+
+  //     latestObservationBState = (await PublicKey.findProgramAddress(
+  //       [
+  //         OBSERVATION_SEED,
+  //         token1.publicKey.toBuffer(),
+  //         token2.publicKey.toBuffer(),
+  //         u32ToSeed(fee),
+  //         u16ToSeed(observationBIndex)
+  //       ],
+  //       coreProgram.programId
+  //     ))[0]
+
+  //     nextObservationBState = (await PublicKey.findProgramAddress(
+  //       [
+  //         OBSERVATION_SEED,
+  //         token1.publicKey.toBuffer(),
+  //         token2.publicKey.toBuffer(),
+  //         u32ToSeed(fee),
+  //         u16ToSeed((observationBIndex + 1) % observationCardinalityBNext)
+  //       ],
+  //       coreProgram.programId
+  //     ))[0]
+
+  //     let vaultBalanceA0 = await token0.getAccountInfo(vaultA0)
+  //     let vaultBalanceA1 = await token1.getAccountInfo(vaultA1)
+  //     let vaultBalanceB1 = await token1.getAccountInfo(vaultB1)
+  //     let vaultBalanceB2 = await token2.getAccountInfo(vaultB2)
+  //     console.log(
+  //       'vault balances before', 
+  //       vaultBalanceA0.amount.toNumber(),
+  //       vaultBalanceA1.amount.toNumber(),
+  //       vaultBalanceB1.amount.toNumber(),
+  //       vaultBalanceB2.amount.toNumber()
+  //     )
+  //     let token2AccountInfo = await token2.getAccountInfo(minterWallet2)
+  //     console.log('token 2 balance before', token2AccountInfo.amount.toNumber())
+
+  //     console.log('pool B address', poolBState.toString())
+
+  //     const amountIn = new BN(100_000)
+  //     const amountOutMinimum = new BN(0)
+  //     await coreProgram.rpc.exactInput(
+  //       deadline,
+  //       amountIn,
+  //       amountOutMinimum,
+  //       Buffer.from([1, 2]),
+  //       {
+  //         accounts: {
+  //           signer: owner,
+  //           factoryState,
+  //           inputTokenAccount: minterWallet0,
+  //           coreProgram: coreProgram.programId,
+  //           tokenProgram: TOKEN_PROGRAM_ID,
+  //         }, remainingAccounts: [{
+  //           pubkey: poolAState,
+  //           isSigner: false,
+  //           isWritable: true
+  //         },{
+  //           pubkey: minterWallet1, // outputTokenAccount
+  //           isSigner: false,
+  //           isWritable: true
+  //         },{
+  //           pubkey: vaultA0, // input vault
+  //           isSigner: false,
+  //           isWritable: true
+  //         },{
+  //           pubkey: vaultA1, // output vault
+  //           isSigner: false,
+  //           isWritable: true
+  //         },{
+  //           pubkey: latestObservationAState,
+  //           isSigner: false,
+  //           isWritable: true
+  //         },{
+  //           pubkey: nextObservationAState,
+  //           isSigner: false,
+  //           isWritable: true
+  //         },
+  //           {
+  //           pubkey: bitmapLowerAState,
+  //           isSigner: false,
+  //           isWritable: true
+  //         },
+  //         // second pool
+  //         {
+  //           pubkey: poolBState,
+  //           isSigner: false,
+  //           isWritable: true
+  //         },{
+  //           pubkey: minterWallet2, // outputTokenAccount
+  //           isSigner: false,
+  //           isWritable: true
+  //         },{
+  //           pubkey: vaultB1, // input vault
+  //           isSigner: false,
+  //           isWritable: true
+  //         },{
+  //           pubkey: vaultB2, // output vault
+  //           isSigner: false,
+  //           isWritable: true
+  //         },{
+  //           pubkey: latestObservationBState,
+  //           isSigner: false,
+  //           isWritable: true
+  //         },{
+  //           pubkey: nextObservationBState,
+  //           isSigner: false,
+  //           isWritable: true
+  //         },
+  //           {
+  //           pubkey: bitmapLowerBState,
+  //           isSigner: false,
+  //           isWritable: true
+  //         }, {
+  //           pubkey: tickUpperBState,
+  //           isSigner: false,
+  //           isWritable: true
   //         }
-  //       } catch(error) {
-  //         console.log('no bitmap for word', wordPos)
+  //       ]
   //       }
-        
+  //     )
+  //     vaultBalanceA0 = await token0.getAccountInfo(vaultA0)
+  //     vaultBalanceA1 = await token1.getAccountInfo(vaultA1)
+  //     vaultBalanceB1 = await token1.getAccountInfo(vaultB1)
+  //     vaultBalanceB2 = await token2.getAccountInfo(vaultB2)
+  //     console.log(
+  //       'vault balances after', 
+  //       vaultBalanceA0.amount.toNumber(),
+  //       vaultBalanceA1.amount.toNumber(),
+  //       vaultBalanceB1.amount.toNumber(),
+  //       vaultBalanceB2.amount.toNumber()
+  //     )
 
-  //       if (zeroForOne) {
-  //         wordPos -= 1
-  //       } else {
-  //         wordPos += 1
-  //       }
-  //       ticksChecked += 1
-  //     }
-  //     console.log('reached word', wordPos, 'bit', bitPos, 'remaining', swapState.amountRemaining.toNumber())
-      
+  //     const poolStateDataAfter = await coreProgram.account.poolState.fetch(poolAState)
+  //     console.log('pool A price after', poolStateDataAfter.sqrtPriceX32.toNumber())
+  //     console.log('pool A tick after', poolStateDataAfter.tick)
+
+  //     token2AccountInfo = await token2.getAccountInfo(minterWallet2)
+  //     console.log('token 2 balance after', token2AccountInfo.amount.toNumber())
   //   })
-  // })
+  })
 
   describe('Completely close position and deallocate ticks', () => {
     it('update observation accounts', async () => {

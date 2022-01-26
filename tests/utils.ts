@@ -137,7 +137,7 @@ export class SolanaTickDataProvider implements TickDataProvider {
     this.pool = pool
   }
 
-  async getTick(tick: number): Promise<{ liquidityNet: BigintIsh }> {
+  async getTick(tick: number): Promise<{ liquidityNet: BigintIsh; }> {
     const tickState = (await PublicKey.findProgramAddress([
       TICK_SEED,
       this.pool.token0.toBuffer(),
@@ -150,11 +150,22 @@ export class SolanaTickDataProvider implements TickDataProvider {
 
     const { liquidityNet } = await this.program.account.tickState.fetch(tickState)
     return {
-      liquidityNet: JSBI.BigInt(liquidityNet),
+      liquidityNet: liquidityNet.toString(),
     }
   }
 
-  async nextInitializedTickWithinOneWord(tick: number, lte: boolean, tickSpacing: number): Promise<[number, boolean]> {
+  async getTickAddress(tick: number): Promise<anchor.web3.PublicKey> {
+    return (await PublicKey.findProgramAddress([
+      TICK_SEED,
+      this.pool.token0.toBuffer(),
+      this.pool.token1.toBuffer(),
+      u32ToSeed(this.pool.fee),
+      u32ToSeed(tick)
+    ], this.program.programId))[0]
+  }
+
+  async nextInitializedTickWithinOneWord(tick: number, lte: boolean, tickSpacing: number)
+    : Promise<[number, boolean, number, number, PublicKey]> {
     // TODO optimize function. Currently bitmaps are repeatedly fetched, even if two ticks are on the same bitmap
     let compressed = Math.floor(tick / tickSpacing)
     if (!lte) {
@@ -180,10 +191,10 @@ export class SolanaTickDataProvider implements TickDataProvider {
       nextBit = nextInitBit.next
       initialized = nextInitBit.initialized
     } catch(error) {
-      console.log('bitmap account doesnt exist, using defaults')
+      console.log('bitmap account doesnt exist, using default nextbit', nextBit)
     }
     const nextTick = (wordPos * 256 + nextBit) * tickSpacing
-    return [nextTick, initialized]
-    
+    console.log('returning next tick', nextTick)
+    return [nextTick, initialized, wordPos, bitPos, bitmapState]
   }
 }
