@@ -1151,7 +1151,7 @@ pub mod cyclos_core {
     /// # Arguments
     ///
     /// * `ctx` - Accounts required for the swap. Remaining accounts should contain each bitmap leading to
-    /// the end tickm accounts for each tick flipped
+    /// the end tick, and each tick being flipped
     /// account leading to the destination tick
     /// * `deadline` - The time by which the transaction must be included to effect the change
     /// * `amount_specified` - The amount of the swap, which implicitly configures the swap as exact input (positive),
@@ -1291,20 +1291,18 @@ pub mod cyclos_core {
             let mut step = StepComputations::default();
             step.sqrt_price_start_x32 = state.sqrt_price_x32;
 
-            // if zero_for_one(lte = true) start with the word containing the current tick
-            // else use the word of the next tick
             let mut compressed = state.tick / pool.tick_spacing as i32;
             if state.tick < 0 && state.tick % pool.tick_spacing as i32 != 0 {
-                compressed -= 1;
+                compressed -= 1; // round towards negative infinity
             }
-            // In lte = false (one for zero) case, start from the word of the next tick, since the
-            // current tick doesn't matter
+            // The current tick is not considered in greater than or equal to (lte = false, i.e one for zero) case
             if !zero_for_one {
                 compressed += 1;
             }
 
             let Position { word_pos, bit_pos } = tick_bitmap::position(compressed);
-
+            msg!("tick {}, compressed {}, word {}", state.tick, compressed, word_pos);
+            msg!("word {}, bit {}", word_pos, bit_pos);
             // default values for the next initialized bit if the bitmap account is not initialized
             let mut next_initialized_bit = NextBit { next: if zero_for_one {
                 0
@@ -1314,7 +1312,7 @@ pub mod cyclos_core {
             // load the next bitmap account if cache is empty, or if we have crossed out of this bitmap
             if bitmap.is_none() || bitmap.unwrap().word_pos != word_pos {
                 let bitmap_account = remaining_accounts.next().unwrap();
-
+                msg!("validating bitmap for word {}", word_pos);
                 // ensure this is a valid PDA, even if account is not initialized
                 assert!(bitmap_account.key() == Pubkey::find_program_address(&[
                     BITMAP_SEED.as_bytes(),

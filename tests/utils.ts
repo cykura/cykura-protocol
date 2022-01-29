@@ -57,7 +57,8 @@ export class SolanaTickDataProvider implements TickDataProvider {
   async nextInitializedTickWithinOneWord(tick: number, lte: boolean, tickSpacing: number)
     : Promise<[number, boolean, number, number, PublicKey]> {
     // TODO optimize function. Currently bitmaps are repeatedly fetched, even if two ticks are on the same bitmap
-    let compressed = Math.floor(tick / tickSpacing)
+    // note- Math.floor(tick / tickSpacing) gives incorrect results for negative
+    let compressed = Number(BigInt(tick) / BigInt(tickSpacing))
     if (!lte) {
       compressed += 1
     }

@@ -3,7 +3,7 @@ import { Program, web3, BN, ProgramError } from '@project-serum/anchor'
 import { assert, expect } from 'chai'
 import * as chai from 'chai'
 import chaiAsPromised from 'chai-as-promised'
-import { FEE_SEED, u32ToSeed } from '../tests/utils'
+import { FEE_SEED, u32ToSeed } from '@uniswap/v3-sdk'
 chai.use(chaiAsPromised)
 import { CyclosCore } from '../target/types/cyclos_core'
 import keypairFile from './keypair.json';
