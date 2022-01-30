@@ -300,6 +300,7 @@ describe('cyclos-core', async () => {
       });
       await coreProgram.removeEventListener(listener);
 
+      await coreProgram.account.factoryState.all()
       const factoryStateData = await coreProgram.account.factoryState.fetch(factoryState)
       assert.equal(factoryStateData.bump, factoryStateBump)
       assert(factoryStateData.owner.equals(owner))

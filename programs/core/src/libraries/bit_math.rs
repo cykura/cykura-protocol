@@ -78,7 +78,7 @@ mod tests {
             }
         }
 
-        #[test] #[test]
+        #[test]
         #[should_panic]
         fn test_lsb_for_0() {
             least_significant_bit(U256::default());

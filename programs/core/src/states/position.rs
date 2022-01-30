@@ -3,7 +3,7 @@
 ///!
 
 use anchor_lang::prelude::*;
-use crate::{error::ErrorCode, libraries::{liquidity_math, fixed_point_x32}};
+use crate::{error::ErrorCode, libraries::{liquidity_math, fixed_point_32}};
 use crate::libraries::full_math::MulDiv;
 
 /// Seed to derive account address and signature
@@ -64,12 +64,12 @@ impl PositionState {
         let tokens_owed_0 = (fee_growth_inside_0_x32 - self.fee_growth_inside_0_last_x32)
             .mul_div_floor(
                 self.liquidity as u64,
-                fixed_point_x32::Q32
+                fixed_point_32::Q32
             ).unwrap();
         let tokens_owed_1 = (fee_growth_inside_1_x32 - self.fee_growth_inside_1_last_x32)
             .mul_div_floor(
                 self.liquidity as u64,
-                fixed_point_x32::Q32
+                fixed_point_32::Q32
             ).unwrap();
 
         // Update the position

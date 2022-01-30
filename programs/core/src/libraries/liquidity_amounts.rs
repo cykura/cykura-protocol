@@ -4,7 +4,7 @@
 
 use super::big_num::U128;
 use super::full_math::MulDiv;
-use super::fixed_point_x32;
+use super::fixed_point_32;
 
 /// Computes the amount of liquidity received for a given amount of token_0 and price range
 /// Calculates ΔL = Δx (√P_upper x √P_lower)/(√P_upper - √P_lower)
@@ -25,7 +25,7 @@ pub fn get_liquidity_for_amount_0(
         std::mem::swap(&mut sqrt_ratio_a_x32, &mut sqrt_ratio_b_x32);
     };
     let intermediate = sqrt_ratio_a_x32
-        .mul_div_floor(sqrt_ratio_b_x32, fixed_point_x32::Q32)
+        .mul_div_floor(sqrt_ratio_b_x32, fixed_point_32::Q32)
         .unwrap();
 
     amount_0
@@ -53,7 +53,7 @@ pub fn get_liquidity_for_amount_1(
     };
 
     amount_1
-        .mul_div_floor(fixed_point_x32::Q32, sqrt_ratio_b_x32 - sqrt_ratio_a_x32)
+        .mul_div_floor(fixed_point_32::Q32, sqrt_ratio_b_x32 - sqrt_ratio_a_x32)
         .unwrap()
 }
 
@@ -117,7 +117,7 @@ pub fn get_amount_0_for_liquidity(
     };
 
     // Token amount can't exceed u64
-    ((U128::from(liquidity) << fixed_point_x32::RESOLUTION)
+    ((U128::from(liquidity) << fixed_point_32::RESOLUTION)
         .mul_div_floor(
             U128::from(sqrt_ratio_b_x32 - sqrt_ratio_a_x32),
             U128::from(sqrt_ratio_b_x32),
@@ -146,7 +146,7 @@ pub fn get_amount_1_for_liquidity(
     };
 
     liquidity
-        .mul_div_floor(sqrt_ratio_b_x32 - sqrt_ratio_a_x32, fixed_point_x32::Q32)
+        .mul_div_floor(sqrt_ratio_b_x32 - sqrt_ratio_a_x32, fixed_point_32::Q32)
         .unwrap()
 }
 

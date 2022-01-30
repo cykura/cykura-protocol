@@ -66,14 +66,14 @@ pub fn position(tick_by_spacing: i32) -> Position {
 }
 
 impl TickBitmapState {
-    ///  Flips the initialized state for a given tick from false to true, or vice versa
+    ///  Flips the initialized state for a given bit from false to true, or vice versa
     ///
     /// # Arguments
     ///
     /// * `self` - The bitmap state corresponding to the tick's word position
     /// * `bit_pos` - The rightmost 8 bits of the tick
     ///
-    pub fn flip_tick(&mut self, bit_pos: u8) {
+    pub fn flip_bit(&mut self, bit_pos: u8) {
         let word = U256(self.word);
         let mask = U256::from(1) << bit_pos;
         self.word = word.bitxor(mask).0;
@@ -139,11 +139,11 @@ impl TickBitmapState {
         next_bit.next == bit_pos && next_bit.initialized
     }
 
-    /// Initialize ticks in the bitmap at given bit positions
+    /// Initialize bits at the given positions
     #[cfg(test)]
-    fn init_ticks(&mut self, bit_positions: &[u8]) {
+    fn init_bits(&mut self, bit_positions: &[u8]) {
         for bit_pos in bit_positions {
-            self.flip_tick(*bit_pos);
+            self.flip_bit(*bit_pos);
         }
     }
 }
@@ -164,22 +164,22 @@ mod tests {
         #[test]
         fn is_flipped_by_flip_tick() {
             let mut tick_bitmap = TickBitmapState::default();
-            tick_bitmap.flip_tick(1);
+            tick_bitmap.flip_bit(1);
             assert!(tick_bitmap.is_initialized(1));
         }
 
         #[test]
         fn is_flipped_back_by_flip_tick() {
             let mut tick_bitmap = TickBitmapState::default();
-            tick_bitmap.flip_tick(1);
-            tick_bitmap.flip_tick(1);
+            tick_bitmap.flip_bit(1);
+            tick_bitmap.flip_bit(1);
             assert!(!tick_bitmap.is_initialized(1));
         }
 
         #[test]
         fn is_not_changed_by_another_flip_to_a_different_tick() {
             let mut tick_bitmap = TickBitmapState::default();
-            tick_bitmap.flip_tick(2);
+            tick_bitmap.flip_bit(2);
             assert!(!tick_bitmap.is_initialized(1));
         }
     }
@@ -190,19 +190,19 @@ mod tests {
         #[test]
         fn flips_only_the_specified_tick() {
             let mut tick_bitmap = TickBitmapState::default();
-            tick_bitmap.flip_tick(230);
+            tick_bitmap.flip_bit(230);
             assert!(tick_bitmap.is_initialized(230));
             assert!(!tick_bitmap.is_initialized(229));
             assert!(!tick_bitmap.is_initialized(231));
 
-            tick_bitmap.flip_tick(230);
+            tick_bitmap.flip_bit(230);
             assert!(!tick_bitmap.is_initialized(230));
             assert!(!tick_bitmap.is_initialized(229));
             assert!(!tick_bitmap.is_initialized(231));
         }
     }
 
-    mod next_initialized_tick_within_one_word {
+    mod next_initialized_bit_within_one_word {
         use super::*;
 
         mod lte_is_false {
@@ -211,7 +211,7 @@ mod tests {
             #[test]
             fn returns_same_bit_if_initialized() {
                 let mut tick_bitmap = TickBitmapState::default();
-                tick_bitmap.init_ticks(&[70, 78, 84, 139, 240]);
+                tick_bitmap.init_bits(&[70, 78, 84, 139, 240]);
                 let NextBit { next, initialized } = tick_bitmap.next_initialized_bit(78, false);
                 assert!(initialized);
                 assert_eq!(next, 78);
@@ -220,7 +220,7 @@ mod tests {
             #[test]
             fn returns_bit_at_right_if_at_uninitialized_bit() {
                 let mut tick_bitmap = TickBitmapState::default();
-                tick_bitmap.init_ticks(&[70, 78, 84, 139, 240]);
+                tick_bitmap.init_bits(&[70, 78, 84, 139, 240]);
 
                 // to simulate greater than condition, use bit_pos + 1
                 let NextBit { next, initialized } = tick_bitmap.next_initialized_bit(78 + 1, false);
@@ -243,7 +243,7 @@ mod tests {
             #[test]
             fn returns_same_bit_if_initialized() {
                 let mut tick_bitmap = TickBitmapState::default();
-                tick_bitmap.init_ticks(&[70, 78, 84, 139, 240]);
+                tick_bitmap.init_bits(&[70, 78, 84, 139, 240]);
                 let NextBit { next, initialized } = tick_bitmap.next_initialized_bit(78, true);
                 assert!(initialized);
                 assert_eq!(next, 78);
@@ -252,7 +252,7 @@ mod tests {
             #[test]
             fn returns_bit_directly_to_the_left_of_input_bit_if_not_initialized() {
                 let mut tick_bitmap = TickBitmapState::default();
-                tick_bitmap.init_ticks(&[70, 78, 84, 139, 240]);
+                tick_bitmap.init_bits(&[70, 78, 84, 139, 240]);
                 let NextBit { next, initialized } = tick_bitmap.next_initialized_bit(79, true);
                 assert!(initialized);
                 assert_eq!(next, 78);
@@ -261,7 +261,7 @@ mod tests {
             #[test]
             fn will_not_exceed_lower_boundary() {
                 let mut tick_bitmap = TickBitmapState::default();
-                tick_bitmap.init_ticks(&[70, 78, 84, 139, 240]);
+                tick_bitmap.init_bits(&[70, 78, 84, 139, 240]);
                 let NextBit { next, initialized } = tick_bitmap.next_initialized_bit(1, true);
                 assert!(!initialized);
                 assert_eq!(next, 0);
@@ -270,7 +270,7 @@ mod tests {
             #[test]
             fn at_the_lower_boundary() {
                 let mut tick_bitmap = TickBitmapState::default();
-                tick_bitmap.init_ticks(&[70, 78, 84, 139, 240]);
+                tick_bitmap.init_bits(&[70, 78, 84, 139, 240]);
                 let NextBit { next, initialized } = tick_bitmap.next_initialized_bit(0, true);
                 assert!(!initialized);
                 assert_eq!(next, 0);
@@ -279,7 +279,7 @@ mod tests {
             #[test]
             fn returns_bit_at_left_if_not_initialized() {
                 let mut tick_bitmap = TickBitmapState::default();
-                tick_bitmap.init_ticks(&[70, 78, 84, 139, 240]);
+                tick_bitmap.init_bits(&[70, 78, 84, 139, 240]);
                 let NextBit { next, initialized } = tick_bitmap.next_initialized_bit(71, true);
                 assert!(initialized);
                 assert_eq!(next, 70);

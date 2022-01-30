@@ -37,7 +37,7 @@ use std::ops::Neg;
 use std::ops::{Deref, DerefMut};
 
 use crate::{
-    libraries::{fixed_point_x32, swap_math},
+    libraries::{fixed_point_32, swap_math},
     states::{oracle::OBSERVATION_SEED, tick_bitmap},
 };
 
@@ -1390,7 +1390,7 @@ pub mod cyclos_core {
             if state.liquidity > 0 {
                 state.fee_growth_global_x32 += step
                     .fee_amount
-                    .mul_div_floor(fixed_point_x32::Q32, state.liquidity)
+                    .mul_div_floor(fixed_point_32::Q32, state.liquidity)
                     .unwrap();
             }
 
@@ -1881,12 +1881,12 @@ pub mod cyclos_core {
         let mut position = ctx.accounts.tokenized_position_state.load_mut()?;
         position.tokens_owed_0 += (fee_growth_inside_0_last_x32
             - position.fee_growth_inside_0_last_x32)
-            .mul_div_floor(position.liquidity, fixed_point_x32::Q32)
+            .mul_div_floor(position.liquidity, fixed_point_32::Q32)
             .unwrap();
 
         position.tokens_owed_1 += (fee_growth_inside_1_last_x32
             - position.fee_growth_inside_1_last_x32)
-            .mul_div_floor(position.liquidity, fixed_point_x32::Q32)
+            .mul_div_floor(position.liquidity, fixed_point_32::Q32)
             .unwrap();
 
         position.fee_growth_inside_0_last_x32 = fee_growth_inside_0_last_x32;
@@ -1960,12 +1960,12 @@ pub mod cyclos_core {
         let mut tokenized_position = ctx.accounts.tokenized_position_state.load_mut()?;
         tokenized_position.tokens_owed_0 += amount_0
             + (fee_growth_inside_0_last_x32 - tokenized_position.fee_growth_inside_0_last_x32)
-                .mul_div_floor(tokenized_position.liquidity, fixed_point_x32::Q32)
+                .mul_div_floor(tokenized_position.liquidity, fixed_point_32::Q32)
                 .unwrap();
 
         tokenized_position.tokens_owed_1 += amount_1
             + (fee_growth_inside_1_last_x32 - tokenized_position.fee_growth_inside_1_last_x32)
-                .mul_div_floor(tokenized_position.liquidity, fixed_point_x32::Q32)
+                .mul_div_floor(tokenized_position.liquidity, fixed_point_32::Q32)
                 .unwrap();
 
         tokenized_position.fee_growth_inside_0_last_x32 = fee_growth_inside_0_last_x32;
@@ -2029,11 +2029,11 @@ pub mod cyclos_core {
 
             tokens_owed_0 += (core_position.fee_growth_inside_0_last_x32
                 - tokenized_position.fee_growth_inside_0_last_x32)
-                .mul_div_floor(tokenized_position.liquidity, fixed_point_x32::Q32)
+                .mul_div_floor(tokenized_position.liquidity, fixed_point_32::Q32)
                 .unwrap();
             tokens_owed_1 += (core_position.fee_growth_inside_1_last_x32
                 - tokenized_position.fee_growth_inside_1_last_x32)
-                .mul_div_floor(tokenized_position.liquidity, fixed_point_x32::Q32)
+                .mul_div_floor(tokenized_position.liquidity, fixed_point_32::Q32)
                 .unwrap();
 
             tokenized_position.fee_growth_inside_0_last_x32 =
@@ -2481,14 +2481,14 @@ pub fn _update_position<'info>(
 
         if flipped_lower {
             let bit_pos = ((tick_lower.tick / pool_state.tick_spacing as i32) % 256) as u8; // rightmost 8 bits
-            bitmap_lower.load_mut()?.flip_tick(bit_pos);
+            bitmap_lower.load_mut()?.flip_bit(bit_pos);
         }
         if flipped_upper {
             let bit_pos = ((tick_upper.tick / pool_state.tick_spacing as i32) % 256) as u8;
             if bitmap_lower.key() == bitmap_upper.key() {
-                bitmap_lower.load_mut()?.flip_tick(bit_pos);
+                bitmap_lower.load_mut()?.flip_bit(bit_pos);
             } else {
-                bitmap_upper.load_mut()?.flip_tick(bit_pos);
+                bitmap_upper.load_mut()?.flip_bit(bit_pos);
             }
         }
     }

@@ -25,8 +25,7 @@ pub trait MulDiv<RHS = Self> {
     /// ## Example
     ///
     /// ```rust
-    /// extern crate muldiv;
-    /// use muldiv::MulDiv;
+    /// use libraries::full_math::MulDiv;
     ///
     /// # fn main() {
     /// let x = 3i8.mul_div_floor(4, 2);
@@ -56,8 +55,7 @@ pub trait MulDiv<RHS = Self> {
     /// ## Example
     ///
     /// ```rust
-    /// extern crate muldiv;
-    /// use muldiv::MulDiv;
+    /// use libraries::full_math::MulDiv;
     ///
     /// # fn main() {
     /// let x = 3i8.mul_div_ceil(4, 2);
@@ -86,9 +84,9 @@ pub trait Upcast {
     fn as_u256(self) -> U256;
 }
 impl Upcast for U128 {
-   fn as_u256(self) -> U256 {
+    fn as_u256(self) -> U256 {
         U256([self.0[0], self.0[1], 0, 0])
-   } 
+    }
 }
 
 pub trait Downcast {
@@ -97,9 +95,9 @@ pub trait Downcast {
     fn as_u128(self) -> U128;
 }
 impl Downcast for U256 {
-   fn as_u128(self) -> U128 {
+    fn as_u128(self) -> U128 {
         U128([self.0[0], self.0[1]])
-   } 
+    }
 }
 
 impl MulDiv for u64 {
@@ -206,8 +204,6 @@ mod muldiv_u64_tests {
 
 #[cfg(test)]
 mod muldiv_u128_tests {
-    use std::ops::Add;
-
     use super::*;
 
     use quickcheck::{quickcheck, Arbitrary, Gen};
@@ -267,6 +263,176 @@ mod muldiv_u128_tests {
             } else {
                 res == Some(expected.as_u128())
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod uniswap_tests {
+    use super::*;
+    use crate::libraries::fixed_point_32;
+
+    mod mul_div {
+        use super::*;
+
+        #[test]
+        #[should_panic]
+        fn reverts_if_denominator_is_zero() {
+            fixed_point_32::Q32.mul_div_floor(5, 0);
+        }
+
+        #[test]
+        #[should_panic]
+        fn reverts_if_denominator_is_zero_and_numerator_overflows() {
+            fixed_point_32::Q32.mul_div_floor(fixed_point_32::Q32, 0);
+        }
+
+        #[test]
+        #[should_panic]
+        fn reverts_if_output_overflows_u64() {
+            fixed_point_32::Q32
+                .mul_div_floor(fixed_point_32::Q32, 1)
+                .unwrap();
+        }
+
+        #[test]
+        #[should_panic]
+        fn reverts_on_overflow_with_all_max_inputs() {
+            u64::MAX.mul_div_floor(u64::MAX, u64::MAX - 1).unwrap();
+        }
+
+        #[test]
+        fn all_max_inputs() {
+            assert_eq!(
+                u64::MAX.mul_div_floor(u64::MAX, u64::MAX).unwrap(),
+                u64::MAX
+            );
+        }
+
+        #[test]
+        fn accurate_without_phantom_overflow() {
+            let result = fixed_point_32::Q32 / 3;
+            assert_eq!(
+                fixed_point_32::Q32
+                    .mul_div_floor(
+                        50 * fixed_point_32::Q32 / 100,
+                        150 * fixed_point_32::Q32 / 100
+                    )
+                    .unwrap(),
+                result
+            );
+        }
+
+        #[test]
+        fn accurate_with_phantom_overflow() {
+            let result = 4375 * fixed_point_32::Q32 / 1000;
+            assert_eq!(
+                fixed_point_32::Q32
+                    .mul_div_floor(35 * fixed_point_32::Q32, 8 * fixed_point_32::Q32)
+                    .unwrap(),
+                result
+            );
+        }
+
+        #[test]
+        fn accurate_with_phantom_overflow_and_repeating_decimal() {
+            let result = fixed_point_32::Q32 / 3;
+            assert_eq!(
+                fixed_point_32::Q32
+                    .mul_div_floor(1000 * fixed_point_32::Q32, 3000 * fixed_point_32::Q32)
+                    .unwrap(),
+                result
+            );
+        }
+    }
+
+    mod mul_div_rounding_up {
+        use super::*;
+
+        #[test]
+        #[should_panic]
+        fn reverts_if_denominator_is_zero() {
+            fixed_point_32::Q32.mul_div_ceil(5, 0);
+        }
+
+        #[test]
+        #[should_panic]
+        fn reverts_if_denominator_is_zero_and_numerator_overflows() {
+            fixed_point_32::Q32.mul_div_ceil(fixed_point_32::Q32, 0);
+        }
+
+        #[test]
+        #[should_panic]
+        fn reverts_if_output_overflows_u64() {
+            fixed_point_32::Q32
+                .mul_div_ceil(fixed_point_32::Q32, 1)
+                .unwrap();
+        }
+
+        #[test]
+        #[should_panic]
+        fn reverts_on_overflow_with_all_max_inputs() {
+            u64::MAX.mul_div_ceil(u64::MAX, u64::MAX - 1).unwrap();
+        }
+
+        #[test]
+        #[should_panic]
+        fn reverts_if_muldiv_overflows_64_bits_after_rounding_up() {
+            // find a number such that mul_div_floor passes but mul_div_ceil fails
+            // 31×8191×145295143558111
+            let a = 145295143558111;
+            let b = 31 * 8191;
+            let floor_ans = a.mul_div_floor(b, 2).unwrap(); // pass
+            println!("floor {}", floor_ans);
+            
+            let ceil_ans = a.mul_div_ceil(b, 2).unwrap(); // fail
+            println!("ceil {}", ceil_ans);
+        }
+
+        // second case skipped. This is like searching a needle in the haystack
+
+        #[test]
+        fn all_max_inputs() {
+            assert_eq!(
+                u64::MAX.mul_div_ceil(u64::MAX, u64::MAX).unwrap(),
+                u64::MAX
+            );
+        }
+
+        #[test]
+        fn accurate_without_phantom_overflow() {
+            let result = fixed_point_32::Q32 / 3 + 1;
+            assert_eq!(
+                fixed_point_32::Q32
+                    .mul_div_ceil(
+                        50 * fixed_point_32::Q32 / 100,
+                        150 * fixed_point_32::Q32 / 100
+                    )
+                    .unwrap(),
+                result
+            );
+        }
+
+        #[test]
+        fn accurate_with_phantom_overflow() {
+            let result = 4375 * fixed_point_32::Q32 / 1000;
+            assert_eq!(
+                fixed_point_32::Q32
+                    .mul_div_ceil(35 * fixed_point_32::Q32, 8 * fixed_point_32::Q32)
+                    .unwrap(),
+                result
+            );
+        }
+
+        #[test]
+        fn accurate_with_phantom_overflow_and_repeating_decimal() {
+            let result = fixed_point_32::Q32 / 3 + 1;
+            assert_eq!(
+                fixed_point_32::Q32
+                    .mul_div_ceil(1000 * fixed_point_32::Q32, 3000 * fixed_point_32::Q32)
+                    .unwrap(),
+                result
+            );
         }
     }
 }
