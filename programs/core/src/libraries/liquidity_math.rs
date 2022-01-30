@@ -1,7 +1,7 @@
 ///! Math library for liquidity
-
-use anchor_lang::require;
+///
 use crate::error::ErrorCode;
+use anchor_lang::require;
 
 /// Add a signed liquidity delta to liquidity and revert if it overflows or underflows
 ///
@@ -28,28 +28,45 @@ mod tests {
     use super::*;
 
     #[test]
-    fn positive_liquidity_delta() {
-        let x: u64 = 1;
-        let y: i64 = 2;
-        assert_eq!(add_delta(x, y).unwrap(), 3);
+    fn one_plus_zero() {
+        assert_eq!(add_delta(1, 0).unwrap(), 1);
     }
 
     #[test]
-    fn negative_liquidity_delta() {
-        let x: u64 = 2;
-        let y: i64 = -1;
-        assert_eq!(add_delta(x, y).unwrap(), 1);
+    fn one_plus_minus_one() {
+        assert_eq!(add_delta(1, -1).unwrap(), 0);
+    }
+
+    #[test]
+    fn one_plus_one() {
+        assert_eq!(add_delta(1, 1).unwrap(), 2);
     }
 
     #[test]
     #[should_panic]
-    fn positive_liquidity_delta_overflow() {
+    fn u64_max_plus_one_overflows() {
+        // gives rust overflow error in debug mode. Should give error 'LA' in release mode
         add_delta(u64::MAX, 1).unwrap();
     }
 
     #[test]
     #[should_panic]
-    fn negative_liquidity_delta_underflow() {
-        add_delta(u64::MIN, -1).unwrap();
+    fn two_pow_64_minus_fifteen_plus_fifteen_overflows() {
+        // gives rust overflow error in debug mode. Should give error 'LA' in release mode
+        add_delta((u128::pow(2, 64) - 15) as u64, 15).unwrap();
+    }
+
+    #[test]
+    #[should_panic]
+    fn zero_minus_one_underflows() {
+        // gives rust underflow error in debug mode. Should give error 'LS' in release mode
+        add_delta(0, -1).unwrap();
+    }
+
+    #[test]
+    #[should_panic]
+    fn three_minus_four_underflows() {
+        // gives rust underflow error in debug mode. Should give error 'LS' in release mode
+        add_delta(3, -4).unwrap();
     }
 }
