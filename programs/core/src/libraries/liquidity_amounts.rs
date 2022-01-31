@@ -1,10 +1,10 @@
 ///! Liquidity amount functions
 ///! Provides functions for computing liquidity amounts from token amounts and prices
-///! Implements formula 6.29 and 6.30
-
+///! Implements formulae 6.29 and 6.30
+/// 
 use super::big_num::U128;
-use super::full_math::MulDiv;
 use super::fixed_point_32;
+use super::full_math::MulDiv;
 
 /// Computes the amount of liquidity received for a given amount of token_0 and price range
 /// Calculates ΔL = Δx (√P_upper x √P_lower)/(√P_upper - √P_lower)
@@ -123,7 +123,8 @@ pub fn get_amount_0_for_liquidity(
             U128::from(sqrt_ratio_b_x32),
         )
         .unwrap()
-        / U128::from(sqrt_ratio_a_x32)).as_u64()
+        / U128::from(sqrt_ratio_a_x32))
+    .as_u64()
 }
 
 /// Computes the amount of token_1 for a given amount of liquidity and a price range
@@ -194,15 +195,167 @@ pub fn get_amounts_for_liquidity(
     }
 }
 
-// TODO tests
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    #[test]
-    fn get_amounts() {
-        let gg = get_amounts_for_liquidity(4294967296, 4337916969, 4380866642, u32::MAX as u64);
-        println!("{:?}", gg);
+    mod get_liquidity_for_amounts {
+        use super::*;
+        use crate::libraries::test_utils::encode_price_sqrt_x32;
+
+        #[test]
+        fn amounts_for_price_inside() {
+            let sqrt_price_x32 = encode_price_sqrt_x32(1, 1);
+            let sqrt_price_a_x32 = encode_price_sqrt_x32(100, 110);
+            let sqrt_price_b_x32 = encode_price_sqrt_x32(110, 100);
+
+            assert_eq!(
+                get_liquidity_for_amounts(
+                    sqrt_price_x32,
+                    sqrt_price_a_x32,
+                    sqrt_price_b_x32,
+                    100,
+                    200
+                ),
+                2148
+            );
+        }
+
+        #[test]
+        fn amounts_for_price_below() {
+            let sqrt_price_x32 = encode_price_sqrt_x32(99, 110);
+            let sqrt_price_a_x32 = encode_price_sqrt_x32(100, 110);
+            let sqrt_price_b_x32 = encode_price_sqrt_x32(110, 100);
+
+            assert_eq!(
+                get_liquidity_for_amounts(
+                    sqrt_price_x32,
+                    sqrt_price_a_x32,
+                    sqrt_price_b_x32,
+                    100,
+                    200
+                ),
+                1048
+            );
+        }
+
+        #[test]
+        fn amounts_for_price_above() {
+            let sqrt_price_x32 = encode_price_sqrt_x32(111, 100);
+            let sqrt_price_a_x32 = encode_price_sqrt_x32(100, 110);
+            let sqrt_price_b_x32 = encode_price_sqrt_x32(110, 100);
+
+            assert_eq!(
+                get_liquidity_for_amounts(
+                    sqrt_price_x32,
+                    sqrt_price_a_x32,
+                    sqrt_price_b_x32,
+                    100,
+                    200
+                ),
+                2097
+            );
+        }
+
+        #[test]
+        fn amounts_for_price_equal_to_lower_boundary() {
+            let sqrt_price_a_x32 = encode_price_sqrt_x32(100, 110);
+            let sqrt_price_x32 = sqrt_price_a_x32;
+            let sqrt_price_b_x32 = encode_price_sqrt_x32(110, 100);
+
+            assert_eq!(
+                get_liquidity_for_amounts(
+                    sqrt_price_x32,
+                    sqrt_price_a_x32,
+                    sqrt_price_b_x32,
+                    100,
+                    200
+                ),
+                1048
+            );
+        }
+
+        #[test]
+        fn amounts_for_price_equal_to_upper_boundary() {
+            let sqrt_price_a_x32 = encode_price_sqrt_x32(100, 110);
+            let sqrt_price_b_x32 = encode_price_sqrt_x32(110, 100);
+            let sqrt_price_x32 = sqrt_price_b_x32;
+
+            assert_eq!(
+                get_liquidity_for_amounts(
+                    sqrt_price_x32,
+                    sqrt_price_a_x32,
+                    sqrt_price_b_x32,
+                    100,
+                    200
+                ),
+                2097
+            );
+        }
+    }
+
+    mod get_amount_0_for_liquidity {
+        use super::*;
+        use crate::libraries::test_utils::encode_price_sqrt_x32;
+
+        #[test]
+        fn amounts_for_price_inside() {
+            let sqrt_price_x32 = encode_price_sqrt_x32(1, 1);
+            let sqrt_price_a_x32 = encode_price_sqrt_x32(100, 110);
+            let sqrt_price_b_x32 = encode_price_sqrt_x32(110, 100);
+
+            assert_eq!(
+                get_amounts_for_liquidity(sqrt_price_x32, sqrt_price_a_x32, sqrt_price_b_x32, 2148),
+                (99, 99)
+            );
+        }
+
+        #[test]
+        fn amounts_for_price_below() {
+            let sqrt_price_x32 = encode_price_sqrt_x32(99, 110);
+            let sqrt_price_a_x32 = encode_price_sqrt_x32(100, 110);
+            let sqrt_price_b_x32 = encode_price_sqrt_x32(110, 100);
+
+            assert_eq!(
+                get_amounts_for_liquidity(sqrt_price_x32, sqrt_price_a_x32, sqrt_price_b_x32, 1048),
+                (99, 0)
+            );
+        }
+
+        #[test]
+        fn amounts_for_price_above() {
+            let sqrt_price_x32 = encode_price_sqrt_x32(111, 100);
+            let sqrt_price_a_x32 = encode_price_sqrt_x32(100, 110);
+            let sqrt_price_b_x32 = encode_price_sqrt_x32(110, 100);
+
+            assert_eq!(
+                get_amounts_for_liquidity(sqrt_price_x32, sqrt_price_a_x32, sqrt_price_b_x32, 2097),
+                (0, 199)
+            );
+        }
+
+        #[test]
+        fn amounts_for_price_on_lower_boundary() {
+            let sqrt_price_a_x32 = encode_price_sqrt_x32(100, 110);
+            let sqrt_price_x32 = sqrt_price_a_x32;
+            let sqrt_price_b_x32 = encode_price_sqrt_x32(110, 100);
+
+            assert_eq!(
+                get_amounts_for_liquidity(sqrt_price_x32, sqrt_price_a_x32, sqrt_price_b_x32, 1048),
+                (99, 0)
+            );
+        }
+
+        #[test]
+        fn amounts_for_price_on_upper_boundary() {
+            let sqrt_price_a_x32 = encode_price_sqrt_x32(100, 110);
+            let sqrt_price_b_x32 = encode_price_sqrt_x32(110, 100);
+            let sqrt_price_x32 = sqrt_price_b_x32;
+
+            assert_eq!(
+                get_amounts_for_liquidity(sqrt_price_x32, sqrt_price_a_x32, sqrt_price_b_x32, 2097),
+                (0, 199)
+            );
+        }
     }
 }
