@@ -1,7 +1,7 @@
-use crate::error::ErrorCode;
-use crate::libraries::{liquidity_math, tick_math};
 ///! Contains functions for managing tick processes and relevant calculations
 ///!
+use crate::error::ErrorCode;
+use crate::libraries::{liquidity_math, tick_math};
 use anchor_lang::prelude::*;
 
 /// Seed to derive account address and signature
@@ -44,59 +44,6 @@ pub struct TickState {
 }
 
 impl TickState {
-    /// Retrieves the all time fee growth data in token_0 and token_1, per unit of liquidity,
-    /// inside a position's tick boundaries.
-    ///
-    /// Calculates `fr = fg - f_below(lower) - f_above(upper)`, formula 6.19
-    ///
-    /// # Arguments
-    ///
-    /// * `tick_lower` - The lower tick boundary of the position
-    /// * `tick_upper` - The upper tick boundary of the position
-    /// * `tick_current` - The current tick
-    /// * `fee_growth_global_0_x32` - The all-time global fee growth, per unit of liquidity, in token_0
-    /// * `fee_growth_global_1_x32` - The all-time global fee growth, per unit of liquidity, in token_1
-    ///
-    pub fn get_fee_growth_inside(
-        tick_lower: &TickState,
-        tick_upper: &TickState,
-        tick_current: i32,
-        fee_growth_global_0_x32: u64,
-        fee_growth_global_1_x32: u64,
-    ) -> (u64, u64) {
-        // calculate fee growth below
-        let (fee_growth_below_0_x32, fee_growth_below_1_x32) = if tick_current >= tick_lower.tick {
-            (
-                tick_lower.fee_growth_outside_0_x32,
-                tick_lower.fee_growth_outside_1_x32,
-            )
-        } else {
-            (
-                fee_growth_global_0_x32 - tick_lower.fee_growth_outside_0_x32,
-                fee_growth_global_1_x32 - tick_lower.fee_growth_outside_1_x32,
-            )
-        };
-
-        // Calculate fee growth above
-        let (fee_growth_above_0_x32, fee_growth_above_1_x32) = if tick_current < tick_upper.tick {
-            (
-                tick_upper.fee_growth_outside_0_x32,
-                tick_upper.fee_growth_outside_1_x32,
-            )
-        } else {
-            (
-                fee_growth_global_0_x32 - tick_upper.fee_growth_outside_0_x32,
-                fee_growth_global_1_x32 - tick_upper.fee_growth_outside_1_x32,
-            )
-        };
-        let fee_growth_inside_0_x32 =
-            fee_growth_global_0_x32 - fee_growth_below_0_x32 - fee_growth_above_0_x32;
-        let fee_growth_inside_1_x32 =
-            fee_growth_global_1_x32 - fee_growth_below_1_x32 - fee_growth_above_1_x32;
-
-        (fee_growth_inside_0_x32, fee_growth_inside_1_x32)
-    }
-
     /// Updates a tick and returns true if the tick was flipped from initialized to uninitialized, or vice versa
     ///
     /// # Arguments
@@ -124,7 +71,7 @@ impl TickState {
         time: u32,
         upper: bool,
         max_liquidity: u64,
-    ) -> Result<bool, ProgramError> {
+    ) -> Result<bool, ErrorCode> {
         let liquidity_gross_before = self.liquidity_gross;
         let liquidity_gross_after =
             liquidity_math::add_delta(liquidity_gross_before, liquidity_delta)?;
@@ -137,7 +84,7 @@ impl TickState {
 
         if liquidity_gross_before == 0 {
             // by convention, we assume that all growth before a tick was initialized happened _below_ the tick
-            if self.tick < tick_current {
+            if self.tick <= tick_current {
                 self.fee_growth_outside_0_x32 = fee_growth_global_0_x32;
                 self.fee_growth_outside_1_x32 = fee_growth_global_1_x32;
                 self.seconds_per_liquidity_outside_x32 = seconds_per_liquidity_cumulative_x32;
@@ -207,7 +154,6 @@ impl TickState {
     }
 
     pub fn is_clear(self) -> bool {
-        msg!("tick state when clearing {:?}", self);
         self.liquidity_net == 0
             && self.liquidity_gross == 0
             && self.fee_growth_outside_0_x32 == 0
@@ -216,6 +162,59 @@ impl TickState {
             && self.seconds_per_liquidity_outside_x32 == 0
             && self.seconds_outside == 0
     }
+}
+
+/// Retrieves the all time fee growth data in token_0 and token_1, per unit of liquidity,
+/// inside a position's tick boundaries.
+///
+/// Calculates `fr = fg - f_below(lower) - f_above(upper)`, formula 6.19
+///
+/// # Arguments
+///
+/// * `tick_lower` - The lower tick boundary of the position
+/// * `tick_upper` - The upper tick boundary of the position
+/// * `tick_current` - The current tick
+/// * `fee_growth_global_0_x32` - The all-time global fee growth, per unit of liquidity, in token_0
+/// * `fee_growth_global_1_x32` - The all-time global fee growth, per unit of liquidity, in token_1
+///
+pub fn get_fee_growth_inside(
+    tick_lower: &TickState,
+    tick_upper: &TickState,
+    tick_current: i32,
+    fee_growth_global_0_x32: u64,
+    fee_growth_global_1_x32: u64,
+) -> (u64, u64) {
+    // calculate fee growth below
+    let (fee_growth_below_0_x32, fee_growth_below_1_x32) = if tick_current >= tick_lower.tick {
+        (
+            tick_lower.fee_growth_outside_0_x32,
+            tick_lower.fee_growth_outside_1_x32,
+        )
+    } else {
+        (
+            fee_growth_global_0_x32 - tick_lower.fee_growth_outside_0_x32,
+            fee_growth_global_1_x32 - tick_lower.fee_growth_outside_1_x32,
+        )
+    };
+
+    // Calculate fee growth above
+    let (fee_growth_above_0_x32, fee_growth_above_1_x32) = if tick_current < tick_upper.tick {
+        (
+            tick_upper.fee_growth_outside_0_x32,
+            tick_upper.fee_growth_outside_1_x32,
+        )
+    } else {
+        (
+            fee_growth_global_0_x32 - tick_upper.fee_growth_outside_0_x32,
+            fee_growth_global_1_x32 - tick_upper.fee_growth_outside_1_x32,
+        )
+    };
+    let fee_growth_inside_0_x32 =
+        fee_growth_global_0_x32 - fee_growth_below_0_x32 - fee_growth_above_0_x32;
+    let fee_growth_inside_1_x32 =
+        fee_growth_global_1_x32 - fee_growth_below_1_x32 - fee_growth_above_1_x32;
+
+    (fee_growth_inside_0_x32, fee_growth_inside_1_x32)
 }
 
 /// Derives max liquidity per tick from given tick spacing
@@ -238,9 +237,349 @@ pub fn tick_spacing_to_max_liquidity_per_tick(tick_spacing: i32) -> u64 {
 mod test {
     use super::*;
 
-    #[test]
-    fn liquidity_per_tick() {
-        let spacing = tick_spacing_to_max_liquidity_per_tick(200);
-        msg!("{}", spacing);
+    mod tick_spacing_to_max_liquidity_per_tick {
+        use super::*;
+
+        #[test]
+        fn returns_the_correct_value_for_low_fee() {
+            assert_eq!(
+                tick_spacing_to_max_liquidity_per_tick(10),
+                415813720300916 // (2^64 - 1) / ((221810 -(-221810))/ 10 + 1)
+            );
+            // https://www.wolframalpha.com/input?i=%282%5E64+-+1%29+%2F+%28%28221810+-%28-221810%29%29%2F+10+%2B+1%29
+        }
+
+        #[test]
+        fn returns_the_correct_value_for_medium_fee() {
+            assert_eq!(
+                tick_spacing_to_max_liquidity_per_tick(60),
+                2495163543042006 // (2^64 - 1) / ((221760 -(-221760)) / 60 + 1)
+            );
+            // https://www.wolframalpha.com/input?i=%282%5E64+-+1%29+%2F+%28%28221760+-%28-221760%29%29+%2F+60+%2B+1%29
+        }
+
+        #[test]
+        fn returns_the_correct_value_for_high_fee() {
+            assert_eq!(
+                tick_spacing_to_max_liquidity_per_tick(200),
+                8313088811946620 // (2^64 - 1) / ((221800 -(-221800)) / 200 + 1)
+            );
+            // https://www.wolframalpha.com/input?i=%282%5E64+-+1%29+%2F+%28%28221800+-%28-221800%29%29+%2F+200+%2B+1%29
+        }
+
+        #[test]
+        fn returns_the_correct_value_for_the_entire_range() {
+            assert_eq!(
+                tick_spacing_to_max_liquidity_per_tick(221818),
+                6148914691236517205 // (2^64 - 1) / ((221818 -(-221818)) / 221818 + 1)
+            );
+            // https://www.wolframalpha.com/input?i=%282%5E64+-+1%29+%2F+%28%28221818+-%28-221818%29%29+%2F+221818+%2B+1%29
+        }
+    }
+
+    mod get_fee_growth_inside {
+        use super::*;
+
+        #[test]
+        fn returns_all_for_two_empty_ticks_if_tick_is_inside() {
+            let mut tick_lower = TickState::default();
+            tick_lower.tick = -2;
+            let mut tick_upper = TickState::default();
+            tick_upper.tick = 2;
+            assert_eq!(
+                get_fee_growth_inside(&tick_lower, &tick_upper, 0, 15, 15),
+                (15, 15)
+            );
+        }
+
+        #[test]
+        fn returns_zero_for_two_empty_ticks_if_tick_is_above() {
+            let mut tick_lower = TickState::default();
+            tick_lower.tick = -2;
+            let mut tick_upper = TickState::default();
+            tick_upper.tick = 2;
+            assert_eq!(
+                get_fee_growth_inside(&tick_lower, &tick_upper, 4, 15, 15),
+                (0, 0)
+            );
+        }
+
+        #[test]
+        fn returns_zero_for_two_empty_ticks_if_tick_is_below() {
+            let mut tick_lower = TickState::default();
+            tick_lower.tick = -2;
+            let mut tick_upper = TickState::default();
+            tick_upper.tick = 2;
+            assert_eq!(
+                get_fee_growth_inside(&tick_lower, &tick_upper, -4, 15, 15),
+                (0, 0)
+            );
+        }
+
+        #[test]
+        fn subtracts_upper_tick_if_below() {
+            let mut tick_lower = TickState::default();
+            tick_lower.tick = -2;
+            let tick_upper = TickState {
+                bump: 0,
+                tick: 2,
+                liquidity_net: 0,
+                liquidity_gross: 0,
+                fee_growth_outside_0_x32: 2,
+                fee_growth_outside_1_x32: 3,
+                tick_cumulative_outside: 0,
+                seconds_per_liquidity_outside_x32: 0,
+                seconds_outside: 0,
+            };
+            assert_eq!(
+                get_fee_growth_inside(&tick_lower, &tick_upper, 0, 15, 15),
+                (13, 12)
+            );
+        }
+
+        #[test]
+        fn subtracts_lower_tick_if_above() {
+            let tick_lower = TickState {
+                bump: 0,
+                tick: -2,
+                liquidity_net: 0,
+                liquidity_gross: 0,
+                fee_growth_outside_0_x32: 2,
+                fee_growth_outside_1_x32: 3,
+                tick_cumulative_outside: 0,
+                seconds_per_liquidity_outside_x32: 0,
+                seconds_outside: 0,
+            };
+            let mut tick_upper = TickState::default();
+            tick_upper.tick = 2;
+            assert_eq!(
+                get_fee_growth_inside(&tick_lower, &tick_upper, 0, 15, 15),
+                (13, 12)
+            );
+        }
+
+        #[test]
+        fn subtracts_upper_tick_and_lower_tick_if_inside() {
+            let tick_lower = TickState {
+                bump: 0,
+                tick: -2,
+                liquidity_net: 0,
+                liquidity_gross: 0,
+                fee_growth_outside_0_x32: 2,
+                fee_growth_outside_1_x32: 3,
+                tick_cumulative_outside: 0,
+                seconds_per_liquidity_outside_x32: 0,
+                seconds_outside: 0,
+            };
+            let tick_upper = TickState {
+                bump: 0,
+                tick: 2,
+                liquidity_net: 0,
+                liquidity_gross: 0,
+                fee_growth_outside_0_x32: 4,
+                fee_growth_outside_1_x32: 1,
+                tick_cumulative_outside: 0,
+                seconds_per_liquidity_outside_x32: 0,
+                seconds_outside: 0,
+            };
+            assert_eq!(
+                get_fee_growth_inside(&tick_lower, &tick_upper, 0, 15, 15),
+                (9, 11)
+            );
+        }
+
+        // Run in release mode, otherwise test fails
+        #[test]
+        fn works_correctly_with_overflow_on_inside_tick() {
+            let tick_lower = TickState {
+                bump: 0,
+                tick: -2,
+                liquidity_net: 0,
+                liquidity_gross: 0,
+                fee_growth_outside_0_x32: u64::MAX - 3,
+                fee_growth_outside_1_x32: u64::MAX - 2,
+                tick_cumulative_outside: 0,
+                seconds_per_liquidity_outside_x32: 0,
+                seconds_outside: 0,
+            };
+            let tick_upper = TickState {
+                bump: 0,
+                tick: 2,
+                liquidity_net: 0,
+                liquidity_gross: 0,
+                fee_growth_outside_0_x32: 3,
+                fee_growth_outside_1_x32: 5,
+                tick_cumulative_outside: 0,
+                seconds_per_liquidity_outside_x32: 0,
+                seconds_outside: 0,
+            };
+            assert_eq!(
+                get_fee_growth_inside(&tick_lower, &tick_upper, 0, 15, 15),
+                (16, 13)
+            );
+        }
+    }
+
+    mod update {
+        use super::*;
+
+        #[test]
+        fn flips_from_zero_to_non_zero() {
+            let mut tick = TickState::default();
+            assert!(tick.update(0, 1, 0, 0, 0, 0, 0, false, 3).unwrap());
+        }
+
+        #[test]
+        fn does_not_flip_from_nonzero_to_greater_nonzero() {
+            let mut tick = TickState::default();
+            tick.update(0, 1, 0, 0, 0, 0, 0, false, 3).unwrap();
+            assert!(!tick.update(0, 1, 0, 0, 0, 0, 0, false, 3).unwrap());
+        }
+
+        #[test]
+        fn flips_from_nonzero_to_zero() {
+            let mut tick = TickState::default();
+            tick.update(0, 1, 0, 0, 0, 0, 0, false, 3).unwrap();
+            assert!(tick.update(0, -1, 0, 0, 0, 0, 0, false, 3).unwrap());
+        }
+
+        #[test]
+        fn does_not_flip_from_nonzero_to_lesser_nonzero() {
+            let mut tick = TickState::default();
+            tick.update(0, 2, 0, 0, 0, 0, 0, false, 3).unwrap();
+            assert!(!tick.update(0, -1, 0, 0, 0, 0, 0, false, 3).unwrap());
+        }
+
+        #[test]
+        #[should_panic(expected = "LO")]
+        fn reverts_if_total_liquidity_gross_is_greater_than_max() {
+            let mut tick = TickState::default();
+            tick.update(0, 2, 0, 0, 0, 0, 0, false, 3).unwrap();
+            tick.update(0, 2, 0, 0, 0, 0, 0, false, 3).unwrap();
+            tick.update(0, 1, 0, 0, 0, 0, 0, false, 3).unwrap();
+        }
+
+        #[test]
+        fn nets_the_liquidity_based_on_upper_flag() {
+            let mut tick = TickState::default();
+            tick.update(0, 2, 0, 0, 0, 0, 0, false, 3).unwrap();
+            tick.update(0, 1, 0, 0, 0, 0, 0, true, 10).unwrap();
+            tick.update(0, 3, 0, 0, 0, 0, 0, true, 10).unwrap();
+            tick.update(0, 1, 0, 0, 0, 0, 0, false, 10).unwrap();
+
+            assert!(tick.liquidity_gross == 2 + 1 + 3 + 1);
+            assert!(tick.liquidity_net == 2 - 1 - 3 + 1);
+        }
+
+        #[test]
+        #[should_panic]
+        fn reverts_on_overflow_liquidity_gross() {
+            let mut tick = TickState::default();
+            tick.update(0, (u64::MAX / 2 - 1) as i64, 0, 0, 0, 0, 0, false, u64::MAX).unwrap();
+            tick.update(0, (u64::MAX / 2 - 1) as i64, 0, 0, 0, 0, 0, false, u64::MAX).unwrap();
+        }
+
+        #[test]
+        fn assume_all_growth_happens_below_ticks_lte_current_tick() {
+            let mut tick = TickState::default();
+            tick.tick = 1;
+            tick.update(1, 1, 1, 2, 3, 4, 5, false, u64::MAX).unwrap();
+            
+            assert!(tick.fee_growth_outside_0_x32 == 1);
+            assert!(tick.fee_growth_outside_1_x32 == 2);
+            assert!(tick.seconds_per_liquidity_outside_x32 == 3);
+            assert!(tick.tick_cumulative_outside == 4);
+            assert!(tick.seconds_outside == 5);
+        }
+
+        #[test]
+        fn does_not_set_any_growth_fields_for_ticks_gt_current_tick() {
+            let mut tick = TickState::default();
+            tick.tick = 2;
+            tick.update(1, 1, 1, 2, 3, 4, 5, false, u64::MAX).unwrap();
+
+            assert!(tick.fee_growth_outside_0_x32 == 0);
+            assert!(tick.fee_growth_outside_1_x32 == 0);
+            assert!(tick.seconds_per_liquidity_outside_x32 == 0);
+            assert!(tick.tick_cumulative_outside == 0);
+            assert!(tick.seconds_outside == 0);
+        }
+    }
+
+    mod clear {
+        use super::*;
+
+        #[test]
+        fn deletes_all_data_in_the_tick() {
+            let mut tick = TickState {
+                bump: 255,
+                tick: 2,
+                liquidity_net: 4,
+                liquidity_gross: 3,
+                fee_growth_outside_0_x32: 1,
+                fee_growth_outside_1_x32: 2,
+                tick_cumulative_outside: 6,
+                seconds_per_liquidity_outside_x32: 5,
+                seconds_outside: 7,
+            };
+            tick.clear();
+            assert!(tick.bump == 255);
+            assert!(tick.fee_growth_outside_0_x32 == 0);
+            assert!(tick.fee_growth_outside_1_x32 == 0);
+            assert!(tick.seconds_per_liquidity_outside_x32 == 0);
+            assert!(tick.tick_cumulative_outside == 0);
+            assert!(tick.seconds_outside == 0);
+            assert!(tick.liquidity_gross == 0);
+            assert!(tick.liquidity_net == 0);
+        }
+    }
+
+    mod cross {
+        use super::*;
+
+        #[test]
+        fn flips_the_growth_variables() {
+            let mut tick = TickState {
+                bump: 255,
+                tick: 2,
+                liquidity_net: 4,
+                liquidity_gross: 3,
+                fee_growth_outside_0_x32: 1,
+                fee_growth_outside_1_x32: 2,
+                tick_cumulative_outside: 6,
+                seconds_per_liquidity_outside_x32: 5,
+                seconds_outside: 7,
+            };
+            tick.cross(7, 9, 8, 15, 10);
+            
+            assert!(tick.fee_growth_outside_0_x32 == 6);
+            assert!(tick.fee_growth_outside_1_x32 == 7);
+            assert!(tick.seconds_per_liquidity_outside_x32 == 3);
+            assert!(tick.tick_cumulative_outside == 9);
+            assert!(tick.seconds_outside == 3);
+        }
+
+        #[test]
+        fn two_flips_are_a_no_op() {
+            let mut tick = TickState {
+                bump: 255,
+                tick: 2,
+                liquidity_net: 4,
+                liquidity_gross: 3,
+                fee_growth_outside_0_x32: 1,
+                fee_growth_outside_1_x32: 2,
+                tick_cumulative_outside: 6,
+                seconds_per_liquidity_outside_x32: 5,
+                seconds_outside: 7,
+            };
+            tick.cross(7, 9, 8, 15, 10);
+            tick.cross(7, 9, 8, 15, 10);
+            
+            assert!(tick.fee_growth_outside_0_x32 == 1);
+            assert!(tick.fee_growth_outside_1_x32 == 2);
+            assert!(tick.seconds_per_liquidity_outside_x32 == 5);
+            assert!(tick.tick_cumulative_outside == 6);
+            assert!(tick.seconds_outside == 7);
+        }
     }
 }

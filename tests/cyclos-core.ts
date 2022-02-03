@@ -625,7 +625,7 @@ describe('cyclos-core', async () => {
           tokenProgram: TOKEN_PROGRAM_ID,
           associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID
         }
-      })).to.be.rejectedWith('R')
+      })).to.be.rejectedWith(Error)
 
       await expect(coreProgram.rpc.createAndInitPool(
         poolAStateBump,
