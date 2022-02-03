@@ -293,7 +293,7 @@ pub fn get_amount_0_delta_signed(
         -(get_amount_0_delta_unsigned(
             sqrt_ratio_a_x32,
             sqrt_ratio_b_x32,
-            liquidity.abs() as u64,
+            -liquidity as u64,
             false,
         ) as i64)
     } else {
@@ -321,7 +321,7 @@ pub fn get_amount_1_delta_signed(
         -(get_amount_1_delta_unsigned(
             sqrt_ratio_a_x32,
             sqrt_ratio_b_x32,
-            liquidity.abs() as u64,
+            -liquidity as u64,
             false,
         ) as i64)
     } else {

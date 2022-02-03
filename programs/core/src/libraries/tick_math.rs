@@ -1,4 +1,3 @@
-use crate::error::ErrorCode;
 ///! Helper functions to calculate tick from √P and vice versa
 ///! Performs power and log calculations in a gas efficient manner
 ///!
@@ -11,6 +10,7 @@ use crate::error::ErrorCode;
 ///! * https://liaoph.com/logarithm-in-solidity/
 ///!
 use anchor_lang::require;
+use crate::error::ErrorCode;
 
 /// The minimum tick that may be passed to #get_sqrt_ratio_at_tick computed from log base 1.0001 of 2**-32
 pub const MIN_TICK: i32 = -221818;

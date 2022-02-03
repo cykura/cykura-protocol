@@ -93,13 +93,13 @@ pub fn compute_swap_step(
             )
         };
         // In exact output case, amount_remaining is negative
-        swap_step.sqrt_ratio_next_x32 = if (amount_remaining.abs() as u64) >= swap_step.amount_out {
+        swap_step.sqrt_ratio_next_x32 = if (-amount_remaining as u64) >= swap_step.amount_out {
             sqrt_ratio_target_x32
         } else {
             sqrt_price_math::get_next_sqrt_price_from_output(
                 sqrt_ratio_current_x32,
                 liquidity,
-                amount_remaining.abs() as u64,
+                -amount_remaining as u64,
                 zero_for_one,
             )
         }
@@ -148,14 +148,14 @@ pub fn compute_swap_step(
     }
 
     // For exact output case, cap the output amount to not exceed the remaining output amount
-    if !exact_in && swap_step.amount_out > (amount_remaining.abs() as u64) {
-        swap_step.amount_out = amount_remaining.abs() as u64;
+    if !exact_in && swap_step.amount_out > (-amount_remaining as u64) {
+        swap_step.amount_out = -amount_remaining as u64;
     }
 
     swap_step.fee_amount = if exact_in && swap_step.sqrt_ratio_next_x32 != sqrt_ratio_target_x32 {
         // we didn't reach the target, so take the remainder of the maximum input as fee
         // swap dust is granted as fee
-        amount_remaining.abs() as u64 - swap_step.amount_in
+        amount_remaining as u64 - swap_step.amount_in
     } else {
         // take pip percentage as fee
         swap_step
@@ -248,7 +248,7 @@ mod swap_math {
         let price_after_whole_output_amount = sqrt_price_math::get_next_sqrt_price_from_output(
             sqrt_p_x32,
             liquidity,
-            amount.abs() as u64,
+            -amount as u64,
             zero_for_one,
         );
         assert!(
@@ -265,7 +265,7 @@ mod swap_math {
         // Δx = L * (1 / √P_lower - 1 / √P_upper), floor = floor (2 * 10^8 * 2^32 (1/4294967296 - 1/4316388712))
         assert_eq!(amount_out, 992561);
         assert!(
-            amount_out < amount.abs() as u64,
+            amount_out < -amount as u64,
             "Entire amount out is not returned"
         ); // capped
            // amount_in * fee, ceil = ceil(997513 * 600/10^6)
@@ -341,13 +341,13 @@ mod swap_math {
             fee_amount,
         } = compute_swap_step(sqrt_p_x32, sqrt_p_x32_target, liquidity, amount, fee);
 
-        assert_eq!(amount_out, amount.abs() as u64);
+        assert_eq!(amount_out, -amount as u64);
 
         // √P' = √P * L / (L + Δx * √P) = 4294967296 * 2 * 10^8 / (2 * 10^8 - 10^8 * 4294967296 / 2^32) = 8589934592
         let price_after_whole_output_amount = sqrt_price_math::get_next_sqrt_price_from_output(
             sqrt_p_x32,
             liquidity,
-            amount.abs() as u64,
+            -amount as u64,
             zero_for_one,
         );
         assert_eq!(

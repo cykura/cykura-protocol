@@ -13,7 +13,7 @@ use anchor_lang::require;
 pub fn add_delta(x: u64, y: i64) -> Result<u64, ErrorCode> {
     let z: u64;
     if y < 0 {
-        z = x - (y.abs() as u64);
+        z = x - (-y as u64);
         require!(z < x, ErrorCode::LS);
     } else {
         z = x + (y as u64);
