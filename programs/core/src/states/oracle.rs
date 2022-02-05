@@ -156,3 +156,8 @@ pub struct IncreaseObservationCardinalityNext {
     /// The updated value of the next observation cardinality
     pub observation_cardinality_next_new: u16,
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+}

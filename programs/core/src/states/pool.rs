@@ -36,14 +36,13 @@ pub struct PoolState {
     /// Not necessarily a multiple of tick_spacing.
     pub tick: i32,
 
-    /// The index of the last oracle observation that was written
+    /// the most-recently updated index of the observations array
     pub observation_index: u16,
 
-    /// The current maximum number of observations stored in the pool
+    /// the current maximum number of observations that are being stored
     pub observation_cardinality: u16,
 
-    /// The next maximum number of observations, to be updated when an observation for a
-    /// mint/swap/burn is recorded
+    /// The next maximum number of observations to store, triggered on a swap or position update
     pub observation_cardinality_next: u16,
 
     /// The fee growth as a Q32.32 number, i.e. fees of token_0 and token_1 collected per

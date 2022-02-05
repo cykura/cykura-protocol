@@ -20,10 +20,10 @@ use anchor_spl::associated_token::get_associated_token_address;
 use anchor_spl::token;
 use anchor_spl::token::TokenAccount;
 use context::*;
+use libraries::full_math::MulDiv;
 use libraries::liquidity_math;
 use libraries::sqrt_price_math;
 use metaplex_token_metadata::{instruction::create_metadata_accounts, state::Creator};
-use libraries::full_math::MulDiv;
 use spl_token::instruction::AuthorityType;
 use states::factory::*;
 use states::fee::*;
@@ -403,11 +403,11 @@ pub mod cyclos_core {
     }
 
     /// Reclaims lamports from a cleared tick account
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `ctx` - Holds tick and recipient accounts with validation and closure code
-    /// 
+    ///
     pub fn close_tick_account(_ctx: Context<CloseTickAccount>) -> ProgramResult {
         Ok(())
     }
@@ -1302,39 +1302,50 @@ pub mod cyclos_core {
             }
 
             let Position { word_pos, bit_pos } = tick_bitmap::position(compressed);
-            msg!("tick {}, compressed {}, word {}", state.tick, compressed, word_pos);
+            msg!(
+                "tick {}, compressed {}, word {}",
+                state.tick,
+                compressed,
+                word_pos
+            );
             msg!("word {}, bit {}", word_pos, bit_pos);
             // default values for the next initialized bit if the bitmap account is not initialized
-            let mut next_initialized_bit = NextBit { next: if zero_for_one {
-                0
-            } else {
-                255
-            }, initialized: false};
+            let mut next_initialized_bit = NextBit {
+                next: if zero_for_one { 0 } else { 255 },
+                initialized: false,
+            };
             // load the next bitmap account if cache is empty, or if we have crossed out of this bitmap
             if bitmap.is_none() || bitmap.unwrap().word_pos != word_pos {
                 let bitmap_account = remaining_accounts.next().unwrap();
                 msg!("validating bitmap for word {}", word_pos);
                 // ensure this is a valid PDA, even if account is not initialized
-                assert!(bitmap_account.key() == Pubkey::find_program_address(&[
-                    BITMAP_SEED.as_bytes(),
-                    pool.token_0.as_ref(),
-                    pool.token_1.as_ref(),
-                    &pool.fee.to_be_bytes(),
-                    &word_pos.to_be_bytes(),
-                ], &cyclos_core::id()).0);
+                assert!(
+                    bitmap_account.key()
+                        == Pubkey::find_program_address(
+                            &[
+                                BITMAP_SEED.as_bytes(),
+                                pool.token_0.as_ref(),
+                                pool.token_1.as_ref(),
+                                &pool.fee.to_be_bytes(),
+                                &word_pos.to_be_bytes(),
+                            ],
+                            &cyclos_core::id()
+                        )
+                        .0
+                );
 
                 // read from bitmap if account is initialized, else use default values for next initialized bit
-                if let Ok(bitmap_loader) = Loader::<TickBitmapState>::try_from(
-                    &cyclos_core::id(),
-                    bitmap_account,
-                ) {
+                if let Ok(bitmap_loader) =
+                    Loader::<TickBitmapState>::try_from(&cyclos_core::id(), bitmap_account)
+                {
                     let bitmap_state = bitmap_loader.load()?;
                     next_initialized_bit = bitmap_state.next_initialized_bit(bit_pos, zero_for_one);
                     bitmap = Some(*bitmap_state.deref());
                 }
             }
 
-            step.tick_next = (256 * word_pos as i32 + next_initialized_bit.next as i32) * pool.tick_spacing as i32; // convert relative to absolute
+            step.tick_next = (256 * word_pos as i32 + next_initialized_bit.next as i32)
+                * pool.tick_spacing as i32; // convert relative to absolute
             step.initialized = next_initialized_bit.initialized;
 
             // ensure that we do not overshoot the min/max tick, as the tick bitmap is not aware of these bounds
@@ -1490,7 +1501,6 @@ pub mod cyclos_core {
                 pool.observation_cardinality_next,
             );
         }
-        // drop(latest_observation);
         pool.sqrt_price_x32 = state.sqrt_price_x32;
 
         // update liquidity if it changed
@@ -1770,7 +1780,10 @@ pub mod cyclos_core {
             ctx.accounts.factory_state.key(),
             String::from("Cyclos Positions NFT-V1"),
             String::from("CYS-POS"),
-            format!("https://asia-south1-cyclos-finance.cloudfunctions.net/nft?mint={}", ctx.accounts.nft_mint.key()),
+            format!(
+                "https://asia-south1-cyclos-finance.cloudfunctions.net/nft?mint={}",
+                ctx.accounts.nft_mint.key()
+            ),
             Some(vec![Creator {
                 address: ctx.accounts.factory_state.key(),
                 verified: true,
@@ -2354,7 +2367,7 @@ pub fn _modify_position<'info>(
     let mut amount_0 = 0;
     let mut amount_1 = 0;
 
-let tick_lower = tick_lower_state.load()?.tick;
+    let tick_lower = tick_lower_state.load()?.tick;
     let tick_upper = tick_upper_state.load()?.tick;
 
     if liquidity_delta != 0 {

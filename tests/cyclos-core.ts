@@ -300,7 +300,6 @@ describe('cyclos-core', async () => {
       });
       await coreProgram.removeEventListener(listener);
 
-      await coreProgram.account.factoryState.all()
       const factoryStateData = await coreProgram.account.factoryState.fetch(factoryState)
       assert.equal(factoryStateData.bump, factoryStateBump)
       assert(factoryStateData.owner.equals(owner))
@@ -745,8 +744,8 @@ describe('cyclos-core', async () => {
       const observationStateData = await coreProgram.account.observationState.fetch(initialObservationStateA)
       assert.equal(observationStateData.bump, initialObservationBumpA)
       assert.equal(observationStateData.index, 0)
-      assert(observationStateData.tickCumulative.eq(new BN(0)))
-      assert(observationStateData.secondsPerLiquidityCumulativeX32.eq(new BN(0)))
+      assert(observationStateData.tickCumulative.eqn(0))
+      assert(observationStateData.secondsPerLiquidityCumulativeX32.eqn(0))
       assert(observationStateData.initialized)
       assert.approximately(observationStateData.blockTimestamp, Math.floor(Date.now() / 1000), 60)
 
@@ -852,6 +851,18 @@ describe('cyclos-core', async () => {
     })
 
     it('increase cardinality by one', async () => {
+      const [observationState0, observationState0Bump] = await PublicKey.findProgramAddress(
+        [
+          OBSERVATION_SEED,
+          token0.publicKey.toBuffer(),
+          token1.publicKey.toBuffer(),
+          u32ToSeed(fee),
+          u16ToSeed(0)
+        ],
+        coreProgram.programId
+      )
+      const firstObservtionBefore = await coreProgram.account.observationState.fetch(observationState0)
+
       const [observationState1, observationState1Bump] = await PublicKey.findProgramAddress(
         [
           OBSERVATION_SEED,
@@ -890,12 +901,18 @@ describe('cyclos-core', async () => {
       assert.equal(observationState1Data.bump, observationState1Bump)
       assert.equal(observationState1Data.index, 1)
       assert.equal(observationState1Data.blockTimestamp, 1)
-      assert(observationState1Data.tickCumulative.eq(new BN(0)))
-      assert(observationState1Data.secondsPerLiquidityCumulativeX32.eq(new BN(0)))
+      assert(observationState1Data.tickCumulative.eqn(0))
+      assert(observationState1Data.secondsPerLiquidityCumulativeX32.eqn(0))
       assert.isFalse(observationState1Data.initialized)
 
       const poolStateData = await coreProgram.account.poolState.fetch(poolAState)
+      assert.equal(poolStateData.observationIndex, 0)
+      assert.equal(poolStateData.observationCardinality, 1)
       assert.equal(poolStateData.observationCardinalityNext, 2)
+
+      // does not touch the first observation
+      const firstObservtionAfter = await coreProgram.account.observationState.fetch(observationState0)
+      assert.deepEqual(firstObservtionAfter, firstObservtionBefore)
     })
 
     it('fails if accounts are not in ascending order of index', async () => {
