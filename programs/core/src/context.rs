@@ -379,11 +379,11 @@ pub struct MintContext<'info> {
     #[account(mut)]
     pub position_state: UncheckedAccount<'info>,
 
-    /// The program account for the most recent oracle observation
+    /// The program account for the most recent oracle observation, at index = pool.observation_index
     #[account(mut)]
-    pub latest_observation_state: UncheckedAccount<'info>,
+    pub last_observation_state: UncheckedAccount<'info>,
 
-    /// The observation program account one position after latest_observation_state
+    /// The account which follows the last observation, given by formula `(index_last + 1) % cardinality_next`
     #[account(mut)]
     pub next_observation_state: UncheckedAccount<'info>,
 
@@ -466,9 +466,9 @@ pub struct BurnContext<'info> {
     pub position_state: Loader<'info, PositionState>,
 
     /// The program account for the most recent oracle observation
-    pub latest_observation_state: UncheckedAccount<'info>,
+    pub last_observation_state: UncheckedAccount<'info>,
 
-    /// The observation program account one position after latest_observation_state
+    /// The account which follows the last observation, given by formula `(index_last + 1) % cardinality_next`
     pub next_observation_state: UncheckedAccount<'info>,
 }
 
@@ -537,15 +537,16 @@ pub struct SwapContext<'info> {
 
     /// The factory state to read protocol fees
     pub factory_state: UncheckedAccount<'info>,
-    
+
     /// The program account of the pool in which the swap will be performed
     #[account(mut)]
     pub pool_state: UncheckedAccount<'info>,
+
     /// The program account for the most recent oracle observation
     #[account(mut)]
-    pub latest_observation_state: UncheckedAccount<'info>,
+    pub last_observation_state: UncheckedAccount<'info>,
 
-    /// The observation program account one position after latest_observation_state
+    /// The account which follows the last observation, given by formula `(index_last + 1) % cardinality_next`
     #[account(mut)]
     pub next_observation_state: UncheckedAccount<'info>,
 
@@ -638,9 +639,9 @@ pub struct MintTokenizedPosition<'info> {
 
     /// The latest observation state
     #[account(mut)]
-    pub latest_observation_state: UncheckedAccount<'info>,
+    pub last_observation_state: UncheckedAccount<'info>,
 
-    /// The next observation state
+    /// The account which follows the last observation, given by formula `(index_last + 1) % cardinality_next`
     #[account(mut)]
     pub next_observation_state: UncheckedAccount<'info>,
 
@@ -753,9 +754,9 @@ pub struct IncreaseLiquidity<'info> {
 
     /// The latest observation state
     #[account(mut)]
-    pub latest_observation_state: UncheckedAccount<'info>,
+    pub last_observation_state: UncheckedAccount<'info>,
 
-    /// The next observation state
+    /// The account which follows the last observation, given by formula `(index_last + 1) % cardinality_next`
     #[account(mut)]
     pub next_observation_state: UncheckedAccount<'info>,
 
@@ -811,9 +812,9 @@ pub struct DecreaseLiquidity<'info> {
 
     /// The latest observation state
     #[account(mut)]
-    pub latest_observation_state: UncheckedAccount<'info>,
+    pub last_observation_state: UncheckedAccount<'info>,
 
-    /// The next observation state
+    /// The account which follows the last observation, given by formula `(index_last + 1) % cardinality_next`
     #[account(mut)]
     pub next_observation_state: UncheckedAccount<'info>,
 
@@ -866,9 +867,9 @@ pub struct CollectFromTokenized<'info> {
 
     /// The latest observation state
     #[account(mut)]
-    pub latest_observation_state: UncheckedAccount<'info>,
+    pub last_observation_state: UncheckedAccount<'info>,
 
-    /// The next observation state
+    /// The account which follows the last observation, given by formula `(index_last + 1) % cardinality_next`
     #[account(mut)]
     pub next_observation_state: UncheckedAccount<'info>,
 
@@ -926,9 +927,9 @@ pub struct ExactInputSingle<'info> {
 
     /// The program account for the most recent oracle observation
     #[account(mut)]
-    pub latest_observation_state: UncheckedAccount<'info>,
+    pub last_observation_state: UncheckedAccount<'info>,
 
-    /// The observation program account one position after latest_observation_state
+    /// The account which follows the last observation, given by formula `(index_last + 1) % cardinality_next`
     #[account(mut)]
     pub next_observation_state: UncheckedAccount<'info>,
 
@@ -947,7 +948,7 @@ pub struct ExactInput<'info> {
 
     /// The factory state to read protocol fees
     pub factory_state: UncheckedAccount<'info>,
-    
+
     #[account(mut)]
     pub input_token_account: UncheckedAccount<'info>,
 

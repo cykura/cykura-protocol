@@ -655,12 +655,12 @@ pub mod cyclos_core {
                 )?,
         );
 
-        let latest_observation_state = Loader::<ObservationState>::try_from(
+        let last_observation_state = Loader::<ObservationState>::try_from(
             &ID,
-            &ctx.accounts.latest_observation_state.to_account_info(),
+            &ctx.accounts.last_observation_state.to_account_info(),
         )?;
         assert!(
-            latest_observation_state.key()
+            last_observation_state.key()
                 == Pubkey::create_program_address(
                     &[
                         &OBSERVATION_SEED.as_bytes(),
@@ -668,12 +668,13 @@ pub mod cyclos_core {
                         pool.token_1.as_ref(),
                         &pool.fee.to_be_bytes(),
                         &pool.observation_index.to_be_bytes(),
-                        &[latest_observation_state.load()?.bump],
+                        &[last_observation_state.load()?.bump],
                     ],
                     &ID
                 )?,
         );
 
+        // TODO lazy validate next_observation_state address
         let next_observation_state = Loader::<ObservationState>::try_from(
             &ID,
             &ctx.accounts.next_observation_state.to_account_info(),
@@ -705,7 +706,7 @@ pub mod cyclos_core {
             &ctx.accounts.tick_upper_state,
             &bitmap_lower_state,
             &bitmap_upper_state,
-            &latest_observation_state,
+            &last_observation_state,
             &next_observation_state,
             i64::try_from(amount).unwrap(),
         )?;
@@ -876,12 +877,12 @@ pub mod cyclos_core {
                 )?,
         );
 
-        let latest_observation_state = Loader::<ObservationState>::try_from(
+        let last_observation_state = Loader::<ObservationState>::try_from(
             &ID,
-            &ctx.accounts.latest_observation_state.to_account_info(),
+            &ctx.accounts.last_observation_state.to_account_info(),
         )?;
         assert!(
-            latest_observation_state.key()
+            last_observation_state.key()
                 == Pubkey::create_program_address(
                     &[
                         &OBSERVATION_SEED.as_bytes(),
@@ -889,12 +890,13 @@ pub mod cyclos_core {
                         pool.token_1.as_ref(),
                         &pool.fee.to_be_bytes(),
                         &pool.observation_index.to_be_bytes(),
-                        &[latest_observation_state.load()?.bump],
+                        &[last_observation_state.load()?.bump],
                     ],
                     &ID
                 )?,
         );
 
+        // TODO lazy validate next_observation_state address
         let next_observation_state = Loader::<ObservationState>::try_from(
             &ID,
             &ctx.accounts.next_observation_state.to_account_info(),
@@ -926,7 +928,7 @@ pub mod cyclos_core {
             &tick_upper_state,
             &bitmap_lower_state,
             &bitmap_upper_state,
-            &latest_observation_state,
+            &last_observation_state,
             &next_observation_state,
             -i64::try_from(amount).unwrap(),
         )?;
@@ -1201,12 +1203,12 @@ pub mod cyclos_core {
         assert!(vault_0.key() == get_associated_token_address(&pool_loader.key(), &pool.token_0));
         assert!(vault_1.key() == get_associated_token_address(&pool_loader.key(), &pool.token_1));
         msg!("vaults validated");
-        let latest_observation_state = Loader::<ObservationState>::try_from(
+        let last_observation_state = Loader::<ObservationState>::try_from(
             &ID,
-            &ctx.accounts.latest_observation_state.to_account_info(),
+            &ctx.accounts.last_observation_state.to_account_info(),
         )?;
         assert!(
-            latest_observation_state.key()
+            last_observation_state.key()
                 == Pubkey::create_program_address(
                     &[
                         &OBSERVATION_SEED.as_bytes(),
@@ -1214,12 +1216,12 @@ pub mod cyclos_core {
                         pool.token_1.as_ref(),
                         &pool.fee.to_be_bytes(),
                         &pool.observation_index.to_be_bytes(),
-                        &[latest_observation_state.load()?.bump],
+                        &[last_observation_state.load()?.bump],
                     ],
                     &ID
                 )?,
         );
-
+        // TODO lazy validate next_observation_state address
         let next_observation_state = Loader::<ObservationState>::try_from(
             &ID,
             &ctx.accounts.next_observation_state.to_account_info(),
@@ -1279,7 +1281,7 @@ pub mod cyclos_core {
             liquidity: cache.liquidity_start,
         };
 
-        let latest_observation = latest_observation_state.load_mut()?;
+        let latest_observation = last_observation_state.load_mut()?;
         let mut remaining_accounts = ctx.remaining_accounts.iter();
 
         // cache for previously loaded bitmap account
@@ -1480,17 +1482,20 @@ pub mod cyclos_core {
                 state.tick = tick_math::get_tick_at_sqrt_ratio(state.sqrt_price_x32)?;
             }
         }
-        let next_observation_start_time = (latest_observation.block_timestamp / 14 + 1) * 14;
+        let partition_current_timestamp = cache.block_timestamp / 14;
+        let partition_last_timestamp = latest_observation.block_timestamp / 14;
         drop(latest_observation);
         // update tick and write an oracle entry if the tick changes
         if state.tick != pool.tick {
-            let mut next_observation = if cache.block_timestamp >= next_observation_start_time {
+            // use the next observation account and update pool observation index if block time falls
+            // in another partition
+            let mut next_observation = if partition_current_timestamp > partition_last_timestamp {
                 let next_observation = next_observation_state.load_mut()?;
                 pool.observation_index = next_observation.index;
                 next_observation
             } else {
-                latest_observation_state.load_mut()?
-                // latest_observation
+                // cannot directly use latest_observation. It gives a borrow error
+                last_observation_state.load_mut()?
             };
             pool.tick = state.tick;
             pool.observation_cardinality_next = next_observation.update(
@@ -1698,7 +1703,7 @@ pub mod cyclos_core {
             bitmap_lower_state: ctx.accounts.bitmap_lower_state.clone(),
             bitmap_upper_state: ctx.accounts.bitmap_upper_state.clone(),
             position_state: ctx.accounts.core_position_state.clone(),
-            latest_observation_state: ctx.accounts.latest_observation_state.clone(),
+            last_observation_state: ctx.accounts.last_observation_state.clone(),
             next_observation_state: ctx.accounts.next_observation_state.clone(),
             token_program: ctx.accounts.token_program.clone(),
             callback_handler: UncheckedAccount::try_from(
@@ -1866,7 +1871,7 @@ pub mod cyclos_core {
             bitmap_lower_state: ctx.accounts.bitmap_lower_state.clone(),
             bitmap_upper_state: ctx.accounts.bitmap_upper_state.clone(),
             position_state: ctx.accounts.core_position_state.clone(),
-            latest_observation_state: ctx.accounts.latest_observation_state.clone(),
+            last_observation_state: ctx.accounts.last_observation_state.clone(),
             next_observation_state: ctx.accounts.next_observation_state.clone(),
             token_program: ctx.accounts.token_program.clone(),
             callback_handler: UncheckedAccount::try_from(
@@ -1955,7 +1960,7 @@ pub mod cyclos_core {
             bitmap_lower_state: ctx.accounts.bitmap_lower_state.clone(),
             bitmap_upper_state: ctx.accounts.bitmap_upper_state.clone(),
             position_state,
-            latest_observation_state: ctx.accounts.latest_observation_state.clone(),
+            last_observation_state: ctx.accounts.last_observation_state.clone(),
             next_observation_state: ctx.accounts.next_observation_state.clone(),
         };
         burn(Context::new(&ID, &mut accounts, &[]), liquidity)?;
@@ -2034,7 +2039,7 @@ pub mod cyclos_core {
                 bitmap_lower_state: ctx.accounts.bitmap_lower_state.clone(),
                 bitmap_upper_state: ctx.accounts.bitmap_upper_state.clone(),
                 position_state,
-                latest_observation_state: ctx.accounts.latest_observation_state.clone(),
+                last_observation_state: ctx.accounts.last_observation_state.clone(),
                 next_observation_state: ctx.accounts.next_observation_state.clone(),
             };
             burn(Context::new(&ID, &mut burn_accounts, &[]), 0)?;
@@ -2126,7 +2131,7 @@ pub mod cyclos_core {
                 output_vault: ctx.accounts.output_vault.clone(),
                 token_program: ctx.accounts.token_program.clone(),
                 pool_state: ctx.accounts.pool_state.clone(),
-                latest_observation_state: ctx.accounts.latest_observation_state.clone(),
+                last_observation_state: ctx.accounts.last_observation_state.clone(),
                 next_observation_state: ctx.accounts.next_observation_state.clone(),
                 callback_handler: UncheckedAccount::try_from(
                     ctx.accounts.core_program.to_account_info(),
@@ -2186,7 +2191,7 @@ pub mod cyclos_core {
                     output_token_account: output_token_account.clone(),
                     input_vault,
                     output_vault,
-                    latest_observation_state: UncheckedAccount::try_from(
+                    last_observation_state: UncheckedAccount::try_from(
                         remaining_accounts.next().unwrap().clone(),
                     ),
                     next_observation_state: UncheckedAccount::try_from(
@@ -2330,8 +2335,10 @@ pub fn check_ticks(tick_lower: i32, tick_upper: i32) -> Result<(), ErrorCode> {
 /// * `tick_upper_state`- Program account for the upper tick boundary
 /// * `bitmap_lower` - Holds the initialization state of the lower tick
 /// * `bitmap_upper` - Holds the initialization state of the upper tick
-/// * `latest_observation_state` - Most recent oracle observation
-/// * `next_observation_state` - Account to store the next oracle observation
+/// * `last_observation_state` - The last written oracle observation, having index = pool.observation_index.
+/// This condition must be externally tracked.
+/// * `next_observation_state` - The observation account following `last_observation_state`. Becomes equal
+/// to last_observation_state when cardinality is 1.
 /// * `lamport_destination` - Destination account for freed lamports when a tick state is
 /// un-initialized
 /// * `liquidity_delta` - The change in liquidity. Can be 0 to perform a poke.
@@ -2343,14 +2350,14 @@ pub fn _modify_position<'info>(
     tick_upper_state: &Loader<'info, TickState>,
     bitmap_lower: &Loader<'info, TickBitmapState>,
     bitmap_upper: &Loader<'info, TickBitmapState>,
-    latest_observation_state: &Loader<'info, ObservationState>,
+    last_observation_state: &Loader<'info, ObservationState>,
     next_observation_state: &Loader<'info, ObservationState>,
     liquidity_delta: i64,
 ) -> Result<(i64, i64), ProgramError> {
     msg!("inside _modify_position()");
     check_ticks(tick_lower_state.load()?.tick, tick_upper_state.load()?.tick)?;
 
-    let latest_observation = latest_observation_state.load_mut()?;
+    let latest_observation = last_observation_state.load_mut()?;
 
     _update_position(
         pool_state.deref(),
@@ -2384,14 +2391,15 @@ pub fn _modify_position<'info>(
 
             // write oracle observation
             let timestamp = oracle::_block_timestamp();
-            let next_observation_start = (latest_observation.block_timestamp / 14 + 1) * 14;
-            let mut next_observation = if timestamp >= next_observation_start
-                && next_observation_state.key() != latest_observation_state.key()
+            let partition_current_timestamp = timestamp / 14;
+            let partition_last_timestamp = latest_observation.block_timestamp / 14;
+            drop(latest_observation);
+            let mut next_observation = if partition_current_timestamp > partition_last_timestamp
             {
-                next_observation_state.load_mut()?
+                next_observation_state
             } else {
-                latest_observation
-            };
+                last_observation_state
+            }.load_mut()?;
             pool_state.observation_cardinality_next = next_observation.update(
                 timestamp,
                 pool_state.tick,
@@ -2451,7 +2459,7 @@ pub fn _update_position<'info>(
     tick_upper_state: &Loader<'info, TickState>,
     bitmap_lower: &Loader<'info, TickBitmapState>,
     bitmap_upper: &Loader<'info, TickBitmapState>,
-    latest_observation_state: &ObservationState,
+    last_observation_state: &ObservationState,
     liquidity_delta: i64,
 ) -> ProgramResult {
     let mut tick_lower = tick_lower_state.load_mut()?;
@@ -2464,7 +2472,7 @@ pub fn _update_position<'info>(
     if liquidity_delta != 0 {
         let time = oracle::_block_timestamp();
         let (tick_cumulative, seconds_per_liquidity_cumulative_x32) =
-            latest_observation_state.observe_latest(time, pool_state.tick, pool_state.liquidity);
+            last_observation_state.observe_latest(time, pool_state.tick, pool_state.liquidity);
 
         let max_liquidity_per_tick =
             tick_spacing_to_max_liquidity_per_tick(pool_state.tick_spacing as i32);

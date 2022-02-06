@@ -133,7 +133,7 @@ describe('cyclos-core', async () => {
   let positionANftAccount: web3.PublicKey
   let positionBNftAccount: web3.PublicKey
   let metadataAccount: web3.PublicKey
-  let latestObservationAState: web3.PublicKey
+  let lastObservationAState: web3.PublicKey
   let nextObservationAState: web3.PublicKey
   let latestObservationBState: web3.PublicKey
   let nextObservationBState: web3.PublicKey
@@ -1625,7 +1625,7 @@ describe('cyclos-core', async () => {
         observationCardinalityNext
       } = await coreProgram.account.poolState.fetch(poolAState)
 
-      latestObservationAState = (await PublicKey.findProgramAddress(
+      lastObservationAState = (await PublicKey.findProgramAddress(
         [
           OBSERVATION_SEED,
           token0.publicKey.toBuffer(),
@@ -1675,7 +1675,7 @@ describe('cyclos-core', async () => {
     //       tokenAccount1: minterWallet1,
     //       vault0: vaultA0,
     //       vault1: vaultA1,
-    //       latestObservationState: latestObservationAState,
+    //       lastObservationState: latestObservationAState,
     //       nextObservationState: nextObservationAState,
     //       tokenizedPositionState: tokenizedPositionAState,
     //       coreProgram: coreProgram.programId,
@@ -1715,7 +1715,7 @@ describe('cyclos-core', async () => {
           tokenAccount1: minterWallet1,
           vault0: vaultA0,
           vault1: vaultA1,
-          latestObservationState: latestObservationAState,
+          lastObservationState: lastObservationAState,
           nextObservationState: nextObservationAState,
           tokenizedPositionState: tokenizedPositionAState,
           coreProgram: coreProgram.programId,
@@ -1758,7 +1758,7 @@ describe('cyclos-core', async () => {
       //       tokenAccount1: minterWallet1,
       //       vault0: vaultA0,
       //       vault1: vaultA1,
-      //       latestObservationState: latestObservationAState,
+      //       lastObservationState: latestObservationAState,
       //       nextObservationState: nextObservationAState,
       //       tokenizedPositionState: tokenizedPositionAState,
       //       coreProgram: coreProgram.programId,
@@ -1920,7 +1920,7 @@ describe('cyclos-core', async () => {
           tokenAccount1: minterWallet1,
           vault0: vaultA0,
           vault1: vaultA1,
-          latestObservationState: latestObservationAState,
+          lastObservationState: lastObservationAState,
           nextObservationState: nextObservationAState,
           tokenizedPositionState: tokenizedPositionAState,
           coreProgram: coreProgram.programId,
@@ -1936,7 +1936,7 @@ describe('cyclos-core', async () => {
         observationCardinalityNext
       } = await coreProgram.account.poolState.fetch(poolAState)
 
-      const { blockTimestamp: lastBlockTime } = await coreProgram.account.observationState.fetch(latestObservationAState)
+      const { blockTimestamp: lastBlockTime } = await coreProgram.account.observationState.fetch(lastObservationAState)
 
       const slot = await connection.getSlot()
       const blockTimestamp = await connection.getBlockTime(slot)
@@ -1947,7 +1947,7 @@ describe('cyclos-core', async () => {
         await new Promise(r => setTimeout(r, 3000))
       }
       if (Math.floor(lastBlockTime / 14) > Math.floor(blockTimestamp / 14)) {
-        latestObservationAState = (await PublicKey.findProgramAddress(
+        lastObservationAState = (await PublicKey.findProgramAddress(
           [
             OBSERVATION_SEED,
             token0.publicKey.toBuffer(),
@@ -1994,7 +1994,7 @@ describe('cyclos-core', async () => {
           tokenAccount1: minterWallet1,
           vault0: vaultA0,
           vault1: vaultA1,
-          latestObservationState: latestObservationAState,
+          lastObservationState: lastObservationAState,
           nextObservationState: nextObservationAState,
           tokenizedPositionState: tokenizedPositionAState,
           coreProgram: coreProgram.programId,
@@ -2031,7 +2031,7 @@ describe('cyclos-core', async () => {
       //       tokenAccount1: minterWallet1,
       //       vault0: vaultA0,
       //       vault1: vaultA1,
-      //       latestObservationState: latestObservationAState,
+      //       lastObservationState: latestObservationAState,
       //       nextObservationState: nextObservationAState,
       //       tokenizedPositionState: tokenizedPositionAState,
       //       coreProgram: coreProgram.programId,
@@ -2065,7 +2065,7 @@ describe('cyclos-core', async () => {
         observationCardinalityNext
       } = await coreProgram.account.poolState.fetch(poolAState)
 
-      const { blockTimestamp: lastBlockTime } = await coreProgram.account.observationState.fetch(latestObservationAState)
+      const { blockTimestamp: lastBlockTime } = await coreProgram.account.observationState.fetch(lastObservationAState)
 
       const slot = await connection.getSlot()
       const blockTimestamp = await connection.getBlockTime(slot)
@@ -2076,7 +2076,7 @@ describe('cyclos-core', async () => {
         await new Promise(r => setTimeout(r, 3000))
       }
       if (Math.floor(lastBlockTime / 14) > Math.floor(blockTimestamp / 14)) {
-        latestObservationAState = (await PublicKey.findProgramAddress(
+        lastObservationAState = (await PublicKey.findProgramAddress(
           [
             OBSERVATION_SEED,
             token0.publicKey.toBuffer(),
@@ -2118,7 +2118,7 @@ describe('cyclos-core', async () => {
           tickUpperState: tickUpperAState,
           bitmapLowerState: bitmapLowerAState,
           bitmapUpperState: bitmapUpperAState,
-          latestObservationState: latestObservationAState,
+          lastObservationState: lastObservationAState,
           nextObservationState: nextObservationAState,
           coreProgram: coreProgram.programId
         }
@@ -2144,7 +2144,7 @@ describe('cyclos-core', async () => {
           tickUpperState: tickUpperAState,
           bitmapLowerState: bitmapLowerAState,
           bitmapUpperState: bitmapUpperAState,
-          latestObservationState: latestObservationAState,
+          lastObservationState: lastObservationAState,
           nextObservationState: nextObservationAState,
           coreProgram: coreProgram.programId
         }
@@ -2170,7 +2170,7 @@ describe('cyclos-core', async () => {
           tickUpperState: tickUpperAState,
           bitmapLowerState: bitmapLowerAState,
           bitmapUpperState: bitmapUpperAState,
-          latestObservationState: latestObservationAState,
+          lastObservationState: lastObservationAState,
           nextObservationState: nextObservationAState,
           coreProgram: coreProgram.programId
         }
@@ -2213,7 +2213,7 @@ describe('cyclos-core', async () => {
           tickUpperState: tickUpperAState,
           bitmapLowerState: bitmapLowerAState,
           bitmapUpperState: bitmapUpperAState,
-          latestObservationState: latestObservationAState,
+          lastObservationState: lastObservationAState,
           nextObservationState: nextObservationAState,
           coreProgram: coreProgram.programId
         }
@@ -2260,7 +2260,7 @@ describe('cyclos-core', async () => {
             tickUpperState: tickUpperAState,
             bitmapLowerState: bitmapLowerAState,
             bitmapUpperState: bitmapUpperAState,
-            latestObservationState: latestObservationAState,
+            lastObservationState: lastObservationAState,
             nextObservationState: nextObservationAState,
             coreProgram: coreProgram.programId
           }
@@ -2303,7 +2303,7 @@ describe('cyclos-core', async () => {
           tickUpperState: tickUpperAState,
           bitmapLowerState: bitmapLowerAState,
           bitmapUpperState: bitmapUpperAState,
-          latestObservationState: latestObservationAState,
+          lastObservationState: lastObservationAState,
           nextObservationState: nextObservationAState,
           coreProgram: coreProgram.programId
         }
@@ -2349,7 +2349,7 @@ describe('cyclos-core', async () => {
             tickUpperState: tickUpperAState,
             bitmapLowerState: bitmapLowerAState,
             bitmapUpperState: bitmapUpperAState,
-            latestObservationState: latestObservationAState,
+            lastObservationState: lastObservationAState,
             nextObservationState: nextObservationAState,
             coreProgram: coreProgram.programId
           }
@@ -2388,7 +2388,7 @@ describe('cyclos-core', async () => {
           tickUpperState: tickUpperAState,
           bitmapLowerState: bitmapLowerAState,
           bitmapUpperState: bitmapUpperAState,
-          latestObservationState: latestObservationAState,
+          lastObservationState: lastObservationAState,
           nextObservationState: nextObservationAState,
           coreProgram: coreProgram.programId
         }
@@ -2413,7 +2413,7 @@ describe('cyclos-core', async () => {
           tickUpperState: tickUpperAState,
           bitmapLowerState: bitmapLowerAState,
           bitmapUpperState: bitmapUpperAState,
-          latestObservationState: latestObservationAState,
+          lastObservationState: lastObservationAState,
           nextObservationState: nextObservationAState,
           coreProgram: coreProgram.programId,
           vault0: vaultA0,
@@ -2438,7 +2438,7 @@ describe('cyclos-core', async () => {
           tickUpperState: tickUpperAState,
           bitmapLowerState: bitmapLowerAState,
           bitmapUpperState: bitmapUpperAState,
-          latestObservationState: latestObservationAState,
+          lastObservationState: lastObservationAState,
           nextObservationState: nextObservationAState,
           coreProgram: coreProgram.programId,
           vault0: vaultA0,
@@ -2476,7 +2476,7 @@ describe('cyclos-core', async () => {
           tickUpperState: tickUpperAState,
           bitmapLowerState: bitmapLowerAState,
           bitmapUpperState: bitmapUpperAState,
-          latestObservationState: latestObservationAState,
+          lastObservationState: lastObservationAState,
           nextObservationState: nextObservationAState,
           coreProgram: coreProgram.programId,
           vault0: vaultA0,
@@ -2514,7 +2514,7 @@ describe('cyclos-core', async () => {
           tickUpperState: tickUpperAState,
           bitmapLowerState: bitmapLowerAState,
           bitmapUpperState: bitmapUpperAState,
-          latestObservationState: latestObservationAState,
+          lastObservationState: lastObservationAState,
           nextObservationState: nextObservationAState,
           coreProgram: coreProgram.programId,
           vault0: vaultA0,
@@ -2562,7 +2562,7 @@ describe('cyclos-core', async () => {
             tickUpperState: tickUpperAState,
             bitmapLowerState: bitmapLowerAState,
             bitmapUpperState: bitmapUpperAState,
-            latestObservationState: latestObservationAState,
+            lastObservationState: lastObservationAState,
             nextObservationState: nextObservationAState,
             coreProgram: coreProgram.programId,
             vault0: vaultA0,
@@ -2633,7 +2633,7 @@ describe('cyclos-core', async () => {
             tickUpperState: tickUpperAState,
             bitmapLowerState: bitmapLowerAState,
             bitmapUpperState: bitmapUpperAState,
-            latestObservationState: latestObservationAState,
+            lastObservationState: lastObservationAState,
             nextObservationState: nextObservationAState,
             coreProgram: coreProgram.programId,
             vault0: vaultA0,
@@ -2694,7 +2694,7 @@ describe('cyclos-core', async () => {
             outputTokenAccount: minterWallet1,
             inputVault: vaultA0,
             outputVault: vaultA1,
-            latestObservationState: latestObservationAState,
+            lastObservationState: lastObservationAState,
             nextObservationState: nextObservationAState,
             coreProgram: coreProgram.programId,
             tokenProgram: TOKEN_PROGRAM_ID,
@@ -2760,7 +2760,7 @@ describe('cyclos-core', async () => {
             outputTokenAccount: minterWallet1,
             inputVault: vaultA0,
             outputVault: vaultA1,
-            latestObservationState: latestObservationAState,
+            lastObservationState: lastObservationAState,
             nextObservationState: nextObservationAState,
             coreProgram: coreProgram.programId,
             tokenProgram: TOKEN_PROGRAM_ID,
@@ -2785,7 +2785,7 @@ describe('cyclos-core', async () => {
         observationCardinalityNext
       } = await coreProgram.account.poolState.fetch(poolAState)
 
-      latestObservationAState = (await PublicKey.findProgramAddress(
+      lastObservationAState = (await PublicKey.findProgramAddress(
         [
           OBSERVATION_SEED,
           token0.publicKey.toBuffer(),
@@ -2832,7 +2832,7 @@ describe('cyclos-core', async () => {
             outputTokenAccount: minterWallet1,
             inputVault: vaultA0,
             outputVault: vaultA1,
-            latestObservationState: latestObservationAState,
+            lastObservationState: lastObservationAState,
             nextObservationState: nextObservationAState,
             coreProgram: coreProgram.programId,
             tokenProgram: TOKEN_PROGRAM_ID,
@@ -2860,7 +2860,7 @@ describe('cyclos-core', async () => {
         observationCardinalityNext
       } = await coreProgram.account.poolState.fetch(poolAState)
 
-      latestObservationAState = (await PublicKey.findProgramAddress(
+      lastObservationAState = (await PublicKey.findProgramAddress(
         [
           OBSERVATION_SEED,
           token0.publicKey.toBuffer(),
@@ -2918,7 +2918,7 @@ describe('cyclos-core', async () => {
             isSigner: false,
             isWritable: true
           }, {
-            pubkey: latestObservationAState,
+            pubkey: lastObservationAState,
             isSigner: false,
             isWritable: true
           }, {
@@ -3049,7 +3049,7 @@ describe('cyclos-core', async () => {
           tokenAccount1: minterWallet2,
           vault0: vaultB1,
           vault1: vaultB2,
-          latestObservationState: latestObservationBState,
+          lastObservationState: latestObservationBState,
           nextObservationState: nextObservationBState,
           tokenizedPositionState: tokenizedPositionBState,
 
@@ -3126,7 +3126,7 @@ describe('cyclos-core', async () => {
     //     let vaultBalanceB1 = await token1.getAccountInfo(vaultB1)
     //     let vaultBalanceB2 = await token2.getAccountInfo(vaultB2)
     //     console.log(
-    //       'vault balances before', 
+    //       'vault balances before',
     //       vaultBalanceA0.amount.toNumber(),
     //       vaultBalanceA1.amount.toNumber(),
     //       vaultBalanceB1.amount.toNumber(),
@@ -3224,7 +3224,7 @@ describe('cyclos-core', async () => {
     //     vaultBalanceB1 = await token1.getAccountInfo(vaultB1)
     //     vaultBalanceB2 = await token2.getAccountInfo(vaultB2)
     //     console.log(
-    //       'vault balances after', 
+    //       'vault balances after',
     //       vaultBalanceA0.amount.toNumber(),
     //       vaultBalanceA1.amount.toNumber(),
     //       vaultBalanceB1.amount.toNumber(),
@@ -3247,7 +3247,7 @@ describe('cyclos-core', async () => {
         observationCardinalityNext
       } = await coreProgram.account.poolState.fetch(poolAState)
 
-      const { blockTimestamp: lastBlockTime } = await coreProgram.account.observationState.fetch(latestObservationAState)
+      const { blockTimestamp: lastBlockTime } = await coreProgram.account.observationState.fetch(lastObservationAState)
 
       const slot = await connection.getSlot()
       const blockTimestamp = await connection.getBlockTime(slot)
@@ -3258,7 +3258,7 @@ describe('cyclos-core', async () => {
         await new Promise(r => setTimeout(r, 3000))
       }
       if (Math.floor(lastBlockTime / 14) > Math.floor(blockTimestamp / 14)) {
-        latestObservationAState = (await PublicKey.findProgramAddress(
+        lastObservationAState = (await PublicKey.findProgramAddress(
           [
             OBSERVATION_SEED,
             token0.publicKey.toBuffer(),
@@ -3305,7 +3305,7 @@ describe('cyclos-core', async () => {
             tickUpperState: tickUpperAState,
             bitmapLowerState: bitmapLowerAState,
             bitmapUpperState: bitmapUpperAState,
-            latestObservationState: latestObservationAState,
+            lastObservationState: lastObservationAState,
             nextObservationState: nextObservationAState,
             coreProgram: coreProgram.programId
           },
