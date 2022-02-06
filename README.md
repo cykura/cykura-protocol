@@ -2,6 +2,65 @@
 
 Concentrated liquidity on Solana
 
+## High level design
+
+The main challenge was to adapt Uniswap's architecture to sealevel, and EVM's 256 bit numbers to the 64 bit rust runtime.
+
+### 1. Architecture
+
+- Smart contracts of importance on Uniswap are
+
+    1. **Factory**: Creates pools for a given pair of tokens and fee tier. Also allows the creation of new fee tiers and changing the protocol owner.
+    2. **Pool**: Lower level API to create positions linked with public keys, and perform swaps. Swaps can only be performed by another smart contract implementing the swap callback API.
+    3. **Non fungible position manager**: Interacts with the core pool, creating positions for the user tied to non-fungible tokens (NFTs).
+    4. **Swap router**: Supports advanced swap features like deadlines, slippage checks and exact input / exact output swaps. It implements the swap callback API as required by the core.
+
+- Cyclos had to adapt Uniswap's architecture to meet Sealevel's pecularieties like:
+    1. Smart contracts cannot deploy other smart contracts
+    2. Separation of data and business logic: Solana programs are stateless. Accounts are used to persist data
+    3. Re-entrancy is limited to self-recursion, i.e. we cannot not replicate the swap callback pattern if two separate smart contracts are used
+    4. High compute budget cost of cross program invocations and the 200k compute unit limitation
+    5. Account lookups must be performed client side. For example we must derive the correct observation account on client side and pass it via context, instead of the smart contract deriving it at runtime.
+
+- The following design decisions were made:
+    1. A monolithic program, instead of multiple smart contracts
+    2. An internal function call was used instead of self-recursion for the swap callback to save compute units
+    3. Program derived addresses replace maps and arrays. Instead of pool addresses being tracked by a (token0, token1, fee) map we use PDAs with a similar address derivation scheme. The oracle observation array is similarly emulated using array index as a seed.
+
+
+### 2. Mathematics
+
+1. Logarithm and power functions have been adapted to 64 bit by scaling down magic numbers.
+2. The variable scaling factor is 1/4 with some exceptions:
+    - Token amounts: 64 bit (dictated by SPL token program) in place of 256 bit
+    - Square root price: `sqrt_price_x32: u64` in place of `uint160 sqrtPriceX96`. Effectively this is 32 bit `√P` with 32 bits for decimal places (U32.32 format).
+    - Liquidity: `u64` in place of `u128`. Given `x = L/√P`, `y = L√P` with x,y (amounts) being 64 bit, the product or division of `L` and `√P` can never exceed 64 bits. 64 and not 32 bits were used for liquidity so that max liquidity per tick could be respectable.
+3. There's no mulmod opcode equivalent in Rust, so we implement phantom overflow resistant mul-div using large numbers(U128 for u64, U256 for U128) in the full_math library.
+4. `U128` used in place of the native `u128` for [compute unit efficiency](https://github.com/solana-labs/solana/issues/19549).
+
+Note that the math libraries in /libraries have 100% test coverage.
+
+### Directery structure
+
+- [lib.rs](./programs/core/src/lib.rs): Smart contract instructions
+- [context.rs](./programs/core/src/context.rs): Accounts required for each instruction
+- [error.rs](./programs/core/src/error.rs): Error codes. Cyclos tries to preserve Uniswap's convention on error messages.
+- [access_control.rs](./programs/core/src/access_control.rs): Deadline and authorization checks
+- [/libraries](./programs/core/src/libraries): Stateless math libraries
+- [/states](./programs/core/src/states): Various accounts (factory, pool, position etc) and their associated functions
+
+## Test coverage
+
+- We tried to port all of Uniswap's tests to inherit its security.
+    - [/libraries](./programs/core/src/libraries) has 100% coverage
+    - [/states](./programs/core/src/states): oracle, pool, position_manager and swap_router are left out unfortunately
+
+- Difficulty arose in testing due to Solana's account model. Rust based unit tests could not be written for parts like the oracle, due to client side lookup. These will be re-written as JS based unit tests.
+
+- Some issues were discovered during client side development and hot-patched.
+    - https://github.com/cyclos-io/cyclos-protocol-v2/commit/2e21a3a2c3100ba73860e4ae8b2481dfd0c15a7c
+    - https://github.com/cyclos-io/cyclos-protocol-v2/commit/df33e0cffac2d085bdb85f8d33500ba12131a499
+
 ## Resources
 
 - Account diagram and library tree: https://drive.google.com/file/d/1S8LMa22uxBh7XGNMUzp-DDhVhE-G9S2s/view?usp=sharing
