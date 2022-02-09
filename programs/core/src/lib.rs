@@ -261,7 +261,7 @@ pub mod cyclos_core {
             i += 1;
         }
         let observation_cardinality_next_old = pool_state.observation_cardinality_next;
-        pool_state.observation_cardinality_next += i as u16;
+        pool_state.observation_cardinality_next = pool_state.observation_cardinality_next.checked_add(i as u16).unwrap();
 
         emit!(oracle::IncreaseObservationCardinalityNext {
             observation_cardinality_next_old,
@@ -588,7 +588,7 @@ pub mod cyclos_core {
         pool.validate_bitmap_address(
             &ctx.accounts.bitmap_lower_state.key(),
             bitmap_lower_state.load()?.bump,
-            tick_bitmap::position(tick_lower.tick / pool.tick_spacing as i32).word_pos
+            tick_bitmap::position(tick_lower.tick / pool.tick_spacing as i32).word_pos,
         )?;
         let bitmap_upper_state = Loader::<TickBitmapState>::try_from(
             &ID,
@@ -597,7 +597,7 @@ pub mod cyclos_core {
         pool.validate_bitmap_address(
             &ctx.accounts.bitmap_upper_state.key(),
             bitmap_upper_state.load()?.bump,
-            tick_bitmap::position(tick_upper.tick / pool.tick_spacing as i32).word_pos
+            tick_bitmap::position(tick_upper.tick / pool.tick_spacing as i32).word_pos,
         )?;
 
         let position_state =
@@ -607,7 +607,7 @@ pub mod cyclos_core {
             position_state.load()?.bump,
             &ctx.accounts.recipient.key(),
             tick_lower.tick,
-            tick_upper.tick
+            tick_upper.tick,
         )?;
 
         let last_observation_state = Loader::<ObservationState>::try_from(
@@ -747,7 +747,7 @@ pub mod cyclos_core {
         pool.validate_bitmap_address(
             &ctx.accounts.bitmap_lower_state.key(),
             bitmap_lower_state.load()?.bump,
-            tick_bitmap::position(tick_lower.tick / pool.tick_spacing as i32).word_pos
+            tick_bitmap::position(tick_lower.tick / pool.tick_spacing as i32).word_pos,
         )?;
         let bitmap_upper_state = Loader::<TickBitmapState>::try_from(
             &ID,
@@ -756,7 +756,7 @@ pub mod cyclos_core {
         pool.validate_bitmap_address(
             &ctx.accounts.bitmap_upper_state.key(),
             bitmap_upper_state.load()?.bump,
-            tick_bitmap::position(tick_upper.tick / pool.tick_spacing as i32).word_pos
+            tick_bitmap::position(tick_upper.tick / pool.tick_spacing as i32).word_pos,
         )?;
 
         let position_state =
@@ -766,7 +766,7 @@ pub mod cyclos_core {
             position_state.load()?.bump,
             &ctx.accounts.owner.key(),
             tick_lower.tick,
-            tick_upper.tick
+            tick_upper.tick,
         )?;
 
         let last_observation_state = Loader::<ObservationState>::try_from(
@@ -874,7 +874,7 @@ pub mod cyclos_core {
             position_state.load()?.bump,
             &ctx.accounts.owner.key(),
             tick_lower.tick,
-            tick_upper.tick
+            tick_upper.tick,
         )?;
 
         require!(pool.unlocked, ErrorCode::LOK);
@@ -1262,7 +1262,7 @@ pub mod cyclos_core {
                     pool.validate_tick_address(
                         &tick_loader.key(),
                         tick_state.bump,
-                        step.tick_next
+                        step.tick_next,
                     )?;
                     let mut liquidity_net = tick_state.deref_mut().cross(
                         if zero_for_one {
