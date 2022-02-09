@@ -12,7 +12,6 @@
 /// The most recent observation is available, independent of the length of the oracle array,
 /// by passing 0 as the index seed.
 ///
-
 use anchor_lang::prelude::*;
 
 /// Seed to derive account address and signature
@@ -56,24 +55,15 @@ impl ObservationState {
     /// * `tick` - The active tick at the time of the new observation
     /// * `liquidity` - The total in-range liquidity at the time of the new observation
     ///
-    pub fn transform(
-        self,
-        block_timestamp: u32,
-        tick: i32,
-        liquidity: u64,
-    ) -> ObservationState {
+    pub fn transform(self, block_timestamp: u32, tick: i32, liquidity: u64) -> ObservationState {
         let delta = block_timestamp - self.block_timestamp;
         ObservationState {
             bump: self.bump,
             index: self.index,
             block_timestamp,
             tick_cumulative: self.tick_cumulative + tick as i64 * delta as i64,
-            seconds_per_liquidity_cumulative_x32: self.seconds_per_liquidity_cumulative_x32 +
-                ((delta as u64) << 32) / if liquidity > 0 {
-                    liquidity
-                } else {
-                    1
-                },
+            seconds_per_liquidity_cumulative_x32: self.seconds_per_liquidity_cumulative_x32
+                + ((delta as u64) << 32) / if liquidity > 0 { liquidity } else { 1 },
             initialized: true,
         }
     }
@@ -100,7 +90,7 @@ impl ObservationState {
         tick: i32,
         liquidity: u64,
         cardinality: u16,
-        cardinality_next: u16
+        cardinality_next: u16,
     ) -> u16 {
         if self.block_timestamp == block_timestamp {
             return cardinality;
@@ -123,17 +113,15 @@ impl ObservationState {
     /// * `time` - The current block timestamp
     /// * `liquidity` - The current in-range pool liquidity
     ///
-    pub fn observe_latest(
-        self,
-        time: u32,
-        tick: i32,
-        liquidity: u64,
-    ) -> (i64, u64) {
+    pub fn observe_latest(self, time: u32, tick: i32, liquidity: u64) -> (i64, u64) {
         let mut last = self;
         if self.block_timestamp != time {
             last = self.transform(time, tick, liquidity)
         }
-        (last.tick_cumulative, last.seconds_per_liquidity_cumulative_x32)
+        (
+            last.tick_cumulative,
+            last.seconds_per_liquidity_cumulative_x32,
+        )
     }
 }
 

@@ -40,7 +40,7 @@ The main challenge was to adapt Uniswap's architecture to sealevel, and EVM's 25
 
 Note that the math libraries in /libraries have 100% test coverage.
 
-### Directery structure
+### Directory structure
 
 - [lib.rs](./programs/core/src/lib.rs): Smart contract instructions
 - [context.rs](./programs/core/src/context.rs): Accounts required for each instruction

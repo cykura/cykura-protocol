@@ -149,7 +149,6 @@ pub mod cyclos_core {
         sqrt_price_x32: u64,
     ) -> ProgramResult {
         let mut pool_state = ctx.accounts.pool_state.load_init()?;
-        let mut initial_observation_state = ctx.accounts.initial_observation_state.load_init()?;
         let fee_state = ctx.accounts.fee_state.load()?;
         let tick = tick_math::get_tick_at_sqrt_ratio(sqrt_price_x32)?;
 
@@ -164,6 +163,7 @@ pub mod cyclos_core {
         pool_state.observation_cardinality = 1;
         pool_state.observation_cardinality_next = 1;
 
+        let mut initial_observation_state = ctx.accounts.initial_observation_state.load_init()?;
         initial_observation_state.bump = observation_state_bump;
         initial_observation_state.block_timestamp = oracle::_block_timestamp();
         initial_observation_state.initialized = true;
@@ -568,132 +568,69 @@ pub mod cyclos_core {
                 == get_associated_token_address(&ctx.accounts.pool_state.key(), &pool.token_1)
         );
         let tick_lower = *ctx.accounts.tick_lower_state.load()?.deref();
-        assert!(
-            ctx.accounts.tick_lower_state.key()
-                == Pubkey::create_program_address(
-                    &[
-                        &TICK_SEED.as_bytes(),
-                        pool.token_0.as_ref(),
-                        pool.token_1.as_ref(),
-                        &pool.fee.to_be_bytes(),
-                        &tick_lower.tick.to_be_bytes(),
-                        &[tick_lower.bump],
-                    ],
-                    &ID
-                )?,
-        );
+        pool.validate_tick_address(
+            &ctx.accounts.tick_lower_state.key(),
+            tick_lower.bump,
+            tick_lower.tick,
+        )?;
 
         let tick_upper = *ctx.accounts.tick_upper_state.load()?.deref();
-        assert!(
-            ctx.accounts.tick_upper_state.key()
-                == Pubkey::create_program_address(
-                    &[
-                        &TICK_SEED.as_bytes(),
-                        pool.token_0.as_ref(),
-                        pool.token_1.as_ref(),
-                        &pool.fee.to_be_bytes(),
-                        &tick_upper.tick.to_be_bytes(),
-                        &[tick_upper.bump],
-                    ],
-                    &ID
-                )?,
-        );
+        pool.validate_tick_address(
+            &ctx.accounts.tick_upper_state.key(),
+            tick_upper.bump,
+            tick_upper.tick,
+        )?;
 
         let bitmap_lower_state = Loader::<TickBitmapState>::try_from(
             &ID,
             &ctx.accounts.bitmap_lower_state.to_account_info(),
         )?;
-        assert!(
-            bitmap_lower_state.key()
-                == Pubkey::create_program_address(
-                    &[
-                        BITMAP_SEED.as_bytes(),
-                        pool.token_0.as_ref(),
-                        pool.token_1.as_ref(),
-                        &pool.fee.to_be_bytes(),
-                        &(((tick_lower.tick / pool.tick_spacing as i32) >> 8) as i16).to_be_bytes(),
-                        &[bitmap_lower_state.load()?.bump],
-                    ],
-                    &ID
-                )?,
-        );
+        pool.validate_bitmap_address(
+            &ctx.accounts.bitmap_lower_state.key(),
+            bitmap_lower_state.load()?.bump,
+            tick_bitmap::position(tick_lower.tick / pool.tick_spacing as i32).word_pos
+        )?;
         let bitmap_upper_state = Loader::<TickBitmapState>::try_from(
             &ID,
             &ctx.accounts.bitmap_upper_state.to_account_info(),
         )?;
-        assert!(
-            bitmap_upper_state.key()
-                == Pubkey::create_program_address(
-                    &[
-                        BITMAP_SEED.as_bytes(),
-                        pool.token_0.as_ref(),
-                        pool.token_1.as_ref(),
-                        &pool.fee.to_be_bytes(),
-                        &(((tick_upper.tick / pool.tick_spacing as i32) >> 8) as i16).to_be_bytes(),
-                        &[bitmap_upper_state.load()?.bump],
-                    ],
-                    &ID
-                )?,
-        );
+        pool.validate_bitmap_address(
+            &ctx.accounts.bitmap_upper_state.key(),
+            bitmap_upper_state.load()?.bump,
+            tick_bitmap::position(tick_upper.tick / pool.tick_spacing as i32).word_pos
+        )?;
 
         let position_state =
             Loader::<PositionState>::try_from(&ID, &ctx.accounts.position_state.to_account_info())?;
-        assert!(
-            position_state.key()
-                == Pubkey::create_program_address(
-                    &[
-                        POSITION_SEED.as_bytes(),
-                        pool.token_0.as_ref(),
-                        pool.token_1.as_ref(),
-                        &pool.fee.to_be_bytes(),
-                        &ctx.accounts.recipient.key().as_ref(),
-                        &tick_lower.tick.to_be_bytes(),
-                        &tick_upper.tick.to_be_bytes(),
-                        &[position_state.load()?.bump],
-                    ],
-                    &ID
-                )?,
-        );
+        pool.validate_position_address(
+            &ctx.accounts.position_state.key(),
+            position_state.load()?.bump,
+            &ctx.accounts.recipient.key(),
+            tick_lower.tick,
+            tick_upper.tick
+        )?;
 
         let last_observation_state = Loader::<ObservationState>::try_from(
             &ID,
             &ctx.accounts.last_observation_state.to_account_info(),
         )?;
-        assert!(
-            last_observation_state.key()
-                == Pubkey::create_program_address(
-                    &[
-                        &OBSERVATION_SEED.as_bytes(),
-                        pool.token_0.as_ref(),
-                        pool.token_1.as_ref(),
-                        &pool.fee.to_be_bytes(),
-                        &pool.observation_index.to_be_bytes(),
-                        &[last_observation_state.load()?.bump],
-                    ],
-                    &ID
-                )?,
-        );
+        pool.validate_observation_address(
+            &last_observation_state.key(),
+            last_observation_state.load()?.bump,
+            false,
+        )?;
 
         // TODO lazy validate next_observation_state address
         let next_observation_state = Loader::<ObservationState>::try_from(
             &ID,
             &ctx.accounts.next_observation_state.to_account_info(),
         )?;
-        assert!(
-            next_observation_state.key()
-                == Pubkey::create_program_address(
-                    &[
-                        &OBSERVATION_SEED.as_bytes(),
-                        pool.token_0.as_ref(),
-                        pool.token_1.as_ref(),
-                        &pool.fee.to_be_bytes(),
-                        &((pool.observation_index + 1) % pool.observation_cardinality_next)
-                            .to_be_bytes(),
-                        &[next_observation_state.load()?.bump],
-                    ],
-                    &ID
-                )?,
-        );
+        pool.validate_observation_address(
+            &next_observation_state.key(),
+            next_observation_state.load()?.bump,
+            true,
+        )?;
+
         require!(pool.unlocked, ErrorCode::LOK);
         pool.unlocked = false;
 
@@ -788,134 +725,70 @@ pub mod cyclos_core {
         let tick_lower_state =
             Loader::<TickState>::try_from(&ID, &ctx.accounts.tick_lower_state.to_account_info())?;
         let tick_lower = *tick_lower_state.load()?.deref();
-        assert!(
-            ctx.accounts.tick_lower_state.key()
-                == Pubkey::create_program_address(
-                    &[
-                        &TICK_SEED.as_bytes(),
-                        pool.token_0.as_ref(),
-                        pool.token_1.as_ref(),
-                        &pool.fee.to_be_bytes(),
-                        &tick_lower.tick.to_be_bytes(),
-                        &[tick_lower.bump],
-                    ],
-                    &ID
-                )?,
-        );
+        pool.validate_tick_address(
+            &ctx.accounts.tick_lower_state.key(),
+            tick_lower.bump,
+            tick_lower.tick,
+        )?;
 
         let tick_upper_state =
             Loader::<TickState>::try_from(&ID, &ctx.accounts.tick_upper_state.to_account_info())?;
         let tick_upper = *tick_upper_state.load()?.deref();
-        assert!(
-            ctx.accounts.tick_upper_state.key()
-                == Pubkey::create_program_address(
-                    &[
-                        &TICK_SEED.as_bytes(),
-                        pool.token_0.as_ref(),
-                        pool.token_1.as_ref(),
-                        &pool.fee.to_be_bytes(),
-                        &tick_upper.tick.to_be_bytes(),
-                        &[tick_upper.bump],
-                    ],
-                    &ID
-                )?,
-        );
+        pool.validate_tick_address(
+            &ctx.accounts.tick_upper_state.key(),
+            tick_upper.bump,
+            tick_upper.tick,
+        )?;
 
         let bitmap_lower_state = Loader::<TickBitmapState>::try_from(
             &ID,
             &ctx.accounts.bitmap_lower_state.to_account_info(),
         )?;
-        assert!(
-            bitmap_lower_state.key()
-                == Pubkey::create_program_address(
-                    &[
-                        BITMAP_SEED.as_bytes(),
-                        pool.token_0.as_ref(),
-                        pool.token_1.as_ref(),
-                        &pool.fee.to_be_bytes(),
-                        &(((tick_lower.tick / pool.tick_spacing as i32) >> 8) as i16).to_be_bytes(),
-                        &[bitmap_lower_state.load()?.bump],
-                    ],
-                    &ID
-                )?,
-        );
+        pool.validate_bitmap_address(
+            &ctx.accounts.bitmap_lower_state.key(),
+            bitmap_lower_state.load()?.bump,
+            tick_bitmap::position(tick_lower.tick / pool.tick_spacing as i32).word_pos
+        )?;
         let bitmap_upper_state = Loader::<TickBitmapState>::try_from(
             &ID,
             &ctx.accounts.bitmap_upper_state.to_account_info(),
         )?;
-        assert!(
-            bitmap_upper_state.key()
-                == Pubkey::create_program_address(
-                    &[
-                        BITMAP_SEED.as_bytes(),
-                        pool.token_0.as_ref(),
-                        pool.token_1.as_ref(),
-                        &pool.fee.to_be_bytes(),
-                        &(((tick_upper.tick / pool.tick_spacing as i32) >> 8) as i16).to_be_bytes(),
-                        &[bitmap_upper_state.load()?.bump],
-                    ],
-                    &ID
-                )?,
-        );
+        pool.validate_bitmap_address(
+            &ctx.accounts.bitmap_upper_state.key(),
+            bitmap_upper_state.load()?.bump,
+            tick_bitmap::position(tick_upper.tick / pool.tick_spacing as i32).word_pos
+        )?;
 
         let position_state =
             Loader::<PositionState>::try_from(&ID, &ctx.accounts.position_state.to_account_info())?;
-        assert!(
-            position_state.key()
-                == Pubkey::create_program_address(
-                    &[
-                        POSITION_SEED.as_bytes(),
-                        pool.token_0.as_ref(),
-                        pool.token_1.as_ref(),
-                        &pool.fee.to_be_bytes(),
-                        &ctx.accounts.owner.key().as_ref(),
-                        &tick_lower.tick.to_be_bytes(),
-                        &tick_upper.tick.to_be_bytes(),
-                        &[position_state.load()?.bump],
-                    ],
-                    &ID
-                )?,
-        );
+        pool.validate_position_address(
+            &ctx.accounts.position_state.key(),
+            position_state.load()?.bump,
+            &ctx.accounts.owner.key(),
+            tick_lower.tick,
+            tick_upper.tick
+        )?;
 
         let last_observation_state = Loader::<ObservationState>::try_from(
             &ID,
             &ctx.accounts.last_observation_state.to_account_info(),
         )?;
-        assert!(
-            last_observation_state.key()
-                == Pubkey::create_program_address(
-                    &[
-                        &OBSERVATION_SEED.as_bytes(),
-                        pool.token_0.as_ref(),
-                        pool.token_1.as_ref(),
-                        &pool.fee.to_be_bytes(),
-                        &pool.observation_index.to_be_bytes(),
-                        &[last_observation_state.load()?.bump],
-                    ],
-                    &ID
-                )?,
-        );
+        pool.validate_observation_address(
+            &ctx.accounts.last_observation_state.key(),
+            last_observation_state.load()?.bump,
+            false,
+        )?;
 
         // TODO lazy validate next_observation_state address
         let next_observation_state = Loader::<ObservationState>::try_from(
             &ID,
             &ctx.accounts.next_observation_state.to_account_info(),
         )?;
-        assert!(
-            next_observation_state.key()
-                == Pubkey::create_program_address(
-                    &[
-                        &OBSERVATION_SEED.as_bytes(),
-                        pool.token_0.as_ref(),
-                        pool.token_1.as_ref(),
-                        &pool.fee.to_be_bytes(),
-                        &((pool.observation_index + 1) % pool.observation_cardinality_next)
-                            .to_be_bytes(),
-                        &[next_observation_state.load()?.bump],
-                    ],
-                    &ID
-                )?,
-        );
+        pool.validate_observation_address(
+            &ctx.accounts.next_observation_state.key(),
+            next_observation_state.load()?.bump,
+            true,
+        )?;
         msg!("accounts validated");
 
         require!(pool.unlocked, ErrorCode::LOK);
@@ -979,57 +852,30 @@ pub mod cyclos_core {
         let tick_lower_state =
             Loader::<TickState>::try_from(&ID, &ctx.accounts.tick_lower_state.to_account_info())?;
         let tick_lower = *tick_lower_state.load()?.deref();
-        assert!(
-            ctx.accounts.tick_lower_state.key()
-                == Pubkey::create_program_address(
-                    &[
-                        &TICK_SEED.as_bytes(),
-                        pool.token_0.as_ref(),
-                        pool.token_1.as_ref(),
-                        &pool.fee.to_be_bytes(),
-                        &tick_lower.tick.to_be_bytes(),
-                        &[tick_lower.bump],
-                    ],
-                    &ID
-                )?,
-        );
+        pool.validate_tick_address(
+            &ctx.accounts.tick_lower_state.key(),
+            tick_lower.bump,
+            tick_lower.tick,
+        )?;
 
         let tick_upper_state =
             Loader::<TickState>::try_from(&ID, &ctx.accounts.tick_upper_state.to_account_info())?;
         let tick_upper = *tick_upper_state.load()?.deref();
-        assert!(
-            ctx.accounts.tick_upper_state.key()
-                == Pubkey::create_program_address(
-                    &[
-                        &TICK_SEED.as_bytes(),
-                        pool.token_0.as_ref(),
-                        pool.token_1.as_ref(),
-                        &pool.fee.to_be_bytes(),
-                        &tick_upper.tick.to_be_bytes(),
-                        &[tick_upper.bump],
-                    ],
-                    &ID
-                )?,
-        );
+        pool.validate_tick_address(
+            &ctx.accounts.tick_upper_state.key(),
+            tick_upper.bump,
+            tick_upper.tick,
+        )?;
 
         let position_state =
             Loader::<PositionState>::try_from(&ID, &ctx.accounts.position_state.to_account_info())?;
-        assert!(
-            position_state.key()
-                == Pubkey::create_program_address(
-                    &[
-                        POSITION_SEED.as_bytes(),
-                        pool.token_0.as_ref(),
-                        pool.token_1.as_ref(),
-                        &pool.fee.to_be_bytes(),
-                        &ctx.accounts.owner.key().as_ref(),
-                        &tick_lower.tick.to_be_bytes(),
-                        &tick_upper.tick.to_be_bytes(),
-                        &[position_state.load()?.bump],
-                    ],
-                    &ID
-                )?,
-        );
+        pool.validate_position_address(
+            &ctx.accounts.position_state.key(),
+            position_state.load()?.bump,
+            &ctx.accounts.owner.key(),
+            tick_lower.tick,
+            tick_upper.tick
+        )?;
 
         require!(pool.unlocked, ErrorCode::LOK);
         pool.unlocked = false;
@@ -1207,40 +1053,21 @@ pub mod cyclos_core {
             &ID,
             &ctx.accounts.last_observation_state.to_account_info(),
         )?;
-        assert!(
-            last_observation_state.key()
-                == Pubkey::create_program_address(
-                    &[
-                        &OBSERVATION_SEED.as_bytes(),
-                        pool.token_0.as_ref(),
-                        pool.token_1.as_ref(),
-                        &pool.fee.to_be_bytes(),
-                        &pool.observation_index.to_be_bytes(),
-                        &[last_observation_state.load()?.bump],
-                    ],
-                    &ID
-                )?,
-        );
+        pool.validate_observation_address(
+            &ctx.accounts.last_observation_state.key(),
+            last_observation_state.load()?.bump,
+            false,
+        )?;
         // TODO lazy validate next_observation_state address
         let next_observation_state = Loader::<ObservationState>::try_from(
             &ID,
             &ctx.accounts.next_observation_state.to_account_info(),
         )?;
-        assert!(
-            next_observation_state.key()
-                == Pubkey::create_program_address(
-                    &[
-                        &OBSERVATION_SEED.as_bytes(),
-                        pool.token_0.as_ref(),
-                        pool.token_1.as_ref(),
-                        &pool.fee.to_be_bytes(),
-                        &((pool.observation_index + 1) % pool.observation_cardinality_next)
-                            .to_be_bytes(),
-                        &[next_observation_state.load()?.bump],
-                    ],
-                    &ID
-                )?,
-        );
+        pool.validate_observation_address(
+            &ctx.accounts.next_observation_state.key(),
+            next_observation_state.load()?.bump,
+            true,
+        )?;
         msg!("observation accounts validated");
 
         require!(pool.unlocked, ErrorCode::LOK);
@@ -1432,21 +1259,11 @@ pub mod cyclos_core {
                         remaining_accounts.next().unwrap(),
                     )?;
                     let mut tick_state = tick_loader.load_mut()?;
-                    let tick_account_seeds = [
-                        &TICK_SEED.as_bytes(),
-                        pool.token_0.as_ref(),
-                        pool.token_1.as_ref(),
-                        &pool.fee.to_be_bytes(),
-                        &step.tick_next.to_be_bytes(),
-                        &[tick_state.bump],
-                    ];
-                    assert!(
-                        tick_loader.key()
-                            == Pubkey::create_program_address(
-                                &tick_account_seeds[..],
-                                &ctx.program_id
-                            )?,
-                    );
+                    pool.validate_tick_address(
+                        &tick_loader.key(),
+                        tick_state.bump,
+                        step.tick_next
+                    )?;
                     let mut liquidity_net = tick_state.deref_mut().cross(
                         if zero_for_one {
                             state.fee_growth_global_x32
@@ -2394,12 +2211,12 @@ pub fn _modify_position<'info>(
             let partition_current_timestamp = timestamp / 14;
             let partition_last_timestamp = latest_observation.block_timestamp / 14;
             drop(latest_observation);
-            let mut next_observation = if partition_current_timestamp > partition_last_timestamp
-            {
+            let mut next_observation = if partition_current_timestamp > partition_last_timestamp {
                 next_observation_state
             } else {
                 last_observation_state
-            }.load_mut()?;
+            }
+            .load_mut()?;
             pool_state.observation_cardinality_next = next_observation.update(
                 timestamp,
                 pool_state.tick,

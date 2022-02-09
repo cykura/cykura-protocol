@@ -1,4 +1,12 @@
-use anchor_lang::prelude::*;
+use anchor_lang::{prelude::*, solana_program::pubkey::PubkeyError};
+
+use crate::{
+    program::CyclosCore,
+    states::{
+        oracle::OBSERVATION_SEED, position::POSITION_SEED, tick::TICK_SEED,
+        tick_bitmap::BITMAP_SEED,
+    },
+};
 
 /// Seed to derive account address and signature
 pub const POOL_SEED: &str = "p";
@@ -61,7 +69,143 @@ pub struct PoolState {
 }
 
 impl PoolState {
+    /// Returns the observation index after the currently active one in a liquidity pool
+    ///
+    /// # Arguments
+    /// * `self` - A pool account
+    ///
+    pub fn next_observation_index(self) -> u16 {
+        (self.observation_index + 1) % self.observation_cardinality_next
+    }
 
+    /// Validates the public key of an observation account
+    ///
+    /// # Arguments
+    ///
+    /// * `self`- The pool to which the account belongs
+    /// * `key` - The address to validated
+    /// * `bump` - The PDA bump for the address
+    /// * `next` - Whether to validate the current observation account or the next account
+    ///
+    pub fn validate_observation_address(
+        self,
+        key: &Pubkey,
+        bump: u8,
+        next: bool,
+    ) -> Result<(), PubkeyError> {
+        let index = if next {
+            self.next_observation_index()
+        } else {
+            self.observation_index
+        };
+        let seeds = [
+            &OBSERVATION_SEED.as_bytes(),
+            self.token_0.as_ref(),
+            self.token_1.as_ref(),
+            &self.fee.to_be_bytes(),
+            &index.to_be_bytes(),
+            &[bump],
+        ];
+        assert!(*key == Pubkey::create_program_address(&seeds, &CyclosCore::id(),)?,);
+        Ok(())
+    }
+
+    /// Validates the public key of a tick account
+    ///
+    /// # Arguments
+    ///
+    /// * `self`- The pool to which the account belongs
+    /// * `key` - The address to validated
+    /// * `bump` - The PDA bump for the address
+    /// * `tick` - The tick from which the address should be derived
+    ///
+    pub fn validate_tick_address(
+        self,
+        key: &Pubkey,
+        bump: u8,
+        tick: i32,
+    ) -> Result<(), PubkeyError> {
+        assert!(
+            *key == Pubkey::create_program_address(
+                &[
+                    &TICK_SEED.as_bytes(),
+                    self.token_0.as_ref(),
+                    self.token_1.as_ref(),
+                    &self.fee.to_be_bytes(),
+                    &tick.to_be_bytes(),
+                    &[bump],
+                ],
+                &CyclosCore::id(),
+            )?,
+        );
+        Ok(())
+    }
+
+    /// Validates the public key of a bitmap account
+    ///
+    /// # Arguments
+    ///
+    /// * `self`- The pool to which the account belongs
+    /// * `key` - The address to validated
+    /// * `bump` - The PDA bump for the address
+    /// * `tick` - The tick from which the address should be derived
+    ///
+    pub fn validate_bitmap_address(
+        self,
+        key: &Pubkey,
+        bump: u8,
+        word_pos: i16,
+    ) -> Result<(), PubkeyError> {
+        assert!(
+            *key == Pubkey::create_program_address(
+                &[
+                    &BITMAP_SEED.as_bytes(),
+                    self.token_0.as_ref(),
+                    self.token_1.as_ref(),
+                    &self.fee.to_be_bytes(),
+                    &word_pos.to_be_bytes(),
+                    &[bump],
+                ],
+                &CyclosCore::id(),
+            )?,
+        );
+        Ok(())
+    }
+
+    /// Validates the public key of a bitmap account
+    ///
+    /// # Arguments
+    ///
+    /// * `self`- The pool to which the account belongs
+    /// * `key` - The address to validated
+    /// * `bump` - The PDA bump for the address
+    /// * `tick` - The tick from which the address should be derived
+    ///
+    pub fn validate_position_address(
+        self,
+        key: &Pubkey,
+        bump: u8,
+        position_owner: &Pubkey,
+        tick_lower: i32,
+        tick_upper: i32,
+    ) -> Result<(), PubkeyError> {
+        assert!(
+            *key == Pubkey::create_program_address(
+                &[
+                    &POSITION_SEED.as_bytes(),
+                    self.token_0.as_ref(),
+                    self.token_1.as_ref(),
+                    &self.fee.to_be_bytes(),
+                    position_owner.as_ref(),
+                    &tick_lower.to_be_bytes(),
+                    &tick_upper.to_be_bytes(),
+                    &[bump],
+                ],
+                &CyclosCore::id(),
+            )?,
+        );
+        Ok(())
+    }
 }
 
 /// Emitted when a pool is created and initialized with a starting price
@@ -151,5 +295,5 @@ pub struct SwapEvent {
     pub liquidity: u64,
 
     /// The log base 1.0001 of price of the pool after the swap
-    pub tick: i32
+    pub tick: i32,
 }
