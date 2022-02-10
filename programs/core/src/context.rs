@@ -26,7 +26,7 @@ pub struct Initialize<'info> {
         bump = bump,
         payer = owner,
     )]
-    pub factory_state: Loader<'info, FactoryState>,
+    pub factory_state: AccountLoader<'info, FactoryState>,
 
     /// To create a new program account
     pub system_program: Program<'info, System>,
@@ -41,7 +41,7 @@ pub struct EnableFeeAmount<'info> {
 
     /// Factory state stores the protocol owner address
     #[account(mut)]
-    pub factory_state: Loader<'info, FactoryState>,
+    pub factory_state: AccountLoader<'info, FactoryState>,
 
     /// Initialize an account to store new fee tier and tick spacing
     /// Fees are paid by owner
@@ -52,7 +52,7 @@ pub struct EnableFeeAmount<'info> {
         payer = owner,
         space = 8 + size_of::<FeeState>()
     )]
-    pub fee_state: Loader<'info, FeeState>,
+    pub fee_state: AccountLoader<'info, FeeState>,
 
     /// To create a new program account
     pub system_program: Program<'info, System>,
@@ -69,7 +69,7 @@ pub struct SetOwner<'info> {
 
     /// Factory state stores the protocol owner address
     #[account(mut)]
-    pub factory_state: Loader<'info, FactoryState>,
+    pub factory_state: AccountLoader<'info, FactoryState>,
 }
 
 #[derive(Accounts)]
@@ -88,7 +88,7 @@ pub struct CreateAndInitPool<'info> {
     pub token_1: Box<Account<'info, Mint>>,
 
     /// Stores the desired fee for the pool
-    pub fee_state: Loader<'info, FeeState>,
+    pub fee_state: AccountLoader<'info, FeeState>,
 
     /// Initialize an account to store the pool state
     #[account(
@@ -102,7 +102,7 @@ pub struct CreateAndInitPool<'info> {
         bump = pool_state_bump,
         payer = pool_creator,
     )]
-    pub pool_state: Loader<'info, PoolState>,
+    pub pool_state: AccountLoader<'info, PoolState>,
 
     /// Initialize an account to store oracle observations
     #[account(
@@ -117,7 +117,7 @@ pub struct CreateAndInitPool<'info> {
         bump = observation_state_bump,
         payer = pool_creator,
     )]
-    pub initial_observation_state: Loader<'info, ObservationState>,
+    pub initial_observation_state: AccountLoader<'info, ObservationState>,
 
     /// The address that holds pool tokens for token_0
     #[account(
@@ -155,7 +155,7 @@ pub struct IncreaseObservationCardinalityNext<'info> {
 
     /// Increase observation slots for this pool
     #[account(mut)]
-    pub pool_state: Loader<'info, PoolState>,
+    pub pool_state: AccountLoader<'info, PoolState>,
 
     /// To create new program accounts
     pub system_program: Program<'info, System>,
@@ -169,7 +169,7 @@ pub struct SetFeeProtocol<'info> {
 
     /// Factory state stores the protocol owner address
     #[account(mut)]
-    pub factory_state: Loader<'info, FactoryState>,
+    pub factory_state: AccountLoader<'info, FactoryState>,
 }
 
 #[derive(Accounts)]
@@ -179,11 +179,11 @@ pub struct CollectProtocol<'info> {
 
     /// Factory state stores the protocol owner address
     #[account(mut)]
-    pub factory_state: Loader<'info, FactoryState>,
+    pub factory_state: AccountLoader<'info, FactoryState>,
 
     /// Pool state stores accumulated protocol fee amount
     #[account(mut)]
-    pub pool_state: Loader<'info, PoolState>,
+    pub pool_state: AccountLoader<'info, PoolState>,
 
     /// The address that holds pool tokens for token_0
     #[account(
@@ -221,7 +221,7 @@ pub struct InitTickAccount<'info> {
     pub signer: Signer<'info>,
 
     /// Create a tick account for this pool
-    pub pool_state: Loader<'info, PoolState>,
+    pub pool_state: AccountLoader<'info, PoolState>,
 
     /// The tick account to be initialized
     #[account(
@@ -236,7 +236,7 @@ pub struct InitTickAccount<'info> {
         bump = tick_account_bump,
         payer = signer
     )]
-    pub tick_state: Loader<'info, TickState>,
+    pub tick_state: AccountLoader<'info, TickState>,
 
     /// Program to initialize the tick account
     pub system_program: Program<'info, System>,
@@ -250,7 +250,7 @@ pub struct CloseTickAccount<'info> {
         close = recipient,
         constraint = tick_state.load()?.is_clear()
     )]
-    pub tick_state: Loader<'info, TickState>,
+    pub tick_state: AccountLoader<'info, TickState>,
 
     /// Destination for reclaimed lamports
     #[account(mut)]
@@ -265,7 +265,7 @@ pub struct InitBitmapAccount<'info> {
     pub signer: Signer<'info>,
 
     /// Create a new bitmap account for this pool
-    pub pool_state: Loader<'info, PoolState>,
+    pub pool_state: AccountLoader<'info, PoolState>,
 
     /// The bitmap account to be initialized
     #[account(
@@ -280,7 +280,7 @@ pub struct InitBitmapAccount<'info> {
         bump = bump,
         payer = signer
     )]
-    pub bitmap_state: Loader<'info, TickBitmapState>,
+    pub bitmap_state: AccountLoader<'info, TickBitmapState>,
 
     /// Program to initialize the tick account
     pub system_program: Program<'info, System>,
@@ -297,16 +297,16 @@ pub struct InitPositionAccount<'info> {
     pub recipient: UncheckedAccount<'info>,
 
     /// Create a position account for this pool
-    pub pool_state: Loader<'info, PoolState>,
+    pub pool_state: AccountLoader<'info, PoolState>,
 
     /// The lower tick boundary of the position
-    pub tick_lower_state: Loader<'info, TickState>,
+    pub tick_lower_state: AccountLoader<'info, TickState>,
 
     /// The upper tick boundary of the position
     #[account(
         constraint = tick_lower_state.load()?.tick < tick_upper_state.load()?.tick @ErrorCode::TLU
     )]
-    pub tick_upper_state: Loader<'info, TickState>,
+    pub tick_upper_state: AccountLoader<'info, TickState>,
 
     /// The position account to be initialized
     #[account(
@@ -323,7 +323,7 @@ pub struct InitPositionAccount<'info> {
         bump = bump,
         payer = signer
     )]
-    pub position_state: Loader<'info, PositionState>,
+    pub position_state: AccountLoader<'info, PositionState>,
 
     /// Program to initialize the position account
     pub system_program: Program<'info, System>,
@@ -357,15 +357,15 @@ pub struct MintContext<'info> {
     /// Mint liquidity for this pool
     #[account(mut)]
     // pub pool_state: UncheckedAccount<'info>,
-    pub pool_state: Loader<'info, PoolState>,
+    pub pool_state: AccountLoader<'info, PoolState>,
 
     /// The lower tick boundary of the position
     #[account(mut)]
-    pub tick_lower_state: Loader<'info, TickState>,
+    pub tick_lower_state: AccountLoader<'info, TickState>,
 
     /// The upper tick boundary of the position
     #[account(mut)]
-    pub tick_upper_state: Loader<'info, TickState>,
+    pub tick_upper_state: AccountLoader<'info, TickState>,
 
     /// The bitmap storing initialization state of the lower tick
     #[account(mut)]
@@ -463,7 +463,7 @@ pub struct BurnContext<'info> {
 
     /// Burn liquidity from this position
     #[account(mut)]
-    pub position_state: Loader<'info, PositionState>,
+    pub position_state: AccountLoader<'info, PositionState>,
 
     /// The program account for the most recent oracle observation
     pub last_observation_state: UncheckedAccount<'info>,
@@ -568,7 +568,7 @@ pub struct MintTokenizedPosition<'info> {
 
     /// The program account acting as the core liquidity custodian for token holder, and as
     /// mint authority of the position NFT
-    pub factory_state: Loader<'info, FactoryState>,
+    pub factory_state: AccountLoader<'info, FactoryState>,
 
     /// Unique token mint address
     #[account(
@@ -619,7 +619,7 @@ pub struct MintTokenizedPosition<'info> {
         bump = bump,
         payer = minter
     )]
-    pub tokenized_position_state: Loader<'info, TokenizedPositionState>,
+    pub tokenized_position_state: AccountLoader<'info, TokenizedPositionState>,
 
     /// The token account spending token_0 to mint the position
     #[account(mut)]
@@ -668,7 +668,7 @@ pub struct AddMetaplexMetadata<'info> {
     pub payer: Signer<'info>,
 
     /// Authority of the NFT mint
-    pub factory_state: Loader<'info, FactoryState>,
+    pub factory_state: AccountLoader<'info, FactoryState>,
 
     /// Mint address for the tokenized position
     #[account(mut)]
@@ -679,7 +679,7 @@ pub struct AddMetaplexMetadata<'info> {
         seeds = [POSITION_SEED.as_bytes(), nft_mint.key().as_ref()],
         bump = tokenized_position_state.load()?.bump
     )]
-    pub tokenized_position_state: Loader<'info, TokenizedPositionState>,
+    pub tokenized_position_state: AccountLoader<'info, TokenizedPositionState>,
 
     /// To store metaplex metadata
     #[account(mut)]
@@ -706,11 +706,11 @@ pub struct IncreaseLiquidity<'info> {
     pub payer: Signer<'info>,
 
     /// Authority PDA for the NFT mint
-    pub factory_state: Loader<'info, FactoryState>,
+    pub factory_state: AccountLoader<'info, FactoryState>,
 
     /// Increase liquidity for this position
     #[account(mut)]
-    pub tokenized_position_state: Loader<'info, TokenizedPositionState>,
+    pub tokenized_position_state: AccountLoader<'info, TokenizedPositionState>,
 
     /// Mint liquidity for this pool
     #[account(mut)]
@@ -781,10 +781,10 @@ pub struct DecreaseLiquidity<'info> {
 
     /// Decrease liquidity for this position
     #[account(mut)]
-    pub tokenized_position_state: Loader<'info, TokenizedPositionState>,
+    pub tokenized_position_state: AccountLoader<'info, TokenizedPositionState>,
 
     /// The program account acting as the core liquidity custodian for token holder
-    pub factory_state: Loader<'info, FactoryState>,
+    pub factory_state: AccountLoader<'info, FactoryState>,
 
     /// Burn liquidity for this pool
     #[account(mut)]
@@ -836,10 +836,10 @@ pub struct CollectFromTokenized<'info> {
 
     /// The program account of the NFT for which tokens are being collected
     #[account(mut)]
-    pub tokenized_position_state: Loader<'info, TokenizedPositionState>,
+    pub tokenized_position_state: AccountLoader<'info, TokenizedPositionState>,
 
     /// The program account acting as the core liquidity custodian for token holder
-    pub factory_state: Loader<'info, FactoryState>,
+    pub factory_state: AccountLoader<'info, FactoryState>,
 
     /// The program account for the liquidity pool from which fees are collected
     #[account(mut)]

@@ -245,7 +245,7 @@ pub mod cyclos_core {
                 &[&observation_account_seeds[..]],
             )?;
 
-            let observation_state_loader = Loader::<ObservationState>::try_from_unchecked(
+            let observation_state_loader = AccountLoader::<ObservationState>::try_from_unchecked(
                 &cyclos_core::id(),
                 &ctx.remaining_accounts[i].to_account_info(),
             )?;
@@ -261,7 +261,10 @@ pub mod cyclos_core {
             i += 1;
         }
         let observation_cardinality_next_old = pool_state.observation_cardinality_next;
-        pool_state.observation_cardinality_next = pool_state.observation_cardinality_next.checked_add(i as u16).unwrap();
+        pool_state.observation_cardinality_next = pool_state
+            .observation_cardinality_next
+            .checked_add(i as u16)
+            .unwrap();
 
         emit!(oracle::IncreaseObservationCardinalityNext {
             observation_cardinality_next_old,
@@ -581,8 +584,7 @@ pub mod cyclos_core {
             tick_upper.tick,
         )?;
 
-        let bitmap_lower_state = Loader::<TickBitmapState>::try_from(
-            &ID,
+        let bitmap_lower_state = AccountLoader::<TickBitmapState>::try_from(
             &ctx.accounts.bitmap_lower_state.to_account_info(),
         )?;
         pool.validate_bitmap_address(
@@ -590,8 +592,7 @@ pub mod cyclos_core {
             bitmap_lower_state.load()?.bump,
             tick_bitmap::position(tick_lower.tick / pool.tick_spacing as i32).word_pos,
         )?;
-        let bitmap_upper_state = Loader::<TickBitmapState>::try_from(
-            &ID,
+        let bitmap_upper_state = AccountLoader::<TickBitmapState>::try_from(
             &ctx.accounts.bitmap_upper_state.to_account_info(),
         )?;
         pool.validate_bitmap_address(
@@ -600,8 +601,9 @@ pub mod cyclos_core {
             tick_bitmap::position(tick_upper.tick / pool.tick_spacing as i32).word_pos,
         )?;
 
-        let position_state =
-            Loader::<PositionState>::try_from(&ID, &ctx.accounts.position_state.to_account_info())?;
+        let position_state = AccountLoader::<PositionState>::try_from(
+            &ctx.accounts.position_state.to_account_info(),
+        )?;
         pool.validate_position_address(
             &ctx.accounts.position_state.key(),
             position_state.load()?.bump,
@@ -610,8 +612,7 @@ pub mod cyclos_core {
             tick_upper.tick,
         )?;
 
-        let last_observation_state = Loader::<ObservationState>::try_from(
-            &ID,
+        let last_observation_state = AccountLoader::<ObservationState>::try_from(
             &ctx.accounts.last_observation_state.to_account_info(),
         )?;
         pool.validate_observation_address(
@@ -621,8 +622,7 @@ pub mod cyclos_core {
         )?;
 
         // TODO lazy validate next_observation_state address
-        let next_observation_state = Loader::<ObservationState>::try_from(
-            &ID,
+        let next_observation_state = AccountLoader::<ObservationState>::try_from(
             &ctx.accounts.next_observation_state.to_account_info(),
         )?;
         pool.validate_observation_address(
@@ -719,11 +719,11 @@ pub mod cyclos_core {
         // assert!(ctx.accounts.owner.is_signer);
         msg!("inside burn");
         let pool_state =
-            Loader::<PoolState>::try_from(&ID, &ctx.accounts.pool_state.to_account_info())?;
+            AccountLoader::<PoolState>::try_from(&ctx.accounts.pool_state.to_account_info())?;
         let mut pool = pool_state.load_mut()?;
 
         let tick_lower_state =
-            Loader::<TickState>::try_from(&ID, &ctx.accounts.tick_lower_state.to_account_info())?;
+            AccountLoader::<TickState>::try_from(&ctx.accounts.tick_lower_state.to_account_info())?;
         let tick_lower = *tick_lower_state.load()?.deref();
         pool.validate_tick_address(
             &ctx.accounts.tick_lower_state.key(),
@@ -732,7 +732,7 @@ pub mod cyclos_core {
         )?;
 
         let tick_upper_state =
-            Loader::<TickState>::try_from(&ID, &ctx.accounts.tick_upper_state.to_account_info())?;
+            AccountLoader::<TickState>::try_from(&ctx.accounts.tick_upper_state.to_account_info())?;
         let tick_upper = *tick_upper_state.load()?.deref();
         pool.validate_tick_address(
             &ctx.accounts.tick_upper_state.key(),
@@ -740,8 +740,7 @@ pub mod cyclos_core {
             tick_upper.tick,
         )?;
 
-        let bitmap_lower_state = Loader::<TickBitmapState>::try_from(
-            &ID,
+        let bitmap_lower_state = AccountLoader::<TickBitmapState>::try_from(
             &ctx.accounts.bitmap_lower_state.to_account_info(),
         )?;
         pool.validate_bitmap_address(
@@ -749,8 +748,7 @@ pub mod cyclos_core {
             bitmap_lower_state.load()?.bump,
             tick_bitmap::position(tick_lower.tick / pool.tick_spacing as i32).word_pos,
         )?;
-        let bitmap_upper_state = Loader::<TickBitmapState>::try_from(
-            &ID,
+        let bitmap_upper_state = AccountLoader::<TickBitmapState>::try_from(
             &ctx.accounts.bitmap_upper_state.to_account_info(),
         )?;
         pool.validate_bitmap_address(
@@ -759,8 +757,9 @@ pub mod cyclos_core {
             tick_bitmap::position(tick_upper.tick / pool.tick_spacing as i32).word_pos,
         )?;
 
-        let position_state =
-            Loader::<PositionState>::try_from(&ID, &ctx.accounts.position_state.to_account_info())?;
+        let position_state = AccountLoader::<PositionState>::try_from(
+            &ctx.accounts.position_state.to_account_info(),
+        )?;
         pool.validate_position_address(
             &ctx.accounts.position_state.key(),
             position_state.load()?.bump,
@@ -769,8 +768,7 @@ pub mod cyclos_core {
             tick_upper.tick,
         )?;
 
-        let last_observation_state = Loader::<ObservationState>::try_from(
-            &ID,
+        let last_observation_state = AccountLoader::<ObservationState>::try_from(
             &ctx.accounts.last_observation_state.to_account_info(),
         )?;
         pool.validate_observation_address(
@@ -780,8 +778,7 @@ pub mod cyclos_core {
         )?;
 
         // TODO lazy validate next_observation_state address
-        let next_observation_state = Loader::<ObservationState>::try_from(
-            &ID,
+        let next_observation_state = AccountLoader::<ObservationState>::try_from(
             &ctx.accounts.next_observation_state.to_account_info(),
         )?;
         pool.validate_observation_address(
@@ -846,11 +843,11 @@ pub mod cyclos_core {
         amount_1_requested: u64,
     ) -> ProgramResult {
         let pool_state =
-            Loader::<PoolState>::try_from(&ID, &ctx.accounts.pool_state.to_account_info())?;
+            AccountLoader::<PoolState>::try_from(&ctx.accounts.pool_state.to_account_info())?;
         let mut pool = pool_state.load_mut()?;
 
         let tick_lower_state =
-            Loader::<TickState>::try_from(&ID, &ctx.accounts.tick_lower_state.to_account_info())?;
+            AccountLoader::<TickState>::try_from(&ctx.accounts.tick_lower_state.to_account_info())?;
         let tick_lower = *tick_lower_state.load()?.deref();
         pool.validate_tick_address(
             &ctx.accounts.tick_lower_state.key(),
@@ -859,7 +856,7 @@ pub mod cyclos_core {
         )?;
 
         let tick_upper_state =
-            Loader::<TickState>::try_from(&ID, &ctx.accounts.tick_upper_state.to_account_info())?;
+            AccountLoader::<TickState>::try_from(&ctx.accounts.tick_upper_state.to_account_info())?;
         let tick_upper = *tick_upper_state.load()?.deref();
         pool.validate_tick_address(
             &ctx.accounts.tick_upper_state.key(),
@@ -867,8 +864,9 @@ pub mod cyclos_core {
             tick_upper.tick,
         )?;
 
-        let position_state =
-            Loader::<PositionState>::try_from(&ID, &ctx.accounts.position_state.to_account_info())?;
+        let position_state = AccountLoader::<PositionState>::try_from(
+            &ctx.accounts.position_state.to_account_info(),
+        )?;
         pool.validate_position_address(
             &ctx.accounts.position_state.key(),
             position_state.load()?.bump,
@@ -1018,10 +1016,10 @@ pub mod cyclos_core {
         require!(amount_specified != 0, ErrorCode::AS);
 
         let factory_state =
-            Loader::<FactoryState>::try_from(&ID, &ctx.accounts.factory_state.to_account_info())?;
+            AccountLoader::<FactoryState>::try_from(&ctx.accounts.factory_state.to_account_info())?;
 
         let pool_loader =
-            Loader::<PoolState>::try_from(&ID, &ctx.accounts.pool_state.to_account_info())?;
+            AccountLoader::<PoolState>::try_from(&ctx.accounts.pool_state.to_account_info())?;
         let mut pool = pool_loader.load_mut()?;
 
         let input_token_account =
@@ -1049,8 +1047,7 @@ pub mod cyclos_core {
         assert!(vault_0.key() == get_associated_token_address(&pool_loader.key(), &pool.token_0));
         assert!(vault_1.key() == get_associated_token_address(&pool_loader.key(), &pool.token_1));
         msg!("vaults validated");
-        let last_observation_state = Loader::<ObservationState>::try_from(
-            &ID,
+        let last_observation_state = AccountLoader::<ObservationState>::try_from(
             &ctx.accounts.last_observation_state.to_account_info(),
         )?;
         pool.validate_observation_address(
@@ -1059,8 +1056,7 @@ pub mod cyclos_core {
             false,
         )?;
         // TODO lazy validate next_observation_state address
-        let next_observation_state = Loader::<ObservationState>::try_from(
-            &ID,
+        let next_observation_state = AccountLoader::<ObservationState>::try_from(
             &ctx.accounts.next_observation_state.to_account_info(),
         )?;
         pool.validate_observation_address(
@@ -1165,7 +1161,7 @@ pub mod cyclos_core {
 
                 // read from bitmap if account is initialized, else use default values for next initialized bit
                 if let Ok(bitmap_loader) =
-                    Loader::<TickBitmapState>::try_from(&cyclos_core::id(), bitmap_account)
+                    AccountLoader::<TickBitmapState>::try_from(bitmap_account)
                 {
                     let bitmap_state = bitmap_loader.load()?;
                     next_initialized_bit = bitmap_state.next_initialized_bit(bit_pos, zero_for_one);
@@ -1254,10 +1250,8 @@ pub mod cyclos_core {
                     }
 
                     msg!("loading tick");
-                    let tick_loader = Loader::<TickState>::try_from(
-                        &cyclos_core::id(),
-                        remaining_accounts.next().unwrap(),
-                    )?;
+                    let tick_loader =
+                        AccountLoader::<TickState>::try_from(remaining_accounts.next().unwrap())?;
                     let mut tick_state = tick_loader.load_mut()?;
                     pool.validate_tick_address(
                         &tick_loader.key(),
@@ -1499,12 +1493,12 @@ pub mod cyclos_core {
     ) -> ProgramResult {
         // Validate addresses manually, as constraint checks are not applied to internal calls
         let pool_state =
-            Loader::<PoolState>::try_from(&ID, &ctx.accounts.pool_state.to_account_info())?;
+            AccountLoader::<PoolState>::try_from(&ctx.accounts.pool_state.to_account_info())?;
         let tick_lower_state =
-            Loader::<TickState>::try_from(&ID, &ctx.accounts.tick_lower_state.to_account_info())?;
+            AccountLoader::<TickState>::try_from(&ctx.accounts.tick_lower_state.to_account_info())?;
         let tick_lower = tick_lower_state.load()?.tick;
         let tick_upper_state =
-            Loader::<TickState>::try_from(&ID, &ctx.accounts.tick_upper_state.to_account_info())?;
+            AccountLoader::<TickState>::try_from(&ctx.accounts.tick_upper_state.to_account_info())?;
         let tick_upper = tick_upper_state.load()?.tick;
 
         let mut accs = MintContext {
@@ -1561,14 +1555,12 @@ pub mod cyclos_core {
         tokenized_position.tick_lower = tick_lower; // can read from core position
         tokenized_position.tick_upper = tick_upper;
         tokenized_position.liquidity = liquidity;
-        tokenized_position.fee_growth_inside_0_last_x32 = Loader::<PositionState>::try_from(
-            &cyclos_core::id(),
+        tokenized_position.fee_growth_inside_0_last_x32 = AccountLoader::<PositionState>::try_from(
             &ctx.accounts.core_position_state.to_account_info(),
         )?
         .load()?
         .fee_growth_inside_0_last_x32;
-        tokenized_position.fee_growth_inside_1_last_x32 = Loader::<PositionState>::try_from(
-            &cyclos_core::id(),
+        tokenized_position.fee_growth_inside_1_last_x32 = AccountLoader::<PositionState>::try_from(
             &ctx.accounts.core_position_state.to_account_info(),
         )?
         .load()?
@@ -1666,13 +1658,13 @@ pub mod cyclos_core {
         deadline: i64,
     ) -> ProgramResult {
         let pool_state =
-            Loader::<PoolState>::try_from(&ID, &ctx.accounts.pool_state.to_account_info())?;
+            AccountLoader::<PoolState>::try_from(&ctx.accounts.pool_state.to_account_info())?;
         let tick_lower_state =
-            Loader::<TickState>::try_from(&ID, &ctx.accounts.tick_lower_state.to_account_info())?;
+            AccountLoader::<TickState>::try_from(&ctx.accounts.tick_lower_state.to_account_info())?;
         let tick_lower = tick_lower_state.load()?.tick;
 
         let tick_upper_state =
-            Loader::<TickState>::try_from(&ID, &ctx.accounts.tick_upper_state.to_account_info())?;
+            AccountLoader::<TickState>::try_from(&ctx.accounts.tick_upper_state.to_account_info())?;
         let tick_upper = tick_upper_state.load()?.tick;
 
         let mut accs = MintContext {
@@ -1706,8 +1698,7 @@ pub mod cyclos_core {
             tick_upper,
         )?;
 
-        let core_position_state = Loader::<PositionState>::try_from(
-            &cyclos_core::id(),
+        let core_position_state = AccountLoader::<PositionState>::try_from(
             &ctx.accounts.core_position_state.to_account_info(),
         )?;
         let fee_growth_inside_0_last_x32 = core_position_state.load()?.fee_growth_inside_0_last_x32;
@@ -1760,8 +1751,7 @@ pub mod cyclos_core {
     ) -> ProgramResult {
         assert!(liquidity > 0);
 
-        let position_state = Loader::<PositionState>::try_from(
-            &ID,
+        let position_state = AccountLoader::<PositionState>::try_from(
             &ctx.accounts.core_position_state.to_account_info(),
         )?;
         let tokens_owed_0_before = position_state.load()?.tokens_owed_0;
@@ -1839,8 +1829,7 @@ pub mod cyclos_core {
         let mut tokens_owed_0 = tokenized_position.tokens_owed_0;
         let mut tokens_owed_1 = tokenized_position.tokens_owed_1;
 
-        let position_state = Loader::<PositionState>::try_from(
-            &ID,
+        let position_state = AccountLoader::<PositionState>::try_from(
             &ctx.accounts.core_position_state.to_account_info(),
         )?;
 
@@ -2091,7 +2080,7 @@ pub fn exact_input_internal<'info>(
     sqrt_price_limit_x32: u64,
 ) -> Result<u64, ProgramError> {
     msg!("in exact input internal");
-    let pool_state = Loader::<PoolState>::try_from(&ID, &accounts.pool_state)?;
+    let pool_state = AccountLoader::<PoolState>::try_from(&accounts.pool_state)?;
     let zero_for_one = accounts.input_vault.mint == pool_state.load()?.token_0;
 
     let balance_before = accounts.input_vault.amount;
@@ -2162,13 +2151,13 @@ pub fn check_ticks(tick_lower: i32, tick_upper: i32) -> Result<(), ErrorCode> {
 ///
 pub fn _modify_position<'info>(
     pool_state: &mut PoolState,
-    position_state: &Loader<'info, PositionState>,
-    tick_lower_state: &Loader<'info, TickState>,
-    tick_upper_state: &Loader<'info, TickState>,
-    bitmap_lower: &Loader<'info, TickBitmapState>,
-    bitmap_upper: &Loader<'info, TickBitmapState>,
-    last_observation_state: &Loader<'info, ObservationState>,
-    next_observation_state: &Loader<'info, ObservationState>,
+    position_state: &AccountLoader<'info, PositionState>,
+    tick_lower_state: &AccountLoader<'info, TickState>,
+    tick_upper_state: &AccountLoader<'info, TickState>,
+    bitmap_lower: &AccountLoader<'info, TickBitmapState>,
+    bitmap_upper: &AccountLoader<'info, TickBitmapState>,
+    last_observation_state: &AccountLoader<'info, ObservationState>,
+    next_observation_state: &AccountLoader<'info, ObservationState>,
     liquidity_delta: i64,
 ) -> Result<(i64, i64), ProgramError> {
     msg!("inside _modify_position()");
@@ -2271,11 +2260,11 @@ pub fn _modify_position<'info>(
 ///
 pub fn _update_position<'info>(
     pool_state: &PoolState,
-    position_state: &Loader<'info, PositionState>,
-    tick_lower_state: &Loader<'info, TickState>,
-    tick_upper_state: &Loader<'info, TickState>,
-    bitmap_lower: &Loader<'info, TickBitmapState>,
-    bitmap_upper: &Loader<'info, TickBitmapState>,
+    position_state: &AccountLoader<'info, PositionState>,
+    tick_lower_state: &AccountLoader<'info, TickState>,
+    tick_upper_state: &AccountLoader<'info, TickState>,
+    bitmap_lower: &AccountLoader<'info, TickBitmapState>,
+    bitmap_upper: &AccountLoader<'info, TickBitmapState>,
     last_observation_state: &ObservationState,
     liquidity_delta: i64,
 ) -> ProgramResult {
