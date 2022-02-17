@@ -18,3 +18,14 @@ startup_wait = 20000
 address = "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s"
 program = "./spl_token_metadata/spl_token_metadata.so"
 
+[[test.genesis]]
+address = "GokivDYuQXPZCWRkwMhdH2h91KpDQXBEmpgBgs55bnpH"
+program = "./external-programs/smart_wallet.so"
+
+[[test.genesis]]
+address = "Govz1VyoyLD5BL6CSCxUJLVLsQHRwjfFj1prNsdNg5Jw"
+program = "./external-programs/govern.so"
+
+[[test.genesis]]
+address = "LocktDzaV1W2Bm9DeZeiyz4J9zs4fRqNiYqQyracRXw"
+program = "./external-programs/locked_voter.so"

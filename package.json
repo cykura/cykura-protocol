@@ -1,10 +1,13 @@
 {
     "dependencies": {
+        "@gokiprotocol/client": "^0.6.1",
         "@metaplex/js": "^4.9.0",
-        "@project-serum/anchor": "^0.18.2",
+        "@project-serum/anchor": "^0.21.0",
+        "@saberhq/anchor-contrib": "^1.12.44",
+        "@saberhq/solana-contrib": "^1.12.44",
+        "@saberhq/token-utils": "^1.12.44",
         "@solana/spl-token": "^0.1.8",
-        "@uniswap/sdk-core": "github:cyclos-io/sdk-core",
-        "@uniswap/v3-sdk": "file:../../sdk"
+        "@tribecahq/tribeca-sdk": "^0.4.0"
     },
     "devDependencies": {
         "@types/chai": "^4.2.22",
