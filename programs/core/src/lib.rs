@@ -333,8 +333,11 @@ pub mod cyclos_core {
             &[pool_state.bump],
         ];
 
+        pool_state.protocol_fees_token_0 -= amount_0;
+        pool_state.protocol_fees_token_1 -= amount_1;
+        drop(pool_state);
+
         if amount_0 > 0 {
-            pool_state.protocol_fees_token_0 -= amount_0;
             token::transfer(
                 CpiContext::new_with_signer(
                     ctx.accounts.token_program.to_account_info().clone(),
@@ -349,7 +352,6 @@ pub mod cyclos_core {
             )?;
         }
         if amount_1 > 0 {
-            pool_state.protocol_fees_token_1 -= amount_1;
             token::transfer(
                 CpiContext::new_with_signer(
                     ctx.accounts.token_program.to_account_info().clone(),
@@ -373,6 +375,7 @@ pub mod cyclos_core {
             amount_1,
         });
 
+        pool_state = ctx.accounts.pool_state.load_mut()?;
         pool_state.unlocked = true;
         Ok(())
     }
