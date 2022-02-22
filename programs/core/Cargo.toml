@@ -18,9 +18,10 @@ default = []
 [dependencies]
 anchor-lang = "0.18.0"
 anchor-spl = "0.18.0"
-uint = "0.9.1"
+# pinned since Solana needs Rust v1.56.0, while the latest uint crate mandates a newer version
+uint = "=0.9.1"
 metaplex-token-metadata = { version = "0.0.1", features = ["no-entrypoint"] }
-spl-token = { version = "3.2.0", features = ["no-entrypoint"] }
+spl-token = { version = "3.3.0", features = ["no-entrypoint"] }
 
 [dev-dependencies]
 quickcheck = "0.9"
