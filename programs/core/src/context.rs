@@ -175,6 +175,7 @@ pub struct SetFeeProtocol<'info> {
 #[derive(Accounts)]
 pub struct CollectProtocol<'info> {
     /// Valid protocol owner
+    #[account(address = factory_state.load()?.owner)]
     pub owner: Signer<'info>,
 
     /// Factory state stores the protocol owner address
