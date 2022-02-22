@@ -656,7 +656,7 @@ pub mod cyclos_core {
         } else {
             0
         };
-        let balance_1_before = if amount_0 > 0 {
+        let balance_1_before = if amount_1 > 0 {
             ctx.accounts.vault_1.amount
         } else {
             0
