@@ -11,6 +11,7 @@ use crate::states::tokenized_position::TokenizedPositionState;
 use anchor_lang::prelude::*;
 use anchor_spl::associated_token::AssociatedToken;
 use anchor_spl::token::{Mint, Token, TokenAccount};
+use anchor_spl::associated_token::get_associated_token_address;
 use std::mem::size_of;
 
 #[derive(Accounts)]
@@ -189,16 +190,14 @@ pub struct CollectProtocol<'info> {
     /// The address that holds pool tokens for token_0
     #[account(
         mut,
-        constraint = vault_0.mint == pool_state.load()?.token_0,
-        constraint = vault_0.owner == pool_state.key(),
+        constraint = vault_0.key() == get_associated_token_address(&pool_state.key(), &pool_state.load()?.token_0),
     )]
     pub vault_0: Box<Account<'info, TokenAccount>>,
 
     /// The address that holds pool tokens for token_1
     #[account(
         mut,
-        constraint = vault_1.mint == pool_state.load()?.token_1,
-        constraint = vault_1.owner == pool_state.key(),
+        constraint = vault_1.key() == get_associated_token_address(&pool_state.key(), &pool_state.load()?.token_1),
     )]
     pub vault_1: Box<Account<'info, TokenAccount>>,
 
