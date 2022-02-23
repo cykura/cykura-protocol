@@ -23,6 +23,7 @@ pub const OBSERVATION_SEED: &str = "o";
 ///
 #[account(zero_copy)]
 #[derive(Default)]
+#[repr(packed)]
 pub struct ObservationState {
     /// Bump to identify PDA
     pub bump: u8,

@@ -12,6 +12,7 @@ use anchor_lang::prelude::*;
 ///
 #[account(zero_copy)]
 #[derive(Default)]
+#[repr(packed)]
 pub struct FactoryState {
     /// Bump to identify PDA
     pub bump: u8,
@@ -40,7 +41,7 @@ pub struct OwnerChanged {
 pub struct SetFeeProtocolEvent {
     /// The previous value of the protocol fee
     pub fee_protocol_old: u8,
-    
+
     /// The updated value of the protocol fee
     pub fee_protocol: u8,
 }

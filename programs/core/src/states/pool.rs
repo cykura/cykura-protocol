@@ -17,6 +17,7 @@ pub const POOL_SEED: &str = "p";
 ///
 #[account(zero_copy)]
 #[derive(Default)]
+#[repr(packed)]
 pub struct PoolState {
     /// Bump to identify PDA
     pub bump: u8,

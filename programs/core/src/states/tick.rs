@@ -13,6 +13,7 @@ pub const TICK_SEED: &str = "t";
 ///
 #[account(zero_copy)]
 #[derive(Default, Debug)]
+#[repr(packed)]
 pub struct TickState {
     /// Bump to identify PDA
     pub bump: u8,

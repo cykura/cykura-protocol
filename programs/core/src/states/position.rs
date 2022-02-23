@@ -15,6 +15,7 @@ pub const POSITION_SEED: &str = "ps";
 ///
 #[account(zero_copy)]
 #[derive(Default)]
+#[repr(packed)]
 pub struct PositionState {
     /// Bump to identify PDA
     pub bump: u8,

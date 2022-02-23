@@ -21,6 +21,7 @@ pub const BITMAP_SEED: &str = "b";
 ///
 #[account(zero_copy)]
 #[derive(Default)]
+#[repr(packed)]
 pub struct TickBitmapState {
     /// Bump to identify PDA
     pub bump: u8,

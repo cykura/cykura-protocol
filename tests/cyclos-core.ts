@@ -512,27 +512,27 @@ describe('cyclos-core', async () => {
       assert.equal(feeStateData.tickSpacing, tickSpacing)
     })
 
-    // it('fails if already initialized', async () => {
-    //   await expect(coreProgram.rpc.enableFeeAmount(feeStateBump, fee, tickSpacing, {
-    //     accounts: {
-    //       owner,
-    //       factoryState,
-    //       feeState,
-    //       systemProgram: SystemProgram.programId,
-    //     }
-    //   })).to.be.rejectedWith(Error)
-    // })
+    it('fails if already initialized', async () => {
+      await expect(coreProgram.rpc.enableFeeAmount(feeStateBump, fee, tickSpacing, {
+        accounts: {
+          owner,
+          factoryState,
+          feeState,
+          systemProgram: SystemProgram.programId,
+        }
+      })).to.be.rejectedWith(Error)
+    })
 
-    // it('cannot change spacing of a fee tier', async () => {
-    //   await expect(coreProgram.rpc.enableFeeAmount(feeStateBump, fee, tickSpacing + 1, {
-    //     accounts: {
-    //       owner,
-    //       factoryState,
-    //       feeState,
-    //       systemProgram: SystemProgram.programId,
-    //     }
-    //   })).to.be.rejectedWith(Error)
-    // })
+    it('cannot change spacing of a fee tier', async () => {
+      await expect(coreProgram.rpc.enableFeeAmount(feeStateBump, fee, tickSpacing + 1, {
+        accounts: {
+          owner,
+          factoryState,
+          feeState,
+          systemProgram: SystemProgram.programId,
+        }
+      })).to.be.rejectedWith(Error)
+    })
   })
 
   // describe('#create_and_init_pool', () => {
