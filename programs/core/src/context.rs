@@ -14,7 +14,6 @@ use anchor_spl::token::{Mint, Token, TokenAccount};
 use std::mem::size_of;
 
 #[derive(Accounts)]
-#[instruction(bump: u8)]
 pub struct Initialize<'info> {
     /// Address to be set as protocol owner. It pays to create factory state account.
     #[account(mut)]
@@ -25,7 +24,6 @@ pub struct Initialize<'info> {
         init,
         seeds = [],
         bump,
-        // bump = bump,
         payer = owner,
     )]
     pub factory_state: AccountLoader<'info, FactoryState>,
@@ -35,7 +33,7 @@ pub struct Initialize<'info> {
 }
 
 #[derive(Accounts)]
-#[instruction(fee_state_bump: u8, fee: u32, tick_spacing: u16)]
+#[instruction(fee: u32, tick_spacing: u16)]
 pub struct EnableFeeAmount<'info> {
     /// Valid protocol owner
     #[account(mut, address = factory_state.load()?.owner)]
@@ -76,7 +74,6 @@ pub struct SetOwner<'info> {
 }
 
 #[derive(Accounts)]
-#[instruction(pool_state_bump: u8, observation_state_bump: u8)]
 pub struct CreateAndInitPool<'info> {
     /// Address paying to create the pool. Can be anyone
     #[account(mut)]
@@ -103,7 +100,6 @@ pub struct CreateAndInitPool<'info> {
             &fee_state.load()?.fee.to_be_bytes()
         ],
         bump,
-        // bump = pool_state_bump,
         payer = pool_creator,
     )]
     pub pool_state: AccountLoader<'info, PoolState>,
@@ -119,7 +115,6 @@ pub struct CreateAndInitPool<'info> {
             &0_u16.to_be_bytes(),
         ],
         bump,
-        // bump = observation_state_bump,
         payer = pool_creator,
     )]
     pub initial_observation_state: AccountLoader<'info, ObservationState>,
@@ -220,7 +215,7 @@ pub struct CollectProtocol<'info> {
 }
 
 #[derive(Accounts)]
-#[instruction(tick_account_bump: u8, tick: i32)]
+#[instruction(tick: i32)]
 pub struct InitTickAccount<'info> {
     /// Pays to create tick account
     #[account(mut)]
@@ -240,7 +235,6 @@ pub struct InitTickAccount<'info> {
             &tick.to_be_bytes()
         ],
         bump,
-        // bump = tick_account_bump,
         payer = signer
     )]
     pub tick_state: AccountLoader<'info, TickState>,
@@ -266,7 +260,7 @@ pub struct CloseTickAccount<'info> {
 }
 
 #[derive(Accounts)]
-#[instruction(bump: u8, word_pos: i16)]
+#[instruction(word_pos: i16)]
 pub struct InitBitmapAccount<'info> {
     /// Pays to create bitmap account
     #[account(mut)]
@@ -286,7 +280,6 @@ pub struct InitBitmapAccount<'info> {
             &word_pos.to_be_bytes()
         ],
         bump,
-        // bump = bump,
         payer = signer
     )]
     pub bitmap_state: AccountLoader<'info, TickBitmapState>,
@@ -296,7 +289,6 @@ pub struct InitBitmapAccount<'info> {
 }
 
 #[derive(Accounts)]
-#[instruction(bump: u8)]
 pub struct InitPositionAccount<'info> {
     /// Pays to create position account
     #[account(mut)]
@@ -331,7 +323,6 @@ pub struct InitPositionAccount<'info> {
             &tick_upper_state.load()?.tick.to_be_bytes(),
         ],
         bump,
-        // bump = bump,
         payer = signer
     )]
     pub position_state: AccountLoader<'info, PositionState>,
@@ -435,7 +426,8 @@ pub struct MintCallback<'info> {
     pub vault_1: UncheckedAccount<'info>,
 
     /// The SPL program to perform token transfers
-    pub token_program: Program<'info, Token>,
+    /// CHECK: Check applied in calling function
+    pub token_program: UncheckedAccount<'info>,
 }
 
 #[derive(Accounts)]
@@ -464,7 +456,8 @@ pub struct SwapCallback<'info> {
     pub output_vault: Box<Account<'info, TokenAccount>>,
 
     /// The SPL program to perform token transfers
-    pub token_program: Program<'info, Token>,
+    /// CHECK: Check applied in calling function
+    pub token_program: UncheckedAccount<'info>,
 }
 
 #[derive(Accounts)]
@@ -605,7 +598,6 @@ pub struct SwapContext<'info> {
 // Non fungible position manager
 
 #[derive(Accounts)]
-#[instruction(bump: u8)]
 pub struct MintTokenizedPosition<'info> {
     /// Pays to mint the position
     #[account(mut)]

@@ -60,9 +60,9 @@ pub mod cyclos_core {
     /// * `ctx`- Initializes the factory state account
     /// * `factory_state_bump` - Bump to validate factory state address
     ///
-    pub fn init_factory(ctx: Context<Initialize>, factory_state_bump: u8) -> Result<()> {
+    pub fn init_factory(ctx: Context<Initialize>) -> Result<()> {
         let mut factory_state = ctx.accounts.factory_state.load_init()?;
-        factory_state.bump = factory_state_bump;
+        factory_state.bump = *ctx.bumps.get("factory_state").unwrap();
         factory_state.owner = ctx.accounts.owner.key();
         factory_state.fee_protocol = 3; // 1/3 = 33.33%
 
@@ -106,7 +106,6 @@ pub mod cyclos_core {
     ///
     pub fn enable_fee_amount(
         ctx: Context<EnableFeeAmount>,
-        fee_state_bump: u8,
         fee: u32,
         tick_spacing: u16,
     ) -> Result<()> {
@@ -118,7 +117,7 @@ pub mod cyclos_core {
         // 16384 ticks represents a >5x price change with ticks of 1 bips
         let mut fee_state = ctx.accounts.fee_state.load_init()?;
         assert!(tick_spacing > 0 && tick_spacing < 16384);
-        fee_state.bump = fee_state_bump;
+        fee_state.bump = *ctx.bumps.get("fee_state").unwrap();
         fee_state.fee = fee;
         fee_state.tick_spacing = tick_spacing;
 
@@ -146,15 +145,13 @@ pub mod cyclos_core {
     ///
     pub fn create_and_init_pool(
         ctx: Context<CreateAndInitPool>,
-        pool_state_bump: u8,
-        observation_state_bump: u8,
         sqrt_price_x32: u64,
     ) -> Result<()> {
         let mut pool_state = ctx.accounts.pool_state.load_init()?;
         let fee_state = ctx.accounts.fee_state.load()?;
         let tick = tick_math::get_tick_at_sqrt_ratio(sqrt_price_x32)?;
 
-        pool_state.bump = pool_state_bump;
+        pool_state.bump = *ctx.bumps.get("pool_state").unwrap();
         pool_state.token_0 = ctx.accounts.token_0.key();
         pool_state.token_1 = ctx.accounts.token_1.key();
         pool_state.fee = fee_state.fee;
@@ -166,7 +163,7 @@ pub mod cyclos_core {
         pool_state.observation_cardinality_next = 1;
 
         let mut initial_observation_state = ctx.accounts.initial_observation_state.load_init()?;
-        initial_observation_state.bump = observation_state_bump;
+        initial_observation_state.bump = *ctx.bumps.get("initial_observation_state").unwrap();
         initial_observation_state.block_timestamp = oracle::_block_timestamp();
         initial_observation_state.initialized = true;
 
@@ -400,14 +397,13 @@ pub mod cyclos_core {
     ///
     pub fn init_tick_account(
         ctx: Context<InitTickAccount>,
-        tick_account_bump: u8,
         tick: i32,
     ) -> Result<()> {
         let pool_state = ctx.accounts.pool_state.load()?;
         check_tick(tick, pool_state.tick_spacing)?;
-        let mut tick_account = ctx.accounts.tick_state.load_init()?;
-        tick_account.bump = tick_account_bump;
-        tick_account.tick = tick;
+        let mut tick_state = ctx.accounts.tick_state.load_init()?;
+        tick_state.bump = *ctx.bumps.get("tick_state").unwrap();
+        tick_state.tick = tick;
         Ok(())
     }
 
@@ -433,7 +429,6 @@ pub mod cyclos_core {
     ///
     pub fn init_bitmap_account(
         ctx: Context<InitBitmapAccount>,
-        bump: u8,
         word_pos: i16,
     ) -> Result<()> {
         let pool_state = ctx.accounts.pool_state.load()?;
@@ -443,7 +438,7 @@ pub mod cyclos_core {
         require!(word_pos <= max_word_pos, ErrorCode::TUM);
 
         let mut bitmap_account = ctx.accounts.bitmap_state.load_init()?;
-        bitmap_account.bump = bump;
+        bitmap_account.bump = *ctx.bumps.get("bitmap_state").unwrap();
         bitmap_account.word_pos = word_pos;
         Ok(())
     }
@@ -457,9 +452,9 @@ pub mod cyclos_core {
     /// * `tick` - The tick for which the bitmap account is created. Program address of
     /// the account is derived using most significant 16 bits of the tick
     ///
-    pub fn init_position_account(ctx: Context<InitPositionAccount>, bump: u8) -> Result<()> {
+    pub fn init_position_account(ctx: Context<InitPositionAccount>) -> Result<()> {
         let mut position_account = ctx.accounts.position_state.load_init()?;
-        position_account.bump = bump;
+        position_account.bump = *ctx.bumps.get("position_state").unwrap();
         Ok(())
     }
 
@@ -1490,7 +1485,6 @@ pub mod cyclos_core {
     #[access_control(check_deadline(deadline))]
     pub fn mint_tokenized_position(
         ctx: Context<MintTokenizedPosition>,
-        bump: u8,
         amount_0_desired: u64,
         amount_1_desired: u64,
         amount_0_min: u64,
@@ -1554,7 +1548,7 @@ pub mod cyclos_core {
 
         // Write tokenized position metadata
         let mut tokenized_position = ctx.accounts.tokenized_position_state.load_init()?;
-        tokenized_position.bump = bump;
+        tokenized_position.bump = *ctx.bumps.get("tokenized_position_state").unwrap();
         tokenized_position.mint = ctx.accounts.nft_mint.key();
         tokenized_position.pool_id = ctx.accounts.pool_state.key();
 
