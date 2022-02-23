@@ -1,3 +1,6 @@
+[features]
+seeds = false
+
 [programs.localnet]
 cyclos_core = "cysPXAjehMpVKUapzbMCCnpFxUFFryEWEaLgnb9NrR8"
 

@@ -10,7 +10,7 @@ pub const FEE_SEED: &str = "f";
 /// PDA of `[FEE_SEED, fee]`
 ///
 #[account(zero_copy)]
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct FeeState {
     /// Bump to identify PDA
     pub bump: u8,

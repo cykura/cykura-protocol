@@ -12,6 +12,10 @@ use crate::states::oracle::ObservationState;
 use crate::states::tokenized_position::{
     CollectTokenizedEvent, DecreaseLiquidityEvent, IncreaseLiquidityEvent,
 };
+use crate::{
+    libraries::{fixed_point_32, swap_math},
+    states::{oracle::OBSERVATION_SEED, tick_bitmap},
+};
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program;
 use anchor_lang::solana_program::system_instruction::create_account;
@@ -32,15 +36,11 @@ use states::position::*;
 use states::tick;
 use states::tick::*;
 use states::tick_bitmap::*;
+use std::collections::BTreeMap;
 use std::convert::TryFrom;
 use std::mem::size_of;
 use std::ops::Neg;
 use std::ops::{Deref, DerefMut};
-
-use crate::{
-    libraries::{fixed_point_32, swap_math},
-    states::{oracle::OBSERVATION_SEED, tick_bitmap},
-};
 
 declare_id!("cysPXAjehMpVKUapzbMCCnpFxUFFryEWEaLgnb9NrR8");
 
@@ -60,7 +60,7 @@ pub mod cyclos_core {
     /// * `ctx`- Initializes the factory state account
     /// * `factory_state_bump` - Bump to validate factory state address
     ///
-    pub fn init_factory(ctx: Context<Initialize>, factory_state_bump: u8) -> ProgramResult {
+    pub fn init_factory(ctx: Context<Initialize>, factory_state_bump: u8) -> Result<()> {
         let mut factory_state = ctx.accounts.factory_state.load_init()?;
         factory_state.bump = factory_state_bump;
         factory_state.owner = ctx.accounts.owner.key();
@@ -81,7 +81,7 @@ pub mod cyclos_core {
     ///
     /// * `ctx`- Checks whether protocol owner has signed
     ///
-    pub fn set_owner(ctx: Context<SetOwner>) -> ProgramResult {
+    pub fn set_owner(ctx: Context<SetOwner>) -> Result<()> {
         let mut factory_state = ctx.accounts.factory_state.load_mut()?;
         factory_state.owner = ctx.accounts.new_owner.key();
 
@@ -109,7 +109,7 @@ pub mod cyclos_core {
         fee_state_bump: u8,
         fee: u32,
         tick_spacing: u16,
-    ) -> ProgramResult {
+    ) -> Result<()> {
         assert!(fee < 1_000_000); // 100%
 
         // TODO examine max value of tick_spacing
@@ -121,6 +121,8 @@ pub mod cyclos_core {
         fee_state.bump = fee_state_bump;
         fee_state.fee = fee;
         fee_state.tick_spacing = tick_spacing;
+
+        msg!("fee state {:?}", fee_state);
 
         emit!(FeeAmountEnabled { fee, tick_spacing });
         Ok(())
@@ -147,7 +149,7 @@ pub mod cyclos_core {
         pool_state_bump: u8,
         observation_state_bump: u8,
         sqrt_price_x32: u64,
-    ) -> ProgramResult {
+    ) -> Result<()> {
         let mut pool_state = ctx.accounts.pool_state.load_init()?;
         let fee_state = ctx.accounts.fee_state.load()?;
         let tick = tick_math::get_tick_at_sqrt_ratio(sqrt_price_x32)?;
@@ -199,7 +201,7 @@ pub mod cyclos_core {
     pub fn increase_observation_cardinality_next<'a, 'b, 'c, 'info>(
         ctx: Context<'a, 'b, 'c, 'info, IncreaseObservationCardinalityNext<'info>>,
         observation_account_bumps: Vec<u8>,
-    ) -> ProgramResult {
+    ) -> Result<()> {
         let mut pool_state = ctx.accounts.pool_state.load_mut()?;
         require!(pool_state.unlocked, ErrorCode::LOK);
         pool_state.unlocked = false;
@@ -220,7 +222,8 @@ pub mod cyclos_core {
                     == Pubkey::create_program_address(
                         &observation_account_seeds[..],
                         &ctx.program_id
-                    )?,
+                    )
+                    .unwrap(),
                 ErrorCode::OS
             );
 
@@ -289,7 +292,7 @@ pub mod cyclos_core {
     /// Holds the Factory State account where protocol fee will be saved.
     /// * `fee_protocol` - new protocol fee for all pools
     ///
-    pub fn set_fee_protocol(ctx: Context<SetFeeProtocol>, fee_protocol: u8) -> ProgramResult {
+    pub fn set_fee_protocol(ctx: Context<SetFeeProtocol>, fee_protocol: u8) -> Result<()> {
         assert!(fee_protocol >= 2 && fee_protocol <= 10);
         let mut factory_state = ctx.accounts.factory_state.load_mut()?;
         let fee_protocol_old = factory_state.fee_protocol;
@@ -317,7 +320,7 @@ pub mod cyclos_core {
         ctx: Context<CollectProtocol>,
         amount_0_requested: u64,
         amount_1_requested: u64,
-    ) -> ProgramResult {
+    ) -> Result<()> {
         let mut pool_state = ctx.accounts.pool_state.load_mut()?;
         require!(pool_state.unlocked, ErrorCode::LOK);
         pool_state.unlocked = false;
@@ -399,7 +402,7 @@ pub mod cyclos_core {
         ctx: Context<InitTickAccount>,
         tick_account_bump: u8,
         tick: i32,
-    ) -> ProgramResult {
+    ) -> Result<()> {
         let pool_state = ctx.accounts.pool_state.load()?;
         check_tick(tick, pool_state.tick_spacing)?;
         let mut tick_account = ctx.accounts.tick_state.load_init()?;
@@ -414,7 +417,7 @@ pub mod cyclos_core {
     ///
     /// * `ctx` - Holds tick and recipient accounts with validation and closure code
     ///
-    pub fn close_tick_account(_ctx: Context<CloseTickAccount>) -> ProgramResult {
+    pub fn close_tick_account(_ctx: Context<CloseTickAccount>) -> Result<()> {
         Ok(())
     }
 
@@ -432,7 +435,7 @@ pub mod cyclos_core {
         ctx: Context<InitBitmapAccount>,
         bump: u8,
         word_pos: i16,
-    ) -> ProgramResult {
+    ) -> Result<()> {
         let pool_state = ctx.accounts.pool_state.load()?;
         let max_word_pos = ((tick_math::MAX_TICK / pool_state.tick_spacing as i32) >> 8) as i16;
         let min_word_pos = ((tick_math::MIN_TICK / pool_state.tick_spacing as i32) >> 8) as i16;
@@ -454,7 +457,7 @@ pub mod cyclos_core {
     /// * `tick` - The tick for which the bitmap account is created. Program address of
     /// the account is derived using most significant 16 bits of the tick
     ///
-    pub fn init_position_account(ctx: Context<InitPositionAccount>, bump: u8) -> ProgramResult {
+    pub fn init_position_account(ctx: Context<InitPositionAccount>, bump: u8) -> Result<()> {
         let mut position_account = ctx.accounts.position_state.load_init()?;
         position_account.bump = bump;
         Ok(())
@@ -477,7 +480,7 @@ pub mod cyclos_core {
         ctx: Context<MintCallback>,
         amount_0_owed: u64,
         amount_1_owed: u64,
-    ) -> ProgramResult {
+    ) -> Result<()> {
         if amount_0_owed > 0 {
             token::transfer(
                 CpiContext::new(
@@ -523,7 +526,7 @@ pub mod cyclos_core {
         ctx: Context<SwapCallback>,
         amount_0_delta: i64,
         amount_1_delta: i64,
-    ) -> ProgramResult {
+    ) -> Result<()> {
         let (exact_input, amount_to_pay) = if amount_0_delta > 0 {
             (
                 ctx.accounts.input_vault.mint < ctx.accounts.output_vault.mint,
@@ -562,7 +565,7 @@ pub mod cyclos_core {
     /// pool, position and ticks.
     /// * `amount` - The amount of liquidity to mint
     ///
-    pub fn mint(ctx: Context<MintContext>, amount: u64) -> ProgramResult {
+    pub fn mint(ctx: Context<MintContext>, amount: u64) -> Result<()> {
         let mut pool = ctx.accounts.pool_state.load_mut()?;
 
         assert!(
@@ -718,7 +721,7 @@ pub mod cyclos_core {
     /// * `ctx` - Holds position and other validated accounts need to burn liquidity
     /// * `amount` - Amount of liquidity to be burned
     ///
-    pub fn burn(ctx: Context<BurnContext>, amount: u64) -> ProgramResult {
+    pub fn burn(ctx: Context<BurnContext>, amount: u64) -> Result<()> {
         // assert!(ctx.accounts.owner.is_signer);
         msg!("inside burn");
         let pool_state =
@@ -844,7 +847,7 @@ pub mod cyclos_core {
         ctx: Context<CollectContext>,
         amount_0_requested: u64,
         amount_1_requested: u64,
-    ) -> ProgramResult {
+    ) -> Result<()> {
         let pool_state =
             AccountLoader::<PoolState>::try_from(&ctx.accounts.pool_state.to_account_info())?;
         let mut pool = pool_state.load_mut()?;
@@ -1014,7 +1017,7 @@ pub mod cyclos_core {
         ctx: Context<SwapContext>,
         amount_specified: i64,
         sqrt_price_limit_x32: u64,
-    ) -> ProgramResult {
+    ) -> Result<()> {
         msg!("in swap");
         require!(amount_specified != 0, ErrorCode::AS);
 
@@ -1467,7 +1470,7 @@ pub mod cyclos_core {
     // ///
     // /// @param amount_0 Amount of token 0 to donate
     // /// @param amount_1 Amount of token 1 to donate
-    // pub fn flash(ctx: Context<SetFeeProtocol>, amount_0: u64, amount_1: u64) -> ProgramResult {
+    // pub fn flash(ctx: Context<SetFeeProtocol>, amount_0: u64, amount_1: u64) -> Result<()> {
     //     todo!()
     // }
 
@@ -1493,7 +1496,7 @@ pub mod cyclos_core {
         amount_0_min: u64,
         amount_1_min: u64,
         deadline: i64,
-    ) -> ProgramResult {
+    ) -> Result<()> {
         // Validate addresses manually, as constraint checks are not applied to internal calls
         let pool_state =
             AccountLoader::<PoolState>::try_from(&ctx.accounts.pool_state.to_account_info())?;
@@ -1586,7 +1589,7 @@ pub mod cyclos_core {
     ///
     /// * `ctx` - Holds validated metadata account and tokenized position addresses
     ///
-    pub fn add_metaplex_metadata(ctx: Context<AddMetaplexMetadata>) -> ProgramResult {
+    pub fn add_metaplex_metadata(ctx: Context<AddMetaplexMetadata>) -> Result<()> {
         let seeds = [&[ctx.accounts.factory_state.load()?.bump] as &[u8]];
         let create_metadata_ix = create_metadata_accounts(
             ctx.accounts.metadata_program.key(),
@@ -1659,7 +1662,7 @@ pub mod cyclos_core {
         amount_0_min: u64,
         amount_1_min: u64,
         deadline: i64,
-    ) -> ProgramResult {
+    ) -> Result<()> {
         let pool_state =
             AccountLoader::<PoolState>::try_from(&ctx.accounts.pool_state.to_account_info())?;
         let tick_lower_state =
@@ -1751,7 +1754,7 @@ pub mod cyclos_core {
         amount_0_min: u64,
         amount_1_min: u64,
         deadline: i64,
-    ) -> ProgramResult {
+    ) -> Result<()> {
         assert!(liquidity > 0);
 
         let position_state = AccountLoader::<PositionState>::try_from(
@@ -1773,7 +1776,10 @@ pub mod cyclos_core {
             last_observation_state: ctx.accounts.last_observation_state.clone(),
             next_observation_state: ctx.accounts.next_observation_state.clone(),
         };
-        burn(Context::new(&ID, &mut accounts, &[]), liquidity)?;
+        burn(
+            Context::new(&ID, &mut accounts, &[], BTreeMap::default()),
+            liquidity,
+        )?;
         let updated_core_position = accounts.position_state.load()?;
         let amount_0 = updated_core_position.tokens_owed_0 - tokens_owed_0_before;
         let amount_1 = updated_core_position.tokens_owed_1 - tokens_owed_1_before;
@@ -1825,7 +1831,7 @@ pub mod cyclos_core {
         ctx: Context<CollectFromTokenized>,
         amount_0_max: u64,
         amount_1_max: u64,
-    ) -> ProgramResult {
+    ) -> Result<()> {
         assert!(amount_0_max > 0 || amount_1_max > 0);
 
         let mut tokenized_position = ctx.accounts.tokenized_position_state.load_mut()?;
@@ -1851,7 +1857,10 @@ pub mod cyclos_core {
                 last_observation_state: ctx.accounts.last_observation_state.clone(),
                 next_observation_state: ctx.accounts.next_observation_state.clone(),
             };
-            burn(Context::new(&ID, &mut burn_accounts, &[]), 0)?;
+            burn(
+                Context::new(&ID, &mut burn_accounts, &[], BTreeMap::default()),
+                0,
+            )?;
 
             let core_position = *burn_accounts.position_state.load()?.deref();
 
@@ -1889,7 +1898,11 @@ pub mod cyclos_core {
             recipient_wallet_1: ctx.accounts.recipient_wallet_1.clone(),
             token_program: ctx.accounts.token_program.clone(),
         };
-        collect(Context::new(&ID, &mut accounts, &[]), amount_0, amount_1)?;
+        collect(
+            Context::new(&ID, &mut accounts, &[], BTreeMap::default()),
+            amount_0,
+            amount_1,
+        )?;
 
         // sometimes there will be a few less wei than expected due to rounding down in core, but
         // we just subtract the full amount expected
@@ -1928,7 +1941,7 @@ pub mod cyclos_core {
         amount_in: u64,
         amount_out_minimum: u64,
         sqrt_price_limit_x32: u64,
-    ) -> ProgramResult {
+    ) -> Result<()> {
         msg!("in exact_input_single");
         let amount_out = exact_input_internal(
             &mut SwapContext {
@@ -1974,7 +1987,7 @@ pub mod cyclos_core {
         amount_in: u64,
         amount_out_minimum: u64,
         additional_accounts_per_pool: Vec<u8>,
-    ) -> ProgramResult {
+    ) -> Result<()> {
         let mut remaining_accounts = ctx.remaining_accounts.iter();
 
         let mut amount_in_internal = amount_in;
@@ -2051,7 +2064,7 @@ pub mod cyclos_core {
     //     amount_out: u64,
     //     amount_in_maximum: u64,
     //     sqrt_price_limit_x32: u64,
-    // ) -> ProgramResult {
+    // ) -> Result<()> {
     //     todo!()
     // }
 
@@ -2070,7 +2083,7 @@ pub mod cyclos_core {
     //     deadline: u64,
     //     amount_out: u64,
     //     amount_out_maximum: u64,
-    // ) -> ProgramResult {
+    // ) -> Result<()> {
     //     todo!()
     // }
 }
@@ -2081,14 +2094,14 @@ pub fn exact_input_internal<'info>(
     remaining_accounts: &[AccountInfo<'info>],
     amount_in: u64,
     sqrt_price_limit_x32: u64,
-) -> Result<u64, ProgramError> {
+) -> Result<u64> {
     msg!("in exact input internal");
     let pool_state = AccountLoader::<PoolState>::try_from(&accounts.pool_state)?;
     let zero_for_one = accounts.input_vault.mint == pool_state.load()?.token_0;
 
     let balance_before = accounts.input_vault.amount;
     swap(
-        Context::new(&ID, accounts, remaining_accounts),
+        Context::new(&ID, accounts, remaining_accounts, BTreeMap::default()),
         i64::try_from(amount_in).unwrap(),
         if sqrt_price_limit_x32 == 0 {
             if zero_for_one {
@@ -2113,7 +2126,7 @@ pub fn exact_input_internal<'info>(
 ///
 /// * `tick` - The price tick
 ///
-pub fn check_tick(tick: i32, tick_spacing: u16) -> Result<(), ErrorCode> {
+pub fn check_tick(tick: i32, tick_spacing: u16) -> Result<()> {
     require!(tick >= tick_math::MIN_TICK, ErrorCode::TLM);
     require!(tick <= tick_math::MAX_TICK, ErrorCode::TUM);
     require!(tick % tick_spacing as i32 == 0, ErrorCode::TMS);
@@ -2127,7 +2140,7 @@ pub fn check_tick(tick: i32, tick_spacing: u16) -> Result<(), ErrorCode> {
 /// * `tick_lower` - The lower tick
 /// * `tick_upper` - The upper tick
 ///
-pub fn check_ticks(tick_lower: i32, tick_upper: i32) -> Result<(), ErrorCode> {
+pub fn check_ticks(tick_lower: i32, tick_upper: i32) -> Result<()> {
     require!(tick_lower < tick_upper, ErrorCode::TLU);
     Ok(())
 }
@@ -2162,7 +2175,7 @@ pub fn _modify_position<'info>(
     last_observation_state: &AccountLoader<'info, ObservationState>,
     next_observation_state: &AccountLoader<'info, ObservationState>,
     liquidity_delta: i64,
-) -> Result<(i64, i64), ProgramError> {
+) -> Result<(i64, i64)> {
     msg!("inside _modify_position()");
     check_ticks(tick_lower_state.load()?.tick, tick_upper_state.load()?.tick)?;
 
@@ -2270,7 +2283,7 @@ pub fn _update_position<'info>(
     bitmap_upper: &AccountLoader<'info, TickBitmapState>,
     last_observation_state: &ObservationState,
     liquidity_delta: i64,
-) -> ProgramResult {
+) -> Result<()> {
     let mut tick_lower = tick_lower_state.load_mut()?;
     let mut tick_upper = tick_upper_state.load_mut()?;
 
@@ -2370,7 +2383,7 @@ pub fn add_liquidity(
     amount_1_min: u64,
     tick_lower: i32,
     tick_upper: i32,
-) -> Result<(u64, u64, u64), ProgramError> {
+) -> Result<(u64, u64, u64)> {
     let sqrt_price_x32 = accounts.pool_state.load()?.sqrt_price_x32;
 
     let sqrt_ratio_a_x32 = tick_math::get_sqrt_ratio_at_tick(tick_lower)?;
@@ -2386,7 +2399,10 @@ pub fn add_liquidity(
     let balance_0_before = accounts.vault_0.amount;
     let balance_1_before = accounts.vault_1.amount;
 
-    mint(Context::new(&ID, accounts, &[]), liquidity)?;
+    mint(
+        Context::new(&ID, accounts, &[], BTreeMap::default()),
+        liquidity,
+    )?;
 
     accounts.vault_0.reload()?;
     accounts.vault_1.reload()?;

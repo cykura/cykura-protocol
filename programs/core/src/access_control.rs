@@ -8,7 +8,7 @@ use crate::error::ErrorCode;
 ///
 /// * `deadline` - The deadline specified by a user
 ///
-pub fn check_deadline(deadline: i64) -> ProgramResult {
+pub fn check_deadline(deadline: i64) -> Result<()> {
     require!(
         Clock::get()?.unix_timestamp <= deadline,
         ErrorCode::TransactionTooOld
@@ -26,7 +26,7 @@ pub fn check_deadline(deadline: i64) -> ProgramResult {
 pub fn is_authorized_for_token<'info>(
     signer: &Signer<'info>,
     token_account: &Box<Account<'info, TokenAccount>>,
-) -> ProgramResult {
+) -> Result<()> {
     require!(
         token_account.amount == 1
             && (token_account.owner == signer.key()

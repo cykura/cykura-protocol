@@ -10,7 +10,7 @@ use anchor_lang::require;
 /// * `x` - The liquidity (L) before change
 /// * `y` - The delta (ΔL) by which liquidity should be changed
 ///
-pub fn add_delta(x: u64, y: i64) -> Result<u64, ErrorCode> {
+pub fn add_delta(x: u64, y: i64) -> Result<u64, anchor_lang::error::Error> {
     let z: u64;
     if y < 0 {
         z = x - (-y as u64);

@@ -1,4 +1,4 @@
-use anchor_lang::{prelude::*, solana_program::pubkey::PubkeyError};
+use anchor_lang::prelude::*;
 
 use crate::{
     program::CyclosCore,
@@ -92,7 +92,7 @@ impl PoolState {
         key: &Pubkey,
         bump: u8,
         next: bool,
-    ) -> Result<(), PubkeyError> {
+    ) -> Result<()> {
         let index = if next {
             self.next_observation_index()
         } else {
@@ -106,7 +106,7 @@ impl PoolState {
             &index.to_be_bytes(),
             &[bump],
         ];
-        assert!(*key == Pubkey::create_program_address(&seeds, &CyclosCore::id(),)?,);
+        assert!(*key == Pubkey::create_program_address(&seeds, &CyclosCore::id()).unwrap());
         Ok(())
     }
 
@@ -124,7 +124,7 @@ impl PoolState {
         key: &Pubkey,
         bump: u8,
         tick: i32,
-    ) -> Result<(), PubkeyError> {
+    ) -> Result<()> {
         assert!(
             *key == Pubkey::create_program_address(
                 &[
@@ -136,7 +136,7 @@ impl PoolState {
                     &[bump],
                 ],
                 &CyclosCore::id(),
-            )?,
+            ).unwrap(),
         );
         Ok(())
     }
@@ -155,7 +155,7 @@ impl PoolState {
         key: &Pubkey,
         bump: u8,
         word_pos: i16,
-    ) -> Result<(), PubkeyError> {
+    ) -> Result<()> {
         assert!(
             *key == Pubkey::create_program_address(
                 &[
@@ -167,7 +167,7 @@ impl PoolState {
                     &[bump],
                 ],
                 &CyclosCore::id(),
-            )?,
+            ).unwrap(),
         );
         Ok(())
     }
@@ -188,7 +188,7 @@ impl PoolState {
         position_owner: &Pubkey,
         tick_lower: i32,
         tick_upper: i32,
-    ) -> Result<(), PubkeyError> {
+    ) -> Result<()> {
         assert!(
             *key == Pubkey::create_program_address(
                 &[
@@ -202,7 +202,7 @@ impl PoolState {
                     &[bump],
                 ],
                 &CyclosCore::id(),
-            )?,
+            ).unwrap(),
         );
         Ok(())
     }

@@ -17,13 +17,15 @@ use std::mem::size_of;
 #[instruction(bump: u8)]
 pub struct Initialize<'info> {
     /// Address to be set as protocol owner. It pays to create factory state account.
+    #[account(mut)]
     pub owner: Signer<'info>,
 
     /// Initialize factory state account to store protocol owner address
     #[account(
         init,
         seeds = [],
-        bump = bump,
+        bump,
+        // bump = bump,
         payer = owner,
     )]
     pub factory_state: AccountLoader<'info, FactoryState>,
@@ -36,7 +38,7 @@ pub struct Initialize<'info> {
 #[instruction(fee_state_bump: u8, fee: u32, tick_spacing: u16)]
 pub struct EnableFeeAmount<'info> {
     /// Valid protocol owner
-    #[account(address = factory_state.load()?.owner)]
+    #[account(mut, address = factory_state.load()?.owner)]
     pub owner: Signer<'info>,
 
     /// Factory state stores the protocol owner address
@@ -48,7 +50,7 @@ pub struct EnableFeeAmount<'info> {
     #[account(
         init,
         seeds = [FEE_SEED.as_bytes(), &fee.to_be_bytes()],
-        bump = fee_state_bump,
+        bump,
         payer = owner,
         space = 8 + size_of::<FeeState>()
     )]
@@ -65,7 +67,8 @@ pub struct SetOwner<'info> {
     pub owner: Signer<'info>,
 
     /// Address to be designated as new protocol owner
-    pub new_owner: AccountInfo<'info>,
+    /// CHECK: This is not dangerous because we don't read or write from this account
+    pub new_owner: UncheckedAccount<'info>,
 
     /// Factory state stores the protocol owner address
     #[account(mut)]
@@ -99,7 +102,8 @@ pub struct CreateAndInitPool<'info> {
             token_1.key().as_ref(),
             &fee_state.load()?.fee.to_be_bytes()
         ],
-        bump = pool_state_bump,
+        bump,
+        // bump = pool_state_bump,
         payer = pool_creator,
     )]
     pub pool_state: AccountLoader<'info, PoolState>,
@@ -114,7 +118,8 @@ pub struct CreateAndInitPool<'info> {
             &fee_state.load()?.fee.to_be_bytes(),
             &0_u16.to_be_bytes(),
         ],
-        bump = observation_state_bump,
+        bump,
+        // bump = observation_state_bump,
         payer = pool_creator,
     )]
     pub initial_observation_state: AccountLoader<'info, ObservationState>,
@@ -189,16 +194,16 @@ pub struct CollectProtocol<'info> {
     /// The address that holds pool tokens for token_0
     #[account(
         mut,
-        associated_token::mint = pool_state.load()?.token_0.key(),
-        associated_token::authority = pool_state,
+        constraint = vault_0.mint == pool_state.load()?.token_0,
+        constraint = vault_0.owner == pool_state.key(),
     )]
     pub vault_0: Box<Account<'info, TokenAccount>>,
 
     /// The address that holds pool tokens for token_1
     #[account(
         mut,
-        associated_token::mint = pool_state.load()?.token_1.key(),
-        associated_token::authority = pool_state,
+        constraint = vault_1.mint == pool_state.load()?.token_1,
+        constraint = vault_1.owner == pool_state.key(),
     )]
     pub vault_1: Box<Account<'info, TokenAccount>>,
 
@@ -229,12 +234,13 @@ pub struct InitTickAccount<'info> {
         init,
         seeds = [
             TICK_SEED.as_bytes(),
-            pool_state.load()?.token_0.key().as_ref(),
-            pool_state.load()?.token_1.key().as_ref(),
+            pool_state.load()?.token_0.as_ref(),
+            pool_state.load()?.token_1.as_ref(),
             &pool_state.load()?.fee.to_be_bytes(),
             &tick.to_be_bytes()
         ],
-        bump = tick_account_bump,
+        bump,
+        // bump = tick_account_bump,
         payer = signer
     )]
     pub tick_state: AccountLoader<'info, TickState>,
@@ -254,6 +260,7 @@ pub struct CloseTickAccount<'info> {
     pub tick_state: AccountLoader<'info, TickState>,
 
     /// Destination for reclaimed lamports
+    /// CHECK: This is not dangerous because we don't read or write from this account
     #[account(mut)]
     pub recipient: UncheckedAccount<'info>,
 }
@@ -273,12 +280,13 @@ pub struct InitBitmapAccount<'info> {
         init,
         seeds = [
             BITMAP_SEED.as_bytes(),
-            pool_state.load()?.token_0.key().as_ref(),
-            pool_state.load()?.token_1.key().as_ref(),
+            pool_state.load()?.token_0.as_ref(),
+            pool_state.load()?.token_1.as_ref(),
             &pool_state.load()?.fee.to_be_bytes(),
             &word_pos.to_be_bytes()
         ],
-        bump = bump,
+        bump,
+        // bump = bump,
         payer = signer
     )]
     pub bitmap_state: AccountLoader<'info, TickBitmapState>,
@@ -295,6 +303,7 @@ pub struct InitPositionAccount<'info> {
     pub signer: Signer<'info>,
 
     /// The address of the position owner
+    /// CHECK: This is not dangerous because we don't read or write from this account
     pub recipient: UncheckedAccount<'info>,
 
     /// Create a position account for this pool
@@ -314,14 +323,15 @@ pub struct InitPositionAccount<'info> {
         init,
         seeds = [
             POSITION_SEED.as_bytes(),
-            pool_state.load()?.token_0.key().as_ref(),
-            pool_state.load()?.token_1.key().as_ref(),
+            pool_state.load()?.token_0.as_ref(),
+            pool_state.load()?.token_1.as_ref(),
             &pool_state.load()?.fee.to_be_bytes(),
             recipient.key().as_ref(),
             &tick_lower_state.load()?.tick.to_be_bytes(),
             &tick_upper_state.load()?.tick.to_be_bytes(),
         ],
-        bump = bump,
+        bump,
+        // bump = bump,
         payer = signer
     )]
     pub position_state: AccountLoader<'info, PositionState>,
@@ -337,10 +347,12 @@ pub struct MintContext<'info> {
     pub minter: Signer<'info>,
 
     /// The token account spending token_0 to mint the position
+    /// CHECK: Safety check performed inside function body
     #[account(mut)]
     pub token_account_0: UncheckedAccount<'info>,
 
     /// The token account spending token_1 to mint the position
+    /// CHECK: Safety check performed inside function body
     #[account(mut)]
     pub token_account_1: UncheckedAccount<'info>,
 
@@ -353,11 +365,11 @@ pub struct MintContext<'info> {
     pub vault_1: Box<Account<'info, TokenAccount>>,
 
     /// Liquidity is minted on behalf of recipient
+    /// CHECK: This is not dangerous because we don't read or write from this account
     pub recipient: UncheckedAccount<'info>,
 
     /// Mint liquidity for this pool
     #[account(mut)]
-    // pub pool_state: UncheckedAccount<'info>,
     pub pool_state: AccountLoader<'info, PoolState>,
 
     /// The lower tick boundary of the position
@@ -369,22 +381,27 @@ pub struct MintContext<'info> {
     pub tick_upper_state: AccountLoader<'info, TickState>,
 
     /// The bitmap storing initialization state of the lower tick
+    /// CHECK: Safety check performed inside function body
     #[account(mut)]
     pub bitmap_lower_state: UncheckedAccount<'info>,
 
     /// The bitmap storing initialization state of the upper tick
+    /// CHECK: Safety check performed inside function body
     #[account(mut)]
     pub bitmap_upper_state: UncheckedAccount<'info>,
 
     /// The position into which liquidity is minted
+    /// CHECK: Safety check performed inside function body
     #[account(mut)]
     pub position_state: UncheckedAccount<'info>,
 
     /// The program account for the most recent oracle observation, at index = pool.observation_index
+    /// CHECK: Safety check performed inside function body
     #[account(mut)]
     pub last_observation_state: UncheckedAccount<'info>,
 
     /// The account which follows the last observation, given by formula `(index_last + 1) % cardinality_next`
+    /// CHECK: Safety check performed inside function body
     #[account(mut)]
     pub next_observation_state: UncheckedAccount<'info>,
 
@@ -392,6 +409,7 @@ pub struct MintContext<'info> {
     pub token_program: Program<'info, Token>,
 
     /// Program which receives mint_callback
+    /// CHECK: Allow arbitrary callback handlers
     pub callback_handler: UncheckedAccount<'info>,
 }
 
@@ -401,19 +419,23 @@ pub struct MintCallback<'info> {
     pub minter: Signer<'info>,
 
     /// The token account spending token_0 to mint the position
+    /// CHECK: Account validation is performed by the token program
     pub token_account_0: UncheckedAccount<'info>,
 
     /// The token account spending token_1 to mint the position
+    /// CHECK: Account validation is performed by the token program
     pub token_account_1: UncheckedAccount<'info>,
 
     /// The address that holds pool tokens for token_0
+    /// CHECK: Account validation is performed by the token program
     pub vault_0: UncheckedAccount<'info>,
 
     /// The address that holds pool tokens for token_1
+    /// CHECK: Account validation is performed by the token program
     pub vault_1: UncheckedAccount<'info>,
 
     /// The SPL program to perform token transfers
-    pub token_program: UncheckedAccount<'info>,
+    pub token_program: Program<'info, Token>,
 }
 
 #[derive(Accounts)]
@@ -422,23 +444,27 @@ pub struct SwapCallback<'info> {
     pub signer: Signer<'info>,
 
     /// The user token account for input token
+    /// CHECK: Account validation is performed by the token program
     #[account(mut)]
     pub input_token_account: UncheckedAccount<'info>,
 
     /// The user token account for output token
+    /// CHECK: Account validation is performed by the token program
     #[account(mut)]
     pub output_token_account: UncheckedAccount<'info>,
 
     /// The vault token account for input token
+    /// CHECK: Account validation is performed by the token program
     #[account(mut)]
     pub input_vault: Box<Account<'info, TokenAccount>>,
 
     /// The vault token account for output token
+    /// CHECK: Account validation is performed by the token program
     #[account(mut)]
     pub output_vault: Box<Account<'info, TokenAccount>>,
 
     /// The SPL program to perform token transfers
-    pub token_program: UncheckedAccount<'info>,
+    pub token_program: Program<'info, Token>,
 }
 
 #[derive(Accounts)]
@@ -447,19 +473,24 @@ pub struct BurnContext<'info> {
     pub owner: Signer<'info>,
 
     /// Burn liquidity for this pool
+    /// CHECK: Safety check performed inside function body
     #[account(mut)]
     pub pool_state: UncheckedAccount<'info>,
 
     /// The lower tick boundary of the position
+    /// CHECK: Safety check performed inside function body
     pub tick_lower_state: UncheckedAccount<'info>,
 
     /// The upper tick boundary of the position
+    /// CHECK: Safety check performed inside function body
     pub tick_upper_state: UncheckedAccount<'info>,
 
     /// The bitmap storing initialization state of the lower tick
+    /// CHECK: Safety check performed inside function body
     pub bitmap_lower_state: UncheckedAccount<'info>,
 
     /// The bitmap storing initialization state of the upper tick
+    /// CHECK: Safety check performed inside function body
     pub bitmap_upper_state: UncheckedAccount<'info>,
 
     /// Burn liquidity from this position
@@ -467,9 +498,11 @@ pub struct BurnContext<'info> {
     pub position_state: AccountLoader<'info, PositionState>,
 
     /// The program account for the most recent oracle observation
+    /// CHECK: Safety check performed inside function body
     pub last_observation_state: UncheckedAccount<'info>,
 
     /// The account which follows the last observation, given by formula `(index_last + 1) % cardinality_next`
+    /// CHECK: Safety check performed inside function body
     pub next_observation_state: UncheckedAccount<'info>,
 }
 
@@ -479,16 +512,20 @@ pub struct CollectContext<'info> {
     pub owner: Signer<'info>,
 
     /// The program account for the liquidity pool from which fees are collected
+    /// CHECK: Safety check performed inside function body
     #[account(mut)]
     pub pool_state: UncheckedAccount<'info>,
 
     /// The lower tick of the position for which to collect fees
+    /// CHECK: Safety check performed inside function body
     pub tick_lower_state: UncheckedAccount<'info>,
 
     /// The upper tick of the position for which to collect fees
+    /// CHECK: Safety check performed inside function body
     pub tick_upper_state: UncheckedAccount<'info>,
 
     /// The position program account to collect fees from
+    /// CHECK: Safety check performed inside function body
     #[account(mut)]
     pub position_state: UncheckedAccount<'info>,
 
@@ -501,10 +538,12 @@ pub struct CollectContext<'info> {
     pub vault_1: Box<Account<'info, TokenAccount>>,
 
     /// The destination token account for the collected amount_0
+    /// CHECK: Account validation is performed by the token program
     #[account(mut)]
     pub recipient_wallet_0: UncheckedAccount<'info>,
 
     /// The destination token account for the collected amount_1
+    /// CHECK: Account validation is performed by the token program
     #[account(mut)]
     pub recipient_wallet_1: UncheckedAccount<'info>,
 
@@ -518,10 +557,12 @@ pub struct SwapContext<'info> {
     pub signer: Signer<'info>,
 
     /// The user token account for input token
+    /// CHECK: Account validation is performed by the token program
     #[account(mut)]
     pub input_token_account: UncheckedAccount<'info>,
 
     /// The user token account for output token
+    /// CHECK: Account validation is performed by the token program
     #[account(mut)]
     pub output_token_account: UncheckedAccount<'info>,
 
@@ -537,21 +578,27 @@ pub struct SwapContext<'info> {
     pub token_program: Program<'info, Token>,
 
     /// The factory state to read protocol fees
+    /// CHECK: Safety check performed inside function body
     pub factory_state: UncheckedAccount<'info>,
 
     /// The program account of the pool in which the swap will be performed
+    /// CHECK: Safety check performed inside function body
+    /// CHECK: Safety check performed inside function body
     #[account(mut)]
     pub pool_state: UncheckedAccount<'info>,
 
     /// The program account for the most recent oracle observation
+    /// CHECK: Safety check performed inside function body
     #[account(mut)]
     pub last_observation_state: UncheckedAccount<'info>,
 
     /// The account which follows the last observation, given by formula `(index_last + 1) % cardinality_next`
+    /// CHECK: Safety check performed inside function body
     #[account(mut)]
     pub next_observation_state: UncheckedAccount<'info>,
 
     /// Program which receives swap_callback
+    /// CHECK: Allow arbitrary callback handlers
     pub callback_handler: UncheckedAccount<'info>,
 }
 
@@ -565,6 +612,7 @@ pub struct MintTokenizedPosition<'info> {
     pub minter: Signer<'info>,
 
     /// Receives the position NFT
+    /// CHECK: This is not dangerous because we don't read or write from this account
     pub recipient: UncheckedAccount<'info>,
 
     /// The program account acting as the core liquidity custodian for token holder, and as
@@ -590,26 +638,32 @@ pub struct MintTokenizedPosition<'info> {
     pub nft_account: Box<Account<'info, TokenAccount>>,
 
     /// Mint liquidity for this pool
+    /// CHECK: Safety check performed inside function body
     #[account(mut)]
     pub pool_state: UncheckedAccount<'info>,
 
     /// Core program account to store position data
+    /// CHECK: Safety check performed inside function body
     #[account(mut)]
     pub core_position_state: UncheckedAccount<'info>,
 
     /// Account to store data for the position's lower tick
+    /// CHECK: Safety check performed inside function body
     #[account(mut)]
     pub tick_lower_state: UncheckedAccount<'info>,
 
     /// Account to store data for the position's upper tick
+    /// CHECK: Safety check performed inside function body
     #[account(mut)]
     pub tick_upper_state: UncheckedAccount<'info>,
 
     /// Account to mark the lower tick as initialized
+    /// CHECK: Safety check performed inside function body
     #[account(mut)]
     pub bitmap_lower_state: UncheckedAccount<'info>, // remove
 
     /// Account to mark the upper tick as initialized
+    /// CHECK: Safety check performed inside function body
     #[account(mut)]
     pub bitmap_upper_state: UncheckedAccount<'info>, // remove
 
@@ -617,16 +671,18 @@ pub struct MintTokenizedPosition<'info> {
     #[account(
         init,
         seeds = [POSITION_SEED.as_bytes(), nft_mint.key().as_ref()],
-        bump = bump,
+        bump,
         payer = minter
     )]
     pub tokenized_position_state: AccountLoader<'info, TokenizedPositionState>,
 
     /// The token account spending token_0 to mint the position
+    /// CHECK: Account validation is performed by the token program
     #[account(mut)]
     pub token_account_0: UncheckedAccount<'info>,
 
     /// The token account spending token_1 to mint the position
+    /// CHECK: Account validation is performed by the token program
     #[account(mut)]
     pub token_account_1: UncheckedAccount<'info>,
 
@@ -639,10 +695,12 @@ pub struct MintTokenizedPosition<'info> {
     pub vault_1: Box<Account<'info, TokenAccount>>,
 
     /// The latest observation state
+    /// CHECK: Safety check performed inside function body
     #[account(mut)]
     pub last_observation_state: UncheckedAccount<'info>,
 
     /// The account which follows the last observation, given by formula `(index_last + 1) % cardinality_next`
+    /// CHECK: Safety check performed inside function body
     #[account(mut)]
     pub next_observation_state: UncheckedAccount<'info>,
 
@@ -683,6 +741,7 @@ pub struct AddMetaplexMetadata<'info> {
     pub tokenized_position_state: AccountLoader<'info, TokenizedPositionState>,
 
     /// To store metaplex metadata
+    /// CHECK: Safety check performed inside function body
     #[account(mut)]
     pub metadata_account: UncheckedAccount<'info>,
 
@@ -690,6 +749,7 @@ pub struct AddMetaplexMetadata<'info> {
     pub rent: Sysvar<'info, Rent>,
 
     /// Program to create NFT metadata
+    /// CHECK: Metadata program address constraint applied
     #[account(address = metaplex_token_metadata::ID)]
     pub metadata_program: UncheckedAccount<'info>,
 
@@ -714,34 +774,42 @@ pub struct IncreaseLiquidity<'info> {
     pub tokenized_position_state: AccountLoader<'info, TokenizedPositionState>,
 
     /// Mint liquidity for this pool
+    /// CHECK: Safety check performed inside function body
     #[account(mut)]
     pub pool_state: UncheckedAccount<'info>,
 
     /// Core program account to store position data
+    /// CHECK: Safety check performed inside function body
     #[account(mut)]
     pub core_position_state: UncheckedAccount<'info>,
 
     /// Account to store data for the position's lower tick
+    /// CHECK: Safety check performed inside function body
     #[account(mut)]
     pub tick_lower_state: UncheckedAccount<'info>,
 
     /// Account to store data for the position's upper tick
+    /// CHECK: Safety check performed inside function body
     #[account(mut)]
     pub tick_upper_state: UncheckedAccount<'info>,
 
     /// Stores init state for the lower tick
+    /// CHECK: Safety check performed inside function body
     #[account(mut)]
     pub bitmap_lower_state: UncheckedAccount<'info>,
 
     /// Stores init state for the upper tick
+    /// CHECK: Safety check performed inside function body
     #[account(mut)]
     pub bitmap_upper_state: UncheckedAccount<'info>,
 
     /// The payer's token account for token_0
+    /// CHECK: Account validation is performed by the token program
     #[account(mut)]
     pub token_account_0: UncheckedAccount<'info>,
 
     /// The payer's token account for token_1
+    /// CHECK: Account validation is performed by the token program
     #[account(mut)]
     pub token_account_1: UncheckedAccount<'info>,
 
@@ -754,10 +822,12 @@ pub struct IncreaseLiquidity<'info> {
     pub vault_1: Box<Account<'info, TokenAccount>>,
 
     /// The latest observation state
+    /// CHECK: Safety check performed inside function body
     #[account(mut)]
     pub last_observation_state: UncheckedAccount<'info>,
 
     /// The account which follows the last observation, given by formula `(index_last + 1) % cardinality_next`
+    /// CHECK: Safety check performed inside function body
     #[account(mut)]
     pub next_observation_state: UncheckedAccount<'info>,
 
@@ -788,34 +858,42 @@ pub struct DecreaseLiquidity<'info> {
     pub factory_state: AccountLoader<'info, FactoryState>,
 
     /// Burn liquidity for this pool
+    /// CHECK: Safety check performed inside function body
     #[account(mut)]
     pub pool_state: UncheckedAccount<'info>,
 
     /// Core program account to store position data
+    /// CHECK: Safety check performed inside function body
     #[account(mut)]
     pub core_position_state: UncheckedAccount<'info>,
 
     /// Account to store data for the position's lower tick
+    /// CHECK: Safety check performed inside function body
     #[account(mut)]
     pub tick_lower_state: UncheckedAccount<'info>,
 
     /// Account to store data for the position's upper tick
+    /// CHECK: Safety check performed inside function body
     #[account(mut)]
     pub tick_upper_state: UncheckedAccount<'info>,
 
     /// Stores init state for the lower tick
+    /// CHECK: Safety check performed inside function body
     #[account(mut)]
     pub bitmap_lower_state: UncheckedAccount<'info>,
 
     /// Stores init state for the upper tick
+    /// CHECK: Safety check performed inside function body
     #[account(mut)]
     pub bitmap_upper_state: UncheckedAccount<'info>,
 
     /// The latest observation state
+    /// CHECK: Safety check performed inside function body
     #[account(mut)]
     pub last_observation_state: UncheckedAccount<'info>,
 
     /// The account which follows the last observation, given by formula `(index_last + 1) % cardinality_next`
+    /// CHECK: Safety check performed inside function body
     #[account(mut)]
     pub next_observation_state: UncheckedAccount<'info>,
 
@@ -843,50 +921,62 @@ pub struct CollectFromTokenized<'info> {
     pub factory_state: AccountLoader<'info, FactoryState>,
 
     /// The program account for the liquidity pool from which fees are collected
+    /// CHECK: Safety check performed inside function body
     #[account(mut)]
     pub pool_state: UncheckedAccount<'info>,
 
     /// The program account to access the core program position state
+    /// CHECK: Safety check performed inside function body
     #[account(mut)]
     pub core_position_state: UncheckedAccount<'info>,
 
     /// The program account for the position's lower tick
+    /// CHECK: Safety check performed inside function body
     #[account(mut)]
     pub tick_lower_state: UncheckedAccount<'info>,
 
     /// The program account for the position's upper tick
+    /// CHECK: Safety check performed inside function body
     #[account(mut)]
     pub tick_upper_state: UncheckedAccount<'info>,
 
     /// The bitmap program account for the init state of the lower tick
+    /// CHECK: Safety check performed inside function body
     #[account(mut)]
     pub bitmap_lower_state: UncheckedAccount<'info>,
 
     /// Stores init state for the upper tick
+    /// CHECK: Safety check performed inside function body
     #[account(mut)]
     pub bitmap_upper_state: UncheckedAccount<'info>,
 
     /// The latest observation state
+    /// CHECK: Safety check performed inside function body
     #[account(mut)]
     pub last_observation_state: UncheckedAccount<'info>,
 
     /// The account which follows the last observation, given by formula `(index_last + 1) % cardinality_next`
+    /// CHECK: Safety check performed inside function body
     #[account(mut)]
     pub next_observation_state: UncheckedAccount<'info>,
 
     /// The pool's token account for token_0
+    /// CHECK: Account validation is performed by the token program
     #[account(mut)]
     pub vault_0: Box<Account<'info, TokenAccount>>,
 
     /// The pool's token account for token_1
+    /// CHECK: Account validation is performed by the token program
     #[account(mut)]
     pub vault_1: Box<Account<'info, TokenAccount>>,
 
     /// The destination token account for the collected amount_0
+    /// CHECK: Account validation is performed by the token program
     #[account(mut)]
     pub recipient_wallet_0: UncheckedAccount<'info>,
 
     /// The destination token account for the collected amount_1
+    /// CHECK: Account validation is performed by the token program
     #[account(mut)]
     pub recipient_wallet_1: UncheckedAccount<'info>,
 
@@ -904,17 +994,21 @@ pub struct ExactInputSingle<'info> {
     pub signer: Signer<'info>,
 
     /// The factory state to read protocol fees
+    /// CHECK: Safety check performed inside function body
     pub factory_state: UncheckedAccount<'info>,
 
     /// The program account of the pool in which the swap will be performed
+    /// CHECK: Safety check performed inside function body
     #[account(mut)]
     pub pool_state: UncheckedAccount<'info>,
 
     /// The user token account for input token
+    /// CHECK: Account validation is performed by the token program
     #[account(mut)]
     pub input_token_account: UncheckedAccount<'info>,
 
     /// The user token account for output token
+    /// CHECK: Account validation is performed by the token program
     #[account(mut)]
     pub output_token_account: UncheckedAccount<'info>,
 
@@ -927,10 +1021,12 @@ pub struct ExactInputSingle<'info> {
     pub output_vault: Box<Account<'info, TokenAccount>>,
 
     /// The program account for the most recent oracle observation
+    /// CHECK: Safety check performed inside function body
     #[account(mut)]
     pub last_observation_state: UncheckedAccount<'info>,
 
     /// The account which follows the last observation, given by formula `(index_last + 1) % cardinality_next`
+    /// CHECK: Safety check performed inside function body
     #[account(mut)]
     pub next_observation_state: UncheckedAccount<'info>,
 
@@ -948,8 +1044,11 @@ pub struct ExactInput<'info> {
     pub signer: Signer<'info>,
 
     /// The factory state to read protocol fees
+    /// CHECK: Safety check performed inside function body
     pub factory_state: UncheckedAccount<'info>,
 
+    /// The token account that pays input tokens for the swap
+    /// CHECK: Account validation is performed by the token program
     #[account(mut)]
     pub input_token_account: UncheckedAccount<'info>,
 

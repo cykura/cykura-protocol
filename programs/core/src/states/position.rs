@@ -52,7 +52,7 @@ impl PositionState {
         liquidity_delta: i64,
         fee_growth_inside_0_x32: u64,
         fee_growth_inside_1_x32: u64,
-    ) -> Result<(), ErrorCode> {
+    ) -> Result<()> {
         let liquidity_next = if liquidity_delta == 0 {
             require!(self.liquidity > 0, ErrorCode::NP); // disallow pokes for 0 liquidity positions
             self.liquidity

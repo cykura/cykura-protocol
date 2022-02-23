@@ -71,7 +71,7 @@ impl TickState {
         time: u32,
         upper: bool,
         max_liquidity: u64,
-    ) -> Result<bool, ErrorCode> {
+    ) -> Result<bool> {
         let liquidity_gross_before = self.liquidity_gross;
         let liquidity_gross_after =
             liquidity_math::add_delta(liquidity_gross_before, liquidity_delta)?;
@@ -484,7 +484,7 @@ mod test {
             let mut tick = TickState::default();
             tick.tick = 1;
             tick.update(1, 1, 1, 2, 3, 4, 5, false, u64::MAX).unwrap();
-            
+
             assert!(tick.fee_growth_outside_0_x32 == 1);
             assert!(tick.fee_growth_outside_1_x32 == 2);
             assert!(tick.seconds_per_liquidity_outside_x32 == 3);
@@ -551,7 +551,7 @@ mod test {
                 seconds_outside: 7,
             };
             tick.cross(7, 9, 8, 15, 10);
-            
+
             assert!(tick.fee_growth_outside_0_x32 == 6);
             assert!(tick.fee_growth_outside_1_x32 == 7);
             assert!(tick.seconds_per_liquidity_outside_x32 == 3);
@@ -574,7 +574,7 @@ mod test {
             };
             tick.cross(7, 9, 8, 15, 10);
             tick.cross(7, 9, 8, 15, 10);
-            
+
             assert!(tick.fee_growth_outside_0_x32 == 1);
             assert!(tick.fee_growth_outside_1_x32 == 2);
             assert!(tick.seconds_per_liquidity_outside_x32 == 5);

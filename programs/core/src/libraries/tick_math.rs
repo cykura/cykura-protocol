@@ -35,7 +35,7 @@ pub const MAX_SQRT_RATIO: u64 = 281472331703918;
 /// # Arguments
 /// * `tick` - Price tick
 ///
-pub fn get_sqrt_ratio_at_tick(tick: i32) -> Result<u64, ErrorCode> {
+pub fn get_sqrt_ratio_at_tick(tick: i32) -> Result<u64, anchor_lang::error::Error> {
     let abs_tick = tick.abs() as u128;
     require!(abs_tick <= MAX_TICK as u128, ErrorCode::T);
 
@@ -135,7 +135,7 @@ pub fn get_sqrt_ratio_at_tick(tick: i32) -> Result<u64, ErrorCode> {
 ///
 /// * `sqrt_price_x32`- The sqrt ratio for which to compute the tick as a U32.32
 ///
-pub fn get_tick_at_sqrt_ratio(sqrt_price_x32: u64) -> Result<i32, ErrorCode> {
+pub fn get_tick_at_sqrt_ratio(sqrt_price_x32: u64) -> Result<i32, anchor_lang::error::Error> {
     // second inequality must be < because the price can never reach the price at the max tick
     require!(
         sqrt_price_x32 >= MIN_SQRT_RATIO && sqrt_price_x32 < MAX_SQRT_RATIO,
