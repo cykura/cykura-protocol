@@ -390,11 +390,6 @@ pub struct MintContext<'info> {
     #[account(mut)]
     pub last_observation_state: UncheckedAccount<'info>,
 
-    /// The account which follows the last observation, given by formula `(index_last + 1) % cardinality_next`
-    /// CHECK: Safety check performed inside function body
-    #[account(mut)]
-    pub next_observation_state: UncheckedAccount<'info>,
-
     /// The SPL program to perform token transfers
     pub token_program: Program<'info, Token>,
 
@@ -492,10 +487,6 @@ pub struct BurnContext<'info> {
     /// The program account for the most recent oracle observation
     /// CHECK: Safety check performed inside function body
     pub last_observation_state: UncheckedAccount<'info>,
-
-    /// The account which follows the last observation, given by formula `(index_last + 1) % cardinality_next`
-    /// CHECK: Safety check performed inside function body
-    pub next_observation_state: UncheckedAccount<'info>,
 }
 
 #[derive(Accounts)]
@@ -583,11 +574,6 @@ pub struct SwapContext<'info> {
     /// CHECK: Safety check performed inside function body
     #[account(mut)]
     pub last_observation_state: UncheckedAccount<'info>,
-
-    /// The account which follows the last observation, given by formula `(index_last + 1) % cardinality_next`
-    /// CHECK: Safety check performed inside function body
-    #[account(mut)]
-    pub next_observation_state: UncheckedAccount<'info>,
 
     /// Program which receives swap_callback
     /// CHECK: Allow arbitrary callback handlers
@@ -689,11 +675,6 @@ pub struct MintTokenizedPosition<'info> {
     /// CHECK: Safety check performed inside function body
     #[account(mut)]
     pub last_observation_state: UncheckedAccount<'info>,
-
-    /// The account which follows the last observation, given by formula `(index_last + 1) % cardinality_next`
-    /// CHECK: Safety check performed inside function body
-    #[account(mut)]
-    pub next_observation_state: UncheckedAccount<'info>,
 
     /// Sysvar for token mint and ATA creation
     pub rent: Sysvar<'info, Rent>,
@@ -817,11 +798,6 @@ pub struct IncreaseLiquidity<'info> {
     #[account(mut)]
     pub last_observation_state: UncheckedAccount<'info>,
 
-    /// The account which follows the last observation, given by formula `(index_last + 1) % cardinality_next`
-    /// CHECK: Safety check performed inside function body
-    #[account(mut)]
-    pub next_observation_state: UncheckedAccount<'info>,
-
     /// The core program where liquidity is minted
     pub core_program: Program<'info, CyclosCore>,
 
@@ -883,11 +859,6 @@ pub struct DecreaseLiquidity<'info> {
     #[account(mut)]
     pub last_observation_state: UncheckedAccount<'info>,
 
-    /// The account which follows the last observation, given by formula `(index_last + 1) % cardinality_next`
-    /// CHECK: Safety check performed inside function body
-    #[account(mut)]
-    pub next_observation_state: UncheckedAccount<'info>,
-
     /// The core program where liquidity is burned
     pub core_program: Program<'info, CyclosCore>,
 }
@@ -945,11 +916,6 @@ pub struct CollectFromTokenized<'info> {
     /// CHECK: Safety check performed inside function body
     #[account(mut)]
     pub last_observation_state: UncheckedAccount<'info>,
-
-    /// The account which follows the last observation, given by formula `(index_last + 1) % cardinality_next`
-    /// CHECK: Safety check performed inside function body
-    #[account(mut)]
-    pub next_observation_state: UncheckedAccount<'info>,
 
     /// The pool's token account for token_0
     /// CHECK: Account validation is performed by the token program
@@ -1015,11 +981,6 @@ pub struct ExactInputSingle<'info> {
     /// CHECK: Safety check performed inside function body
     #[account(mut)]
     pub last_observation_state: UncheckedAccount<'info>,
-
-    /// The account which follows the last observation, given by formula `(index_last + 1) % cardinality_next`
-    /// CHECK: Safety check performed inside function body
-    #[account(mut)]
-    pub next_observation_state: UncheckedAccount<'info>,
 
     /// The core program where swap is performed
     pub core_program: Program<'info, CyclosCore>,

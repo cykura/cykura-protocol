@@ -1593,7 +1593,6 @@ describe('cyclos-core', async () => {
       await coreProgram.rpc.initPositionAccount({
         accounts: {
           signer: owner,
-          // recipient: posMgrState,
           recipient: factoryState,
           poolState: poolAState,
           tickLowerState: tickLowerAState,
@@ -1666,14 +1665,19 @@ describe('cyclos-core', async () => {
           vault0: vaultA0,
           vault1: vaultA1,
           lastObservationState: lastObservationAState,
-          nextObservationState: nextObservationAState,
           tokenizedPositionState: tokenizedPositionAState,
           coreProgram: coreProgram.programId,
           systemProgram: SystemProgram.programId,
           rent: web3.SYSVAR_RENT_PUBKEY,
           tokenProgram: TOKEN_PROGRAM_ID,
           associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID
-        }, signers: [nftMintAKeypair],
+        },
+        remainingAccounts: [{
+          pubkey: nextObservationAState,
+          isSigner: false,
+          isWritable: true
+        }],
+        signers: [nftMintAKeypair],
       })).to.be.rejectedWith(Error)
     })
 
@@ -1705,14 +1709,19 @@ describe('cyclos-core', async () => {
           vault0: vaultA0,
           vault1: vaultA1,
           lastObservationState: lastObservationAState,
-          nextObservationState: nextObservationAState,
           tokenizedPositionState: tokenizedPositionAState,
           coreProgram: coreProgram.programId,
           systemProgram: SystemProgram.programId,
           rent: web3.SYSVAR_RENT_PUBKEY,
           tokenProgram: TOKEN_PROGRAM_ID,
           associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID
-        }, signers: [nftMintAKeypair],
+        },
+        remainingAccounts: [{
+          pubkey: nextObservationAState,
+          isSigner: false,
+          isWritable: true
+        }],
+        signers: [nftMintAKeypair],
       })
 
       // let listener: number
@@ -1910,11 +1919,15 @@ describe('cyclos-core', async () => {
           vault0: vaultA0,
           vault1: vaultA1,
           lastObservationState: lastObservationAState,
-          nextObservationState: nextObservationAState,
           tokenizedPositionState: tokenizedPositionAState,
           coreProgram: coreProgram.programId,
           tokenProgram: TOKEN_PROGRAM_ID,
         },
+        remainingAccounts: [{
+          pubkey: nextObservationAState,
+          isSigner: false,
+          isWritable: true
+        }],
       }
       )).to.be.rejectedWith(Error)
     })
@@ -1984,11 +1997,15 @@ describe('cyclos-core', async () => {
           vault0: vaultA0,
           vault1: vaultA1,
           lastObservationState: lastObservationAState,
-          nextObservationState: nextObservationAState,
           tokenizedPositionState: tokenizedPositionAState,
           coreProgram: coreProgram.programId,
           tokenProgram: TOKEN_PROGRAM_ID,
         },
+        remainingAccounts: [{
+          pubkey: nextObservationAState,
+          isSigner: false,
+          isWritable: true
+        }],
       })
 
       // let listener: number
@@ -2108,9 +2125,13 @@ describe('cyclos-core', async () => {
           bitmapLowerState: bitmapLowerAState,
           bitmapUpperState: bitmapUpperAState,
           lastObservationState: lastObservationAState,
-          nextObservationState: nextObservationAState,
           coreProgram: coreProgram.programId
-        }
+        },
+        remainingAccounts: [{
+          pubkey: nextObservationAState,
+          isSigner: false,
+          isWritable: true
+        }],
       }
       )).to.be.rejectedWith(Error)
     })
@@ -2134,9 +2155,13 @@ describe('cyclos-core', async () => {
           bitmapLowerState: bitmapLowerAState,
           bitmapUpperState: bitmapUpperAState,
           lastObservationState: lastObservationAState,
-          nextObservationState: nextObservationAState,
           coreProgram: coreProgram.programId
-        }
+        },
+        remainingAccounts: [{
+          pubkey: nextObservationAState,
+          isSigner: false,
+          isWritable: true
+        }],
       }
       )).to.be.rejectedWith(Error)
     })
@@ -2160,9 +2185,13 @@ describe('cyclos-core', async () => {
           bitmapLowerState: bitmapLowerAState,
           bitmapUpperState: bitmapUpperAState,
           lastObservationState: lastObservationAState,
-          nextObservationState: nextObservationAState,
           coreProgram: coreProgram.programId
-        }
+        },
+        remainingAccounts: [{
+          pubkey: nextObservationAState,
+          isSigner: false,
+          isWritable: true
+        }],
       }
       )).to.be.rejectedWith(Error)
     })
@@ -2203,9 +2232,13 @@ describe('cyclos-core', async () => {
           bitmapLowerState: bitmapLowerAState,
           bitmapUpperState: bitmapUpperAState,
           lastObservationState: lastObservationAState,
-          nextObservationState: nextObservationAState,
           coreProgram: coreProgram.programId
-        }
+        },
+        remainingAccounts: [{
+          pubkey: nextObservationAState,
+          isSigner: false,
+          isWritable: true
+        }],
       }
       )).to.be.rejectedWith(Error)
 
@@ -2250,9 +2283,13 @@ describe('cyclos-core', async () => {
             bitmapLowerState: bitmapLowerAState,
             bitmapUpperState: bitmapUpperAState,
             lastObservationState: lastObservationAState,
-            nextObservationState: nextObservationAState,
             coreProgram: coreProgram.programId
-          }
+          },
+          remainingAccounts: [{
+            pubkey: nextObservationAState,
+            isSigner: false,
+            isWritable: true
+          }],
         }
         )
       })
@@ -2293,9 +2330,13 @@ describe('cyclos-core', async () => {
           bitmapLowerState: bitmapLowerAState,
           bitmapUpperState: bitmapUpperAState,
           lastObservationState: lastObservationAState,
-          nextObservationState: nextObservationAState,
           coreProgram: coreProgram.programId
-        }
+        },
+        remainingAccounts: [{
+          pubkey: nextObservationAState,
+          isSigner: false,
+          isWritable: true
+        }],
       }
       )
       await expect(connection.sendTransaction(tx, [mintAuthority])).to.be.rejectedWith(Error)
@@ -2339,9 +2380,13 @@ describe('cyclos-core', async () => {
             bitmapLowerState: bitmapLowerAState,
             bitmapUpperState: bitmapUpperAState,
             lastObservationState: lastObservationAState,
-            nextObservationState: nextObservationAState,
             coreProgram: coreProgram.programId
-          }
+          },
+          remainingAccounts: [{
+            pubkey: nextObservationAState,
+            isSigner: false,
+            isWritable: true
+          }],
         }
         )
         connection.sendTransaction(tx, [mintAuthority])
@@ -2378,9 +2423,13 @@ describe('cyclos-core', async () => {
           bitmapLowerState: bitmapLowerAState,
           bitmapUpperState: bitmapUpperAState,
           lastObservationState: lastObservationAState,
-          nextObservationState: nextObservationAState,
           coreProgram: coreProgram.programId
-        }
+        },
+        remainingAccounts: [{
+          pubkey: nextObservationAState,
+          isSigner: false,
+          isWritable: true
+        }],
       }
       )
       // TODO check for 'Not approved' error
@@ -2403,14 +2452,18 @@ describe('cyclos-core', async () => {
           bitmapLowerState: bitmapLowerAState,
           bitmapUpperState: bitmapUpperAState,
           lastObservationState: lastObservationAState,
-          nextObservationState: nextObservationAState,
           coreProgram: coreProgram.programId,
           vault0: vaultA0,
           vault1: vaultA1,
           recipientWallet0: feeRecipientWallet0,
           recipientWallet1: feeRecipientWallet1,
           tokenProgram: TOKEN_PROGRAM_ID,
-        }
+        },
+        remainingAccounts: [{
+          pubkey: nextObservationAState,
+          isSigner: false,
+          isWritable: true
+        }],
       })).to.be.rejectedWith(Error)
     })
 
@@ -2428,14 +2481,18 @@ describe('cyclos-core', async () => {
           bitmapLowerState: bitmapLowerAState,
           bitmapUpperState: bitmapUpperAState,
           lastObservationState: lastObservationAState,
-          nextObservationState: nextObservationAState,
           coreProgram: coreProgram.programId,
           vault0: vaultA0,
           vault1: vaultA1,
           recipientWallet0: feeRecipientWallet0,
           recipientWallet1: feeRecipientWallet1,
           tokenProgram: TOKEN_PROGRAM_ID,
-        }
+        },
+        remainingAccounts: [{
+          pubkey: nextObservationAState,
+          isSigner: false,
+          isWritable: true
+        }],
       })
       await expect(connection.sendTransaction(tx, [notOwner])).to.be.rejectedWith(Error)
     })
@@ -2466,14 +2523,18 @@ describe('cyclos-core', async () => {
           bitmapLowerState: bitmapLowerAState,
           bitmapUpperState: bitmapUpperAState,
           lastObservationState: lastObservationAState,
-          nextObservationState: nextObservationAState,
           coreProgram: coreProgram.programId,
           vault0: vaultA0,
           vault1: vaultA1,
           recipientWallet0: feeRecipientWallet0,
           recipientWallet1: feeRecipientWallet1,
           tokenProgram: TOKEN_PROGRAM_ID,
-        }
+        },
+        remainingAccounts: [{
+          pubkey: nextObservationAState,
+          isSigner: false,
+          isWritable: true
+        }],
       })
       await expect(connection.sendTransaction(tx, [mintAuthority])).to.be.rejectedWith(Error)
     })
@@ -2504,14 +2565,18 @@ describe('cyclos-core', async () => {
           bitmapLowerState: bitmapLowerAState,
           bitmapUpperState: bitmapUpperAState,
           lastObservationState: lastObservationAState,
-          nextObservationState: nextObservationAState,
           coreProgram: coreProgram.programId,
           vault0: vaultA0,
           vault1: vaultA1,
           recipientWallet0: feeRecipientWallet0,
           recipientWallet1: feeRecipientWallet1,
           tokenProgram: TOKEN_PROGRAM_ID,
-        }
+        },
+        remainingAccounts: [{
+          pubkey: nextObservationAState,
+          isSigner: false,
+          isWritable: true
+        }],
       })).to.be.rejectedWith(Error)
 
       // send the NFT back to the original owner
@@ -2552,14 +2617,18 @@ describe('cyclos-core', async () => {
             bitmapLowerState: bitmapLowerAState,
             bitmapUpperState: bitmapUpperAState,
             lastObservationState: lastObservationAState,
-            nextObservationState: nextObservationAState,
             coreProgram: coreProgram.programId,
             vault0: vaultA0,
             vault1: vaultA1,
             recipientWallet0: feeRecipientWallet0,
             recipientWallet1: feeRecipientWallet1,
             tokenProgram: TOKEN_PROGRAM_ID,
-          }
+          },
+          remainingAccounts: [{
+            pubkey: nextObservationAState,
+            isSigner: false,
+            isWritable: true
+          }],
         })
       })
       await coreProgram.removeEventListener(listener)
@@ -2623,14 +2692,18 @@ describe('cyclos-core', async () => {
             bitmapLowerState: bitmapLowerAState,
             bitmapUpperState: bitmapUpperAState,
             lastObservationState: lastObservationAState,
-            nextObservationState: nextObservationAState,
             coreProgram: coreProgram.programId,
             vault0: vaultA0,
             vault1: vaultA1,
             recipientWallet0: feeRecipientWallet0,
             recipientWallet1: feeRecipientWallet1,
             tokenProgram: TOKEN_PROGRAM_ID,
-          }
+          },
+          remainingAccounts: [{
+            pubkey: nextObservationAState,
+            isSigner: false,
+            isWritable: true
+          }],
         })
         connection.sendTransaction(tx, [mintAuthority])
       })
@@ -2684,10 +2757,14 @@ describe('cyclos-core', async () => {
             inputVault: vaultA0,
             outputVault: vaultA1,
             lastObservationState: lastObservationAState,
-            nextObservationState: nextObservationAState,
+            // nextObservationState: nextObservationAState,
             coreProgram: coreProgram.programId,
             tokenProgram: TOKEN_PROGRAM_ID,
           }, remainingAccounts: [{
+            pubkey: nextObservationAState,
+            isSigner: false,
+            isWritable: true
+          },{
             pubkey: bitmapLowerAState,
             isSigner: false,
             isWritable: true
@@ -2729,7 +2806,7 @@ describe('cyclos-core', async () => {
         tickDataProvider
       )
 
-      const [expectedAmountOut, expectedNewPool, remainingAccounts] = await uniPoolA.getOutputAmount(
+      const [expectedAmountOut, expectedNewPool, bitmapAndTickAccounts] = await uniPoolA.getOutputAmount(
         CurrencyAmount.fromRawAmount(uniToken0, amountIn.toNumber()),
         JSBI.BigInt(sqrtPriceLimitX32),
       )
@@ -2750,11 +2827,18 @@ describe('cyclos-core', async () => {
             inputVault: vaultA0,
             outputVault: vaultA1,
             lastObservationState: lastObservationAState,
-            nextObservationState: nextObservationAState,
+            // nextObservationState: nextObservationAState,
             coreProgram: coreProgram.programId,
             tokenProgram: TOKEN_PROGRAM_ID,
           },
-          remainingAccounts,
+          remainingAccounts: [
+            ...bitmapAndTickAccounts,
+            {
+              pubkey: nextObservationAState,
+              isSigner: false,
+              isWritable: true
+            },
+          ],
         }
       )
       let poolStateData = await coreProgram.account.poolState.fetch(poolAState)
@@ -2801,7 +2885,7 @@ describe('cyclos-core', async () => {
       const sqrtPriceLimitX32 = new BN(0)
 
       console.log('pool tick', uniPoolA.tickCurrent, 'price', uniPoolA.sqrtRatioX32.toString())
-      const [expectedAmountOut, expectedNewPool, remainingAccounts] = await uniPoolA.getOutputAmount(
+      const [expectedAmountOut, expectedNewPool, bitmapAndTickAccounts] = await uniPoolA.getOutputAmount(
         CurrencyAmount.fromRawAmount(uniToken0, amountIn.toNumber())
       )
       console.log('expected pool', expectedNewPool)
@@ -2822,10 +2906,18 @@ describe('cyclos-core', async () => {
             inputVault: vaultA0,
             outputVault: vaultA1,
             lastObservationState: lastObservationAState,
-            nextObservationState: nextObservationAState,
+            // nextObservationState: nextObservationAState,
             coreProgram: coreProgram.programId,
             tokenProgram: TOKEN_PROGRAM_ID,
-          }, remainingAccounts,
+          },
+          remainingAccounts: [
+            ...bitmapAndTickAccounts,
+            {
+              pubkey: nextObservationAState,
+              isSigner: false,
+              isWritable: true
+            },
+          ],
         }
       )
       const poolStateDataAfter = await coreProgram.account.poolState.fetch(poolAState)
@@ -2882,7 +2974,7 @@ describe('cyclos-core', async () => {
         deadline,
         amountIn,
         amountOutMinimum,
-        Buffer.from([1]),
+        Buffer.from([2]),
         {
           accounts: {
             signer: owner,
@@ -2910,12 +3002,13 @@ describe('cyclos-core', async () => {
             pubkey: lastObservationAState,
             isSigner: false,
             isWritable: true
-          }, {
+          },
+          ...swapAccounts,
+          {
             pubkey: nextObservationAState,
             isSigner: false,
             isWritable: true
           },
-          ...swapAccounts
           ]
         }
       )
@@ -3038,7 +3131,6 @@ describe('cyclos-core', async () => {
           vault0: vaultB1,
           vault1: vaultB2,
           lastObservationState: latestObservationBState,
-          nextObservationState: nextObservationBState,
           tokenizedPositionState: tokenizedPositionBState,
 
           coreProgram: coreProgram.programId,
@@ -3046,186 +3138,194 @@ describe('cyclos-core', async () => {
           rent: web3.SYSVAR_RENT_PUBKEY,
           tokenProgram: TOKEN_PROGRAM_ID,
           associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID
-        }, signers: [nftMintBKeypair],
+        },
+        remainingAccounts: [{
+          pubkey: nextObservationBState,
+          isSigner: false,
+          isWritable: true
+        }],
+        signers: [nftMintBKeypair],
       })
     })
 
-    //   it('perform a two pool swap', async () => {
-    //     const poolStateDataBefore = await coreProgram.account.poolState.fetch(poolAState)
-    //     console.log('pool price', poolStateDataBefore.sqrtPriceX32.toNumber())
-    //     console.log('pool tick', poolStateDataBefore.tick)
+    it('perform a two pool swap', async () => {
+      const poolStateDataBefore = await coreProgram.account.poolState.fetch(poolAState)
+      console.log('pool price', poolStateDataBefore.sqrtPriceX32.toNumber())
+      console.log('pool tick', poolStateDataBefore.tick)
 
-    //     const {
-    //       observationIndex: observationAIndex,
-    //       observationCardinalityNext: observationCardinalityANext
-    //     } = await coreProgram.account.poolState.fetch(poolAState)
+      const {
+        observationIndex: observationAIndex,
+        observationCardinalityNext: observationCardinalityANext
+      } = await coreProgram.account.poolState.fetch(poolAState)
 
-    //     latestObservationAState = (await PublicKey.findProgramAddress(
-    //       [
-    //         OBSERVATION_SEED,
-    //         token0.publicKey.toBuffer(),
-    //         token1.publicKey.toBuffer(),
-    //         u32ToSeed(fee),
-    //         u16ToSeed(observationAIndex)
-    //       ],
-    //       coreProgram.programId
-    //     ))[0]
+      lastObservationAState = (await PublicKey.findProgramAddress(
+        [
+          OBSERVATION_SEED,
+          token0.publicKey.toBuffer(),
+          token1.publicKey.toBuffer(),
+          u32ToSeed(fee),
+          u16ToSeed(observationAIndex)
+        ],
+        coreProgram.programId
+      ))[0]
 
-    //     nextObservationAState = (await PublicKey.findProgramAddress(
-    //       [
-    //         OBSERVATION_SEED,
-    //         token0.publicKey.toBuffer(),
-    //         token1.publicKey.toBuffer(),
-    //         u32ToSeed(fee),
-    //         u16ToSeed((observationAIndex + 1) % observationCardinalityANext)
-    //       ],
-    //       coreProgram.programId
-    //     ))[0]
+      nextObservationAState = (await PublicKey.findProgramAddress(
+        [
+          OBSERVATION_SEED,
+          token0.publicKey.toBuffer(),
+          token1.publicKey.toBuffer(),
+          u32ToSeed(fee),
+          u16ToSeed((observationAIndex + 1) % observationCardinalityANext)
+        ],
+        coreProgram.programId
+      ))[0]
 
-    //     const {
-    //       observationIndex: observationBIndex,
-    //       observationCardinalityNext: observationCardinalityBNext
-    //     } = await coreProgram.account.poolState.fetch(poolBState)
+      const {
+        observationIndex: observationBIndex,
+        observationCardinalityNext: observationCardinalityBNext
+      } = await coreProgram.account.poolState.fetch(poolBState)
 
-    //     latestObservationBState = (await PublicKey.findProgramAddress(
-    //       [
-    //         OBSERVATION_SEED,
-    //         token1.publicKey.toBuffer(),
-    //         token2.publicKey.toBuffer(),
-    //         u32ToSeed(fee),
-    //         u16ToSeed(observationBIndex)
-    //       ],
-    //       coreProgram.programId
-    //     ))[0]
+      latestObservationBState = (await PublicKey.findProgramAddress(
+        [
+          OBSERVATION_SEED,
+          token1.publicKey.toBuffer(),
+          token2.publicKey.toBuffer(),
+          u32ToSeed(fee),
+          u16ToSeed(observationBIndex)
+        ],
+        coreProgram.programId
+      ))[0]
 
-    //     nextObservationBState = (await PublicKey.findProgramAddress(
-    //       [
-    //         OBSERVATION_SEED,
-    //         token1.publicKey.toBuffer(),
-    //         token2.publicKey.toBuffer(),
-    //         u32ToSeed(fee),
-    //         u16ToSeed((observationBIndex + 1) % observationCardinalityBNext)
-    //       ],
-    //       coreProgram.programId
-    //     ))[0]
+      nextObservationBState = (await PublicKey.findProgramAddress(
+        [
+          OBSERVATION_SEED,
+          token1.publicKey.toBuffer(),
+          token2.publicKey.toBuffer(),
+          u32ToSeed(fee),
+          u16ToSeed((observationBIndex + 1) % observationCardinalityBNext)
+        ],
+        coreProgram.programId
+      ))[0]
 
-    //     let vaultBalanceA0 = await token0.getAccountInfo(vaultA0)
-    //     let vaultBalanceA1 = await token1.getAccountInfo(vaultA1)
-    //     let vaultBalanceB1 = await token1.getAccountInfo(vaultB1)
-    //     let vaultBalanceB2 = await token2.getAccountInfo(vaultB2)
-    //     console.log(
-    //       'vault balances before',
-    //       vaultBalanceA0.amount.toNumber(),
-    //       vaultBalanceA1.amount.toNumber(),
-    //       vaultBalanceB1.amount.toNumber(),
-    //       vaultBalanceB2.amount.toNumber()
-    //     )
-    //     let token2AccountInfo = await token2.getAccountInfo(minterWallet2)
-    //     console.log('token 2 balance before', token2AccountInfo.amount.toNumber())
+      let vaultBalanceA0 = await token0.getAccountInfo(vaultA0)
+      let vaultBalanceA1 = await token1.getAccountInfo(vaultA1)
+      let vaultBalanceB1 = await token1.getAccountInfo(vaultB1)
+      let vaultBalanceB2 = await token2.getAccountInfo(vaultB2)
+      console.log(
+        'vault balances before',
+        vaultBalanceA0.amount.toNumber(),
+        vaultBalanceA1.amount.toNumber(),
+        vaultBalanceB1.amount.toNumber(),
+        vaultBalanceB2.amount.toNumber()
+      )
+      let token2AccountInfo = await token2.getAccountInfo(minterWallet2)
+      console.log('token 2 balance before', token2AccountInfo.amount.toNumber())
 
-    //     console.log('pool B address', poolBState.toString())
+      console.log('pool B address', poolBState.toString())
 
-    //     const amountIn = new BN(100_000)
-    //     const amountOutMinimum = new BN(0)
-    //     await coreProgram.rpc.exactInput(
-    //       deadline,
-    //       amountIn,
-    //       amountOutMinimum,
-    //       Buffer.from([1, 2]),
-    //       {
-    //         accounts: {
-    //           signer: owner,
-    //           factoryState,
-    //           inputTokenAccount: minterWallet0,
-    //           coreProgram: coreProgram.programId,
-    //           tokenProgram: TOKEN_PROGRAM_ID,
-    //         }, remainingAccounts: [{
-    //           pubkey: poolAState,
-    //           isSigner: false,
-    //           isWritable: true
-    //         },{
-    //           pubkey: minterWallet1, // outputTokenAccount
-    //           isSigner: false,
-    //           isWritable: true
-    //         },{
-    //           pubkey: vaultA0, // input vault
-    //           isSigner: false,
-    //           isWritable: true
-    //         },{
-    //           pubkey: vaultA1, // output vault
-    //           isSigner: false,
-    //           isWritable: true
-    //         },{
-    //           pubkey: latestObservationAState,
-    //           isSigner: false,
-    //           isWritable: true
-    //         },{
-    //           pubkey: nextObservationAState,
-    //           isSigner: false,
-    //           isWritable: true
-    //         },
-    //           {
-    //           pubkey: bitmapLowerAState,
-    //           isSigner: false,
-    //           isWritable: true
-    //         },
-    //         // second pool
-    //         {
-    //           pubkey: poolBState,
-    //           isSigner: false,
-    //           isWritable: true
-    //         },{
-    //           pubkey: minterWallet2, // outputTokenAccount
-    //           isSigner: false,
-    //           isWritable: true
-    //         },{
-    //           pubkey: vaultB1, // input vault
-    //           isSigner: false,
-    //           isWritable: true
-    //         },{
-    //           pubkey: vaultB2, // output vault
-    //           isSigner: false,
-    //           isWritable: true
-    //         },{
-    //           pubkey: latestObservationBState,
-    //           isSigner: false,
-    //           isWritable: true
-    //         },{
-    //           pubkey: nextObservationBState,
-    //           isSigner: false,
-    //           isWritable: true
-    //         },
-    //           {
-    //           pubkey: bitmapLowerBState,
-    //           isSigner: false,
-    //           isWritable: true
-    //         }, {
-    //           pubkey: tickUpperBState,
-    //           isSigner: false,
-    //           isWritable: true
-    //         }
-    //       ]
-    //       }
-    //     )
-    //     vaultBalanceA0 = await token0.getAccountInfo(vaultA0)
-    //     vaultBalanceA1 = await token1.getAccountInfo(vaultA1)
-    //     vaultBalanceB1 = await token1.getAccountInfo(vaultB1)
-    //     vaultBalanceB2 = await token2.getAccountInfo(vaultB2)
-    //     console.log(
-    //       'vault balances after',
-    //       vaultBalanceA0.amount.toNumber(),
-    //       vaultBalanceA1.amount.toNumber(),
-    //       vaultBalanceB1.amount.toNumber(),
-    //       vaultBalanceB2.amount.toNumber()
-    //     )
+      const amountIn = new BN(100_000)
+      const amountOutMinimum = new BN(0)
+      await coreProgram.rpc.exactInput(
+        deadline,
+        amountIn,
+        amountOutMinimum,
+        Buffer.from([2, 2]),
+        {
+          accounts: {
+            signer: owner,
+            factoryState,
+            inputTokenAccount: minterWallet0,
+            coreProgram: coreProgram.programId,
+            tokenProgram: TOKEN_PROGRAM_ID,
+          }, remainingAccounts: [{
+            pubkey: poolAState,
+            isSigner: false,
+            isWritable: true
+          },{
+            pubkey: minterWallet1, // outputTokenAccount
+            isSigner: false,
+            isWritable: true
+          },{
+            pubkey: vaultA0, // input vault
+            isSigner: false,
+            isWritable: true
+          },{
+            pubkey: vaultA1, // output vault
+            isSigner: false,
+            isWritable: true
+          },{
+            pubkey: lastObservationAState,
+            isSigner: false,
+            isWritable: true
+          },
+          {
+            pubkey: bitmapLowerAState,
+            isSigner: false,
+            isWritable: true
+          },
+          {
+            pubkey: nextObservationAState,
+            isSigner: false,
+            isWritable: true
+          },
+          // second pool
+          {
+            pubkey: poolBState,
+            isSigner: false,
+            isWritable: true
+          },{
+            pubkey: minterWallet2, // outputTokenAccount
+            isSigner: false,
+            isWritable: true
+          },{
+            pubkey: vaultB1, // input vault
+            isSigner: false,
+            isWritable: true
+          },{
+            pubkey: vaultB2, // output vault
+            isSigner: false,
+            isWritable: true
+          },{
+            pubkey: latestObservationBState,
+            isSigner: false,
+            isWritable: true
+          },
+            {
+            pubkey: bitmapLowerBState,
+            isSigner: false,
+            isWritable: true
+          }, {
+            pubkey: tickUpperBState,
+            isSigner: false,
+            isWritable: true
+          },
+          {
+            pubkey: nextObservationBState,
+            isSigner: false,
+            isWritable: true
+          },
+        ]
+        }
+      )
+      vaultBalanceA0 = await token0.getAccountInfo(vaultA0)
+      vaultBalanceA1 = await token1.getAccountInfo(vaultA1)
+      vaultBalanceB1 = await token1.getAccountInfo(vaultB1)
+      vaultBalanceB2 = await token2.getAccountInfo(vaultB2)
+      console.log(
+        'vault balances after',
+        vaultBalanceA0.amount.toNumber(),
+        vaultBalanceA1.amount.toNumber(),
+        vaultBalanceB1.amount.toNumber(),
+        vaultBalanceB2.amount.toNumber()
+      )
 
-    //     const poolStateDataAfter = await coreProgram.account.poolState.fetch(poolAState)
-    //     console.log('pool A price after', poolStateDataAfter.sqrtPriceX32.toNumber())
-    //     console.log('pool A tick after', poolStateDataAfter.tick)
+      const poolStateDataAfter = await coreProgram.account.poolState.fetch(poolAState)
+      console.log('pool A price after', poolStateDataAfter.sqrtPriceX32.toNumber())
+      console.log('pool A tick after', poolStateDataAfter.tick)
 
-    //     token2AccountInfo = await token2.getAccountInfo(minterWallet2)
-    //     console.log('token 2 balance after', token2AccountInfo.amount.toNumber())
-    //   })
+      token2AccountInfo = await token2.getAccountInfo(minterWallet2)
+      console.log('token 2 balance after', token2AccountInfo.amount.toNumber())
+    })
   })
 
   describe('Completely close position and deallocate ticks', () => {
@@ -3294,9 +3394,13 @@ describe('cyclos-core', async () => {
             bitmapLowerState: bitmapLowerAState,
             bitmapUpperState: bitmapUpperAState,
             lastObservationState: lastObservationAState,
-            nextObservationState: nextObservationAState,
             coreProgram: coreProgram.programId
           },
+          remainingAccounts: [{
+            pubkey: nextObservationAState,
+            isSigner: false,
+            isWritable: true
+          }],
         }
         ),
         coreProgram.instruction.closeTickAccount({

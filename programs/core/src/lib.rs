@@ -395,10 +395,7 @@ pub mod cyclos_core {
     /// * `tick_account_bump` - Bump to validate tick account PDA
     /// * `tick` - The tick for which the account is created
     ///
-    pub fn init_tick_account(
-        ctx: Context<InitTickAccount>,
-        tick: i32,
-    ) -> Result<()> {
+    pub fn init_tick_account(ctx: Context<InitTickAccount>, tick: i32) -> Result<()> {
         let pool_state = ctx.accounts.pool_state.load()?;
         check_tick(tick, pool_state.tick_spacing)?;
         let mut tick_state = ctx.accounts.tick_state.load_init()?;
@@ -427,10 +424,7 @@ pub mod cyclos_core {
     /// divide the tick by tick spacing to get a 24 bit compressed result, then right shift to obtain the
     /// most significant 16 bits.
     ///
-    pub fn init_bitmap_account(
-        ctx: Context<InitBitmapAccount>,
-        word_pos: i16,
-    ) -> Result<()> {
+    pub fn init_bitmap_account(ctx: Context<InitBitmapAccount>, word_pos: i16) -> Result<()> {
         let pool_state = ctx.accounts.pool_state.load()?;
         let max_word_pos = ((tick_math::MAX_TICK / pool_state.tick_spacing as i32) >> 8) as i16;
         let min_word_pos = ((tick_math::MIN_TICK / pool_state.tick_spacing as i32) >> 8) as i16;
@@ -560,7 +554,10 @@ pub mod cyclos_core {
     /// pool, position and ticks.
     /// * `amount` - The amount of liquidity to mint
     ///
-    pub fn mint(ctx: Context<MintContext>, amount: u64) -> Result<()> {
+    pub fn mint<'a, 'b, 'c, 'info>(
+        ctx: Context<'a, 'b, 'c, 'info, MintContext<'info>>,
+        amount: u64,
+    ) -> Result<()> {
         let mut pool = ctx.accounts.pool_state.load_mut()?;
 
         assert!(
@@ -622,22 +619,13 @@ pub mod cyclos_core {
             false,
         )?;
 
-        // TODO lazy validate next_observation_state address
-        let next_observation_state = AccountLoader::<ObservationState>::try_from(
-            &ctx.accounts.next_observation_state.to_account_info(),
-        )?;
-        pool.validate_observation_address(
-            &next_observation_state.key(),
-            next_observation_state.load()?.bump,
-            true,
-        )?;
-
         require!(pool.unlocked, ErrorCode::LOK);
         pool.unlocked = false;
 
         assert!(amount > 0);
 
         let (amount_0_int, amount_1_int) = _modify_position(
+            i64::try_from(amount).unwrap(),
             pool.deref_mut(),
             &position_state,
             &ctx.accounts.tick_lower_state,
@@ -645,8 +633,7 @@ pub mod cyclos_core {
             &bitmap_lower_state,
             &bitmap_upper_state,
             &last_observation_state,
-            &next_observation_state,
-            i64::try_from(amount).unwrap(),
+            ctx.remaining_accounts,
         )?;
 
         let amount_0 = amount_0_int as u64;
@@ -716,9 +703,10 @@ pub mod cyclos_core {
     /// * `ctx` - Holds position and other validated accounts need to burn liquidity
     /// * `amount` - Amount of liquidity to be burned
     ///
-    pub fn burn(ctx: Context<BurnContext>, amount: u64) -> Result<()> {
-        // assert!(ctx.accounts.owner.is_signer);
-        msg!("inside burn");
+    pub fn burn<'a, 'b, 'c, 'info>(
+        ctx: Context<'a, 'b, 'c, 'info, BurnContext<'info>>,
+        amount: u64,
+    ) -> Result<()> {
         let pool_state =
             AccountLoader::<PoolState>::try_from(&ctx.accounts.pool_state.to_account_info())?;
         let mut pool = pool_state.load_mut()?;
@@ -778,21 +766,13 @@ pub mod cyclos_core {
             false,
         )?;
 
-        // TODO lazy validate next_observation_state address
-        let next_observation_state = AccountLoader::<ObservationState>::try_from(
-            &ctx.accounts.next_observation_state.to_account_info(),
-        )?;
-        pool.validate_observation_address(
-            &ctx.accounts.next_observation_state.key(),
-            next_observation_state.load()?.bump,
-            true,
-        )?;
         msg!("accounts validated");
 
         require!(pool.unlocked, ErrorCode::LOK);
         pool.unlocked = false;
 
         let (amount_0_int, amount_1_int) = _modify_position(
+            -i64::try_from(amount).unwrap(),
             pool.deref_mut(),
             &ctx.accounts.position_state,
             &tick_lower_state,
@@ -800,8 +780,7 @@ pub mod cyclos_core {
             &bitmap_lower_state,
             &bitmap_upper_state,
             &last_observation_state,
-            &next_observation_state,
-            -i64::try_from(amount).unwrap(),
+            ctx.remaining_accounts,
         )?;
 
         let amount_0 = (-amount_0_int) as u64;
@@ -1013,7 +992,6 @@ pub mod cyclos_core {
         amount_specified: i64,
         sqrt_price_limit_x32: u64,
     ) -> Result<()> {
-        msg!("in swap");
         require!(amount_specified != 0, ErrorCode::AS);
 
         let factory_state =
@@ -1047,7 +1025,7 @@ pub mod cyclos_core {
         };
         assert!(vault_0.key() == get_associated_token_address(&pool_loader.key(), &pool.token_0));
         assert!(vault_1.key() == get_associated_token_address(&pool_loader.key(), &pool.token_1));
-        msg!("vaults validated");
+
         let last_observation_state = AccountLoader::<ObservationState>::try_from(
             &ctx.accounts.last_observation_state.to_account_info(),
         )?;
@@ -1056,16 +1034,6 @@ pub mod cyclos_core {
             last_observation_state.load()?.bump,
             false,
         )?;
-        // TODO lazy validate next_observation_state address
-        let next_observation_state = AccountLoader::<ObservationState>::try_from(
-            &ctx.accounts.next_observation_state.to_account_info(),
-        )?;
-        pool.validate_observation_address(
-            &ctx.accounts.next_observation_state.key(),
-            next_observation_state.load()?.bump,
-            true,
-        )?;
-        msg!("observation accounts validated");
 
         require!(pool.unlocked, ErrorCode::LOK);
         require!(
@@ -1114,7 +1082,6 @@ pub mod cyclos_core {
         // reached the price limit
         while state.amount_specified_remaining != 0 && state.sqrt_price_x32 != sqrt_price_limit_x32
         {
-            msg!("in swap loop");
             let mut step = StepComputations::default();
             step.sqrt_price_start_x32 = state.sqrt_price_x32;
 
@@ -1297,16 +1264,22 @@ pub mod cyclos_core {
         let partition_current_timestamp = cache.block_timestamp / 14;
         let partition_last_timestamp = latest_observation.block_timestamp / 14;
         drop(latest_observation);
+
         // update tick and write an oracle entry if the tick changes
         if state.tick != pool.tick {
             // use the next observation account and update pool observation index if block time falls
             // in another partition
+            let next_observation_state;
             let mut next_observation = if partition_current_timestamp > partition_last_timestamp {
+                next_observation_state = AccountLoader::<ObservationState>::try_from(
+                    &remaining_accounts.next().unwrap(),
+                )?;
                 let next_observation = next_observation_state.load_mut()?;
-                pool.observation_index = next_observation.index;
+
+                pool.validate_observation_address(&next_observation_state.key(), next_observation.bump, true)?;
+
                 next_observation
             } else {
-                // cannot directly use latest_observation. It gives a borrow error
                 last_observation_state.load_mut()?
             };
             pool.tick = state.tick;
@@ -1382,7 +1355,6 @@ pub mod cyclos_core {
             let swap_callback_ix = cyclos_core::instruction::SwapCallback {
                 amount_0_delta: amount_0,
                 amount_1_delta: amount_1,
-                // exact_input,
             };
             let ix = Instruction::new_with_bytes(
                 ctx.accounts.callback_handler.key(),
@@ -1416,7 +1388,6 @@ pub mod cyclos_core {
             let swap_callback_ix = cyclos_core::instruction::SwapCallback {
                 amount_0_delta: amount_0,
                 amount_1_delta: amount_1,
-                // exact_input,
             };
             let ix = Instruction::new_with_bytes(
                 ctx.accounts.callback_handler.key(),
@@ -1483,8 +1454,8 @@ pub mod cyclos_core {
     /// * `deadline` - The time by which the transaction must be included to effect the change
     ///
     #[access_control(check_deadline(deadline))]
-    pub fn mint_tokenized_position(
-        ctx: Context<MintTokenizedPosition>,
+    pub fn mint_tokenized_position<'a, 'b, 'c, 'info>(
+        ctx: Context<'a, 'b, 'c, 'info, MintTokenizedPosition<'info>>,
         amount_0_desired: u64,
         amount_1_desired: u64,
         amount_0_min: u64,
@@ -1515,7 +1486,6 @@ pub mod cyclos_core {
             bitmap_upper_state: ctx.accounts.bitmap_upper_state.clone(),
             position_state: ctx.accounts.core_position_state.clone(),
             last_observation_state: ctx.accounts.last_observation_state.clone(),
-            next_observation_state: ctx.accounts.next_observation_state.clone(),
             token_program: ctx.accounts.token_program.clone(),
             callback_handler: UncheckedAccount::try_from(
                 ctx.accounts.core_program.to_account_info(),
@@ -1524,6 +1494,7 @@ pub mod cyclos_core {
 
         let (liquidity, amount_0, amount_1) = add_liquidity(
             &mut accs,
+            ctx.remaining_accounts,
             amount_0_desired,
             amount_1_desired,
             amount_0_min,
@@ -1649,8 +1620,8 @@ pub mod cyclos_core {
     /// * `deadline` - The time by which the transaction must be included to effect the change
     ///
     #[access_control(check_deadline(deadline))]
-    pub fn increase_liquidity(
-        ctx: Context<IncreaseLiquidity>,
+    pub fn increase_liquidity<'a, 'b, 'c, 'info>(
+        ctx: Context<'a, 'b, 'c, 'info, IncreaseLiquidity<'info>>,
         amount_0_desired: u64,
         amount_1_desired: u64,
         amount_0_min: u64,
@@ -1681,7 +1652,6 @@ pub mod cyclos_core {
             bitmap_upper_state: ctx.accounts.bitmap_upper_state.clone(),
             position_state: ctx.accounts.core_position_state.clone(),
             last_observation_state: ctx.accounts.last_observation_state.clone(),
-            next_observation_state: ctx.accounts.next_observation_state.clone(),
             token_program: ctx.accounts.token_program.clone(),
             callback_handler: UncheckedAccount::try_from(
                 ctx.accounts.core_program.to_account_info(),
@@ -1690,6 +1660,7 @@ pub mod cyclos_core {
 
         let (liquidity, amount_0, amount_1) = add_liquidity(
             &mut accs,
+            ctx.remaining_accounts,
             amount_0_desired,
             amount_1_desired,
             amount_0_min,
@@ -1742,8 +1713,8 @@ pub mod cyclos_core {
     ///
     #[access_control(check_deadline(deadline))]
     #[access_control(is_authorized_for_token(&ctx.accounts.owner_or_delegate, &ctx.accounts.nft_account))]
-    pub fn decrease_liquidity(
-        ctx: Context<DecreaseLiquidity>,
+    pub fn decrease_liquidity<'a, 'b, 'c, 'info>(
+        ctx: Context<'a, 'b, 'c, 'info, DecreaseLiquidity<'info>>,
         liquidity: u64,
         amount_0_min: u64,
         amount_1_min: u64,
@@ -1768,10 +1739,14 @@ pub mod cyclos_core {
             bitmap_upper_state: ctx.accounts.bitmap_upper_state.clone(),
             position_state,
             last_observation_state: ctx.accounts.last_observation_state.clone(),
-            next_observation_state: ctx.accounts.next_observation_state.clone(),
         };
         burn(
-            Context::new(&ID, &mut accounts, &[], BTreeMap::default()),
+            Context::new(
+                &ID,
+                &mut accounts,
+                ctx.remaining_accounts,
+                BTreeMap::default(),
+            ),
             liquidity,
         )?;
         let updated_core_position = accounts.position_state.load()?;
@@ -1821,8 +1796,8 @@ pub mod cyclos_core {
     /// * `amount_1_max` - The maximum amount of token0 to collect
     ///
     #[access_control(is_authorized_for_token(&ctx.accounts.owner_or_delegate, &ctx.accounts.nft_account))]
-    pub fn collect_from_tokenized(
-        ctx: Context<CollectFromTokenized>,
+    pub fn collect_from_tokenized<'a, 'b, 'c, 'info>(
+        ctx: Context<'a, 'b, 'c, 'info, CollectFromTokenized<'info>>,
         amount_0_max: u64,
         amount_1_max: u64,
     ) -> Result<()> {
@@ -1849,10 +1824,14 @@ pub mod cyclos_core {
                 bitmap_upper_state: ctx.accounts.bitmap_upper_state.clone(),
                 position_state,
                 last_observation_state: ctx.accounts.last_observation_state.clone(),
-                next_observation_state: ctx.accounts.next_observation_state.clone(),
             };
             burn(
-                Context::new(&ID, &mut burn_accounts, &[], BTreeMap::default()),
+                Context::new(
+                    &ID,
+                    &mut burn_accounts,
+                    ctx.remaining_accounts,
+                    BTreeMap::default(),
+                ),
                 0,
             )?;
 
@@ -1936,7 +1915,6 @@ pub mod cyclos_core {
         amount_out_minimum: u64,
         sqrt_price_limit_x32: u64,
     ) -> Result<()> {
-        msg!("in exact_input_single");
         let amount_out = exact_input_internal(
             &mut SwapContext {
                 signer: ctx.accounts.signer.clone(),
@@ -1948,7 +1926,7 @@ pub mod cyclos_core {
                 token_program: ctx.accounts.token_program.clone(),
                 pool_state: ctx.accounts.pool_state.clone(),
                 last_observation_state: ctx.accounts.last_observation_state.clone(),
-                next_observation_state: ctx.accounts.next_observation_state.clone(),
+                // next_observation_state: ctx.accounts.next_observation_state.clone(),
                 callback_handler: UncheckedAccount::try_from(
                     ctx.accounts.core_program.to_account_info(),
                 ),
@@ -1973,6 +1951,7 @@ pub mod cyclos_core {
     /// * `deadline` - Swap should if fail if past deadline
     /// * `amount_in` - Token amount to be swapped in
     /// * `amount_out_minimum` - Panic if output amount is below minimum amount. For slippage.
+    /// * `additional_accounts_per_pool` - Additional observation, bitmap and tick accounts per pool
     ///
     #[access_control(check_deadline(deadline))]
     pub fn exact_input<'a, 'b, 'c, 'info>(
@@ -1987,7 +1966,6 @@ pub mod cyclos_core {
         let mut amount_in_internal = amount_in;
         let mut input_token_account = ctx.accounts.input_token_account.clone();
         for i in 0..additional_accounts_per_pool.len() {
-            msg!("in loop");
             let pool_state = UncheckedAccount::try_from(remaining_accounts.next().unwrap().clone());
             let output_token_account =
                 UncheckedAccount::try_from(remaining_accounts.next().unwrap().clone());
@@ -2010,9 +1988,6 @@ pub mod cyclos_core {
                     last_observation_state: UncheckedAccount::try_from(
                         remaining_accounts.next().unwrap().clone(),
                     ),
-                    next_observation_state: UncheckedAccount::try_from(
-                        remaining_accounts.next().unwrap().clone(),
-                    ),
                     token_program: ctx.accounts.token_program.clone(),
                     callback_handler: UncheckedAccount::try_from(
                         ctx.accounts.core_program.to_account_info(),
@@ -2024,6 +1999,7 @@ pub mod cyclos_core {
             )?;
 
             if i < additional_accounts_per_pool.len() - 1 {
+                // reach accounts needed for the next swap
                 for _j in 0..additional_accounts_per_pool[i] {
                     remaining_accounts.next();
                 }
@@ -2160,6 +2136,7 @@ pub fn check_ticks(tick_lower: i32, tick_upper: i32) -> Result<()> {
 /// * `liquidity_delta` - The change in liquidity. Can be 0 to perform a poke.
 ///
 pub fn _modify_position<'info>(
+    liquidity_delta: i64,
     pool_state: &mut PoolState,
     position_state: &AccountLoader<'info, PositionState>,
     tick_lower_state: &AccountLoader<'info, TickState>,
@@ -2167,23 +2144,22 @@ pub fn _modify_position<'info>(
     bitmap_lower: &AccountLoader<'info, TickBitmapState>,
     bitmap_upper: &AccountLoader<'info, TickBitmapState>,
     last_observation_state: &AccountLoader<'info, ObservationState>,
-    next_observation_state: &AccountLoader<'info, ObservationState>,
-    liquidity_delta: i64,
+    remaining_accounts: &[AccountInfo<'info>],
 ) -> Result<(i64, i64)> {
-    msg!("inside _modify_position()");
+    msg!("inside _modify_position");
     check_ticks(tick_lower_state.load()?.tick, tick_upper_state.load()?.tick)?;
 
-    let latest_observation = last_observation_state.load_mut()?;
+    let latest_observation = last_observation_state.load()?;
 
     _update_position(
+        liquidity_delta,
         pool_state.deref(),
+        latest_observation.deref(),
         position_state,
         tick_lower_state,
         tick_upper_state,
         bitmap_lower,
         bitmap_upper,
-        latest_observation.deref(),
-        liquidity_delta,
     )?;
     msg!("outside _update_position()");
 
@@ -2204,26 +2180,36 @@ pub fn _modify_position<'info>(
             );
         } else if pool_state.tick < tick_upper {
             // current tick is inside the passed range
-
             // write oracle observation
             let timestamp = oracle::_block_timestamp();
             let partition_current_timestamp = timestamp / 14;
             let partition_last_timestamp = latest_observation.block_timestamp / 14;
             drop(latest_observation);
-            let mut next_observation = if partition_current_timestamp > partition_last_timestamp {
-                next_observation_state
-            } else {
-                last_observation_state
-            }
-            .load_mut()?;
-            pool_state.observation_cardinality_next = next_observation.update(
+
+            let next_observation_state;
+            let mut new_observation =
+                if partition_current_timestamp > partition_last_timestamp {
+                    next_observation_state = AccountLoader::<ObservationState>::try_from(&remaining_accounts[0])?;
+                    let next_observation = next_observation_state.load_mut()?;
+                    pool_state.validate_observation_address(
+                        &next_observation_state.key(),
+                        next_observation.bump,
+                        true,
+                    )?;
+
+                    next_observation
+                } else {
+                    last_observation_state.load_mut()?
+                };
+
+            pool_state.observation_cardinality_next = new_observation.update(
                 timestamp,
                 pool_state.tick,
                 pool_state.liquidity,
                 pool_state.observation_cardinality,
                 pool_state.observation_cardinality_next,
             );
-            pool_state.observation_index = next_observation.index;
+            pool_state.observation_index = new_observation.index;
 
             // Both Δtoken_0 and Δtoken_1 will be needed in current price
             amount_0 = sqrt_price_math::get_amount_0_delta_signed(
@@ -2253,6 +2239,7 @@ pub fn _modify_position<'info>(
     Ok((amount_0, amount_1))
 }
 
+
 /// Updates a position with the given liquidity delta
 ///
 /// # Arguments
@@ -2269,14 +2256,14 @@ pub fn _modify_position<'info>(
 /// * `liquidity_delta` - The change in liquidity. Can be 0 to perform a poke.
 ///
 pub fn _update_position<'info>(
+    liquidity_delta: i64,
     pool_state: &PoolState,
+    last_observation_state: &ObservationState,
     position_state: &AccountLoader<'info, PositionState>,
     tick_lower_state: &AccountLoader<'info, TickState>,
     tick_upper_state: &AccountLoader<'info, TickState>,
     bitmap_lower: &AccountLoader<'info, TickBitmapState>,
     bitmap_upper: &AccountLoader<'info, TickBitmapState>,
-    last_observation_state: &ObservationState,
-    liquidity_delta: i64,
 ) -> Result<()> {
     let mut tick_lower = tick_lower_state.load_mut()?;
     let mut tick_upper = tick_upper_state.load_mut()?;
@@ -2369,8 +2356,9 @@ pub fn _update_position<'info>(
 /// * `tick_lower` - The lower tick bound for the position
 /// * `tick_upper` - The upper tick bound for the position
 ///
-pub fn add_liquidity(
-    accounts: &mut MintContext,
+pub fn add_liquidity<'info>(
+    accounts: &mut MintContext<'info>,
+    remaining_accounts: &[AccountInfo<'info>],
     amount_0_desired: u64,
     amount_1_desired: u64,
     amount_0_min: u64,
@@ -2394,7 +2382,7 @@ pub fn add_liquidity(
     let balance_1_before = accounts.vault_1.amount;
 
     mint(
-        Context::new(&ID, accounts, &[], BTreeMap::default()),
+        Context::new(&ID, accounts, remaining_accounts, BTreeMap::default()),
         liquidity,
     )?;
 
