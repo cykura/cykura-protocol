@@ -1017,95 +1017,6 @@ describe('cyclos-core', async () => {
       })).to.be.rejectedWith(Error)
     })
 
-    const MAX_OBSERVATION_INITS_PER_IX = 20
-
-    it('fails if compute unit limit reached by passing more accounts than max limit', async () => {
-      const bumps: number[] = []
-      const observationAccounts: {
-        pubkey: anchor.web3.PublicKey;
-        isSigner: boolean;
-        isWritable: boolean;
-      }[] = []
-
-      // max limit is approximate. Add a larger delta so that tests always pass
-      for (let i = 2; i < 2 + MAX_OBSERVATION_INITS_PER_IX + 5; i++) {
-        const [observationState, observationStateBump] = await PublicKey.findProgramAddress(
-          [
-            OBSERVATION_SEED,
-            token0.publicKey.toBuffer(),
-            token1.publicKey.toBuffer(),
-            u32ToSeed(fee),
-            u16ToSeed(i)
-          ],
-          coreProgram.programId
-        )
-        bumps.push(observationStateBump)
-        observationAccounts.push({
-          pubkey: observationState,
-          isSigner: false,
-          isWritable: true
-        })
-      }
-
-      await expect(coreProgram.rpc.increaseObservationCardinalityNext(Buffer.from(bumps), {
-        accounts: {
-          payer: owner,
-          poolState: poolAState,
-          systemProgram: SystemProgram.programId,
-        }, remainingAccounts: observationAccounts
-      })).to.be.rejectedWith(Error)
-    })
-
-    it('increase cardinality by max possible amount per instruction permitted by compute budget', async () => {
-      const bumps: number[] = []
-      const observationAccounts: {
-        pubkey: anchor.web3.PublicKey;
-        isSigner: boolean;
-        isWritable: boolean;
-      }[] = []
-      const currentCardinality = 2
-
-      for (let i = 0; i < MAX_OBSERVATION_INITS_PER_IX; i++) {
-        const [observationState, observationStateBump] = await PublicKey.findProgramAddress(
-          [
-            OBSERVATION_SEED,
-            token0.publicKey.toBuffer(),
-            token1.publicKey.toBuffer(),
-            u32ToSeed(fee),
-            u16ToSeed(currentCardinality + i)
-          ],
-          coreProgram.programId
-        )
-        bumps.push(observationStateBump)
-        observationAccounts.push({
-          pubkey: observationState,
-          isSigner: false,
-          isWritable: true
-        })
-      }
-
-      await coreProgram.rpc.increaseObservationCardinalityNext(Buffer.from(bumps), {
-        accounts: {
-          payer: owner,
-          poolState: poolAState,
-          systemProgram: SystemProgram.programId,
-        }, remainingAccounts: observationAccounts
-      })
-
-      const poolStateData = await coreProgram.account.poolState.fetch(poolAState)
-      assert.equal(poolStateData.observationCardinalityNext, currentCardinality + MAX_OBSERVATION_INITS_PER_IX)
-
-      for (let i = 0; i < MAX_OBSERVATION_INITS_PER_IX; i++) {
-        const observationAccount = observationAccounts[i].pubkey
-        const observationStateData = await coreProgram.account.observationState.fetch(observationAccount)
-        assert.equal(observationStateData.bump, bumps[i])
-        assert.equal(observationStateData.index, currentCardinality + i)
-        assert.equal(observationStateData.blockTimestamp, 1)
-        assert(observationStateData.tickCumulative.eq(new BN(0)))
-        assert(observationStateData.secondsPerLiquidityCumulativeX32.eq(new BN(0)))
-        assert.isFalse(observationStateData.initialized)
-      }
-    })
   })
 
   describe('#set_fee_protocol', () => {
@@ -2137,6 +2048,7 @@ describe('cyclos-core', async () => {
     })
 
     it('fails if not called by the owner', async () => {
+      const txTrial = new Transaction()
       const deadline = new BN(Date.now() / 1000 + 10_000)
       await expect(coreProgram.rpc.decreaseLiquidity(
         liquidity,

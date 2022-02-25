@@ -108,3 +108,20 @@ Note that the math libraries in /libraries have 100% test coverage.
 - Unlike EVM, the last and next observation accounts must be found on client side in Sealevel.
     1. Last observation state: Acccount storing the last checkpoint.
     2. Next observation state: The account which follows the last observation, given by formula `(index_last + 1) % cardinality_next`. This account is read/modfified only if the next and last checkpoint fall in different partitions. This field can be made optional in future by using remaining accounts.
+
+#### Optimize build
+
+1. Repo wide Cargo.toml
+
+```toml
+[profile.release]
+lto = "fat"
+codegen-units = 1
+
+[profile.release.build-override]
+opt-level = 3
+incremental = false
+codegen-units = 1
+```
+
+2. Build with `anchor test -- --features no-log-ix-name` to disable function name logging

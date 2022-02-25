@@ -121,8 +121,6 @@ pub mod cyclos_core {
         fee_state.fee = fee;
         fee_state.tick_spacing = tick_spacing;
 
-        msg!("fee state {:?}", fee_state);
-
         emit!(FeeAmountEnabled { fee, tick_spacing });
         Ok(())
     }
@@ -1095,13 +1093,13 @@ pub mod cyclos_core {
             }
 
             let Position { word_pos, bit_pos } = tick_bitmap::position(compressed);
-            msg!(
-                "tick {}, compressed {}, word {}",
-                state.tick,
-                compressed,
-                word_pos
-            );
-            msg!("word {}, bit {}", word_pos, bit_pos);
+            // msg!(
+            //     "tick {}, compressed {}, word {}",
+            //     state.tick,
+            //     compressed,
+            //     word_pos
+            // );
+            // msg!("word {}, bit {}", word_pos, bit_pos);
             // default values for the next initialized bit if the bitmap account is not initialized
             let mut next_initialized_bit = NextBit {
                 next: if zero_for_one { 0 } else { 255 },
@@ -1110,7 +1108,7 @@ pub mod cyclos_core {
             // load the next bitmap account if cache is empty, or if we have crossed out of this bitmap
             if bitmap.is_none() || bitmap.unwrap().word_pos != word_pos {
                 let bitmap_account = remaining_accounts.next().unwrap();
-                msg!("validating bitmap for word {}", word_pos);
+                // msg!("validating bitmap for word {}", word_pos);
                 // ensure this is a valid PDA, even if account is not initialized
                 assert!(
                     bitmap_account.key()
@@ -1201,7 +1199,6 @@ pub mod cyclos_core {
 
             // shift tick if we reached the next price
             if state.sqrt_price_x32 == step.sqrt_price_next_x32 {
-                msg!("shifting tick");
                 // if the tick is initialized, run the tick transition
                 if step.initialized {
                     // check for the placeholder value for the oracle observation, which we replace with the
@@ -1217,7 +1214,6 @@ pub mod cyclos_core {
                         cache.computed_latest_observation = true;
                     }
 
-                    msg!("loading tick");
                     let tick_loader =
                         AccountLoader::<TickState>::try_from(remaining_accounts.next().unwrap())?;
                     let mut tick_state = tick_loader.load_mut()?;
@@ -1383,7 +1379,6 @@ pub mod cyclos_core {
                 )?;
             }
             let balance_1_before = vault_1.amount;
-            msg!("amount 0 delta {}, amount 1 delta {}", amount_0, amount_1);
             // transfer tokens to pool in callback
             let swap_callback_ix = cyclos_core::instruction::SwapCallback {
                 amount_0_delta: amount_0,
@@ -2065,7 +2060,6 @@ pub fn exact_input_internal<'info>(
     amount_in: u64,
     sqrt_price_limit_x32: u64,
 ) -> Result<u64> {
-    msg!("in exact input internal");
     let pool_state = AccountLoader::<PoolState>::try_from(&accounts.pool_state)?;
     let zero_for_one = accounts.input_vault.mint == pool_state.load()?.token_0;
 
@@ -2146,7 +2140,6 @@ pub fn _modify_position<'info>(
     last_observation_state: &AccountLoader<'info, ObservationState>,
     remaining_accounts: &[AccountInfo<'info>],
 ) -> Result<(i64, i64)> {
-    msg!("inside _modify_position");
     check_ticks(tick_lower_state.load()?.tick, tick_upper_state.load()?.tick)?;
 
     let latest_observation = last_observation_state.load()?;
@@ -2161,7 +2154,6 @@ pub fn _modify_position<'info>(
         bitmap_lower,
         bitmap_upper,
     )?;
-    msg!("outside _update_position()");
 
     let mut amount_0 = 0;
     let mut amount_1 = 0;
