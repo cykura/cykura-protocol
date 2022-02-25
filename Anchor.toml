@@ -29,3 +29,7 @@ program = "./external-programs/govern.so"
 [[test.genesis]]
 address = "LocktDzaV1W2Bm9DeZeiyz4J9zs4fRqNiYqQyracRXw"
 program = "./external-programs/locked_voter.so"
+
+[[test.genesis]]
+address = "MRKGLMizK9XSTaD1d1jbVkdHZbQVCSnPpYiTw9aKQv8"
+program = "./external-programs/merkle_distributor.so"
