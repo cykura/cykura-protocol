@@ -10,7 +10,7 @@
 ///! * https://liaoph.com/logarithm-in-solidity/
 ///!
 use anchor_lang::require;
-use crate::error::ErrorCode;
+use crate::{error::ErrorCode, libraries::big_num::U128};
 
 /// The minimum tick that may be passed to #get_sqrt_ratio_at_tick computed from log base 1.0001 of 2**-32
 pub const MIN_TICK: i32 = -221818;
@@ -21,6 +21,9 @@ pub const MAX_TICK: i32 = -MIN_TICK;
 pub const MIN_SQRT_RATIO: u64 = 65537;
 /// The maximum value that can be returned from #get_sqrt_ratio_at_tick. Equivalent to get_sqrt_ratio_at_tick(MAX_TICK)
 pub const MAX_SQRT_RATIO: u64 = 281472331703918;
+
+// Number 64, encoded as a U128
+const NUM_64: U128 = U128([64, 0]);
 
 /// Calculates 1.0001^(tick/2) as a U32.32 number representing
 /// the square root of the ratio of the two assets (token_1/token_0)
@@ -36,92 +39,93 @@ pub const MAX_SQRT_RATIO: u64 = 281472331703918;
 /// * `tick` - Price tick
 ///
 pub fn get_sqrt_ratio_at_tick(tick: i32) -> Result<u64, anchor_lang::error::Error> {
-    let abs_tick = tick.abs() as u128;
-    require!(abs_tick <= MAX_TICK as u128, ErrorCode::T);
+    let abs_tick = tick.abs() as u32;
+    require!(abs_tick <= MAX_TICK as u32, ErrorCode::T);
 
     // i = 0
-    let mut ratio: u128 = if abs_tick & 0x1 != 0 {
-        0xfffcb933bd6fb800
+    let mut ratio = if abs_tick & 0x1 != 0 {
+        U128([0xfffcb933bd6fb800, 0])
     } else {
         // 2^64
-        0x10000000000000000
+        U128([0, 1])
     };
     // i = 1
     if abs_tick & 0x2 != 0 {
-        ratio = (ratio * 0xfff97272373d4000) >> 64
+        ratio = (ratio * U128([0xfff97272373d4000, 0])) >> NUM_64
     };
     // i = 2
     if abs_tick & 0x4 != 0 {
-        ratio = (ratio * 0xfff2e50f5f657000) >> 64
+        ratio = (ratio * U128([0xfff2e50f5f657000, 0])) >> NUM_64
     };
     // i = 3
     if abs_tick & 0x8 != 0 {
-        ratio = (ratio * 0xffe5caca7e10f000) >> 64
+        ratio = (ratio * U128([0xffe5caca7e10f000, 0])) >> NUM_64
     };
     // i = 4
     if abs_tick & 0x10 != 0 {
-        ratio = (ratio * 0xffcb9843d60f7000) >> 64
+        ratio = (ratio * U128([0xffcb9843d60f7000, 0])) >> NUM_64
     };
     // i = 5
     if abs_tick & 0x20 != 0 {
-        ratio = (ratio * 0xff973b41fa98e800) >> 64
+        ratio = (ratio * U128([0xff973b41fa98e800, 0])) >> NUM_64
     };
     // i = 6
     if abs_tick & 0x40 != 0 {
-        ratio = (ratio * 0xff2ea16466c9b000) >> 64
+        ratio = (ratio * U128([0xff2ea16466c9b000, 0])) >> NUM_64
     };
     // i = 7
     if abs_tick & 0x80 != 0 {
-        ratio = (ratio * 0xfe5dee046a9a3800) >> 64
+        ratio = (ratio * U128([0xfe5dee046a9a3800, 0])) >> NUM_64
     };
     // i = 8
     if abs_tick & 0x100 != 0 {
-        ratio = (ratio * 0xfcbe86c7900bb000) >> 64
+        ratio = (ratio * U128([0xfcbe86c7900bb000, 0])) >> NUM_64
     };
     // i = 9
     if abs_tick & 0x200 != 0 {
-        ratio = (ratio * 0xf987a7253ac65800) >> 64
+        ratio = (ratio * U128([0xf987a7253ac65800, 0])) >> NUM_64
     };
     // i = 10
     if abs_tick & 0x400 != 0 {
-        ratio = (ratio * 0xf3392b0822bb6000) >> 64
+        ratio = (ratio * U128([0xf3392b0822bb6000, 0])) >> NUM_64
     };
     // i = 11
     if abs_tick & 0x800 != 0 {
-        ratio = (ratio * 0xe7159475a2caf000) >> 64
+        ratio = (ratio * U128([0xe7159475a2caf000, 0])) >> NUM_64
     };
     // i = 12
     if abs_tick & 0x1000 != 0 {
-        ratio = (ratio * 0xd097f3bdfd2f2000) >> 64
+        ratio = (ratio * U128([0xd097f3bdfd2f2000, 0])) >> NUM_64
     };
     // i = 13
     if abs_tick & 0x2000 != 0 {
-        ratio = (ratio * 0xa9f746462d9f8000) >> 64
+        ratio = (ratio * U128([0xa9f746462d9f8000, 0])) >> NUM_64
     };
     // i = 14
     if abs_tick & 0x4000 != 0 {
-        ratio = (ratio * 0x70d869a156f31c00) >> 64
+        ratio = (ratio * U128([0x70d869a156f31c00, 0])) >> NUM_64
     };
     // i = 15
     if abs_tick & 0x8000 != 0 {
-        ratio = (ratio * 0x31be135f97ed3200) >> 64
+        ratio = (ratio * U128([0x31be135f97ed3200, 0])) >> NUM_64
     };
     // i = 16
     if abs_tick & 0x10000 != 0 {
-        ratio = (ratio * 0x9aa508b5b85a500) >> 64
+        ratio = (ratio * U128([0x9aa508b5b85a500, 0])) >> NUM_64
     };
     // i = 17
     if abs_tick & 0x20000 != 0 {
-        ratio = (ratio * 0x5d6af8dedc582c) >> 64
+        ratio = (ratio * U128([0x5d6af8dedc582c, 0])) >> NUM_64
     };
 
     // Divide to obtain 1.0001^(2^(i - 1)) * 2^32 in numerator
     if tick > 0 {
-        ratio = u128::MAX / ratio;
+        ratio = U128::MAX / ratio;
     }
 
     // Rounding up and convert to U32.32
-    let sqrt_price_x32 = ((ratio >> 32) as u64) + ((ratio % (1 << 32) != 0) as u64);
+    let sqrt_price_x32 = (ratio >> U128([32, 0])).as_u64()
+        + ((ratio % U128([1_u64 << 32, 0]) != U128::default()) as u64);
 
     Ok(sqrt_price_x32)
 }
