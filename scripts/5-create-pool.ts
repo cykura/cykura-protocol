@@ -5,10 +5,9 @@ import * as anchor from '@project-serum/anchor'
 import { Keypair, Transaction, SystemProgram, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { Program, web3 } from '@project-serum/anchor'
 import keypairFile from './keypair.json'
-import * as SPLToken from "@solana/spl-token";
-import { FEE_SEED, OBSERVATION_SEED, POOL_SEED, u16ToSeed, u32ToSeed } from '../tests/utils';
 import { CyclosCore } from '../target/types/cyclos_core';
 import { ASSOCIATED_TOKEN_PROGRAM_ID, Token, TOKEN_PROGRAM_ID } from '@solana/spl-token';
+import { FEE_SEED, OBSERVATION_SEED, POOL_SEED, u16ToSeed, u32ToSeed } from '@uniswap/v3-sdk';
 
 export const FAUCET_AUTHORITY = Keypair.fromSecretKey(
   Uint8Array.from([166, 35, 198, 106, 198, 244, 143, 224, 64, 125, 232, 144, 28, 45, 178, 146, 56, 92, 99, 244, 25, 75, 104, 247, 215, 33, 62, 30, 186, 249, 163, 48, 185, 210, 115, 123, 192, 235, 130, 28, 35, 27, 9, 65, 38, 210, 100, 190, 62, 225, 55, 90, 209, 0, 227, 160, 141, 54, 132, 242, 98, 240, 212, 95])
@@ -70,7 +69,7 @@ async function main() {
     true
   )
 
-  const tx = coreProgram.transaction.createAndInitPool(poolAStateBump, initialObservationBumpA, new anchor.BN(4294967296), {
+  const tx = coreProgram.transaction.createAndInitPool(new anchor.BN(4294967296), {
     accounts: {
       poolCreator: owner,
       token0: usdtMint,

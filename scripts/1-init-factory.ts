@@ -19,7 +19,7 @@ import keypairFile from './keypair.json';
   const coreProgram = anchor.workspace.CyclosCore as Program<CyclosCore>
 
   const [factoryState, factoryStateBump] = await web3.PublicKey.findProgramAddress([], coreProgram.programId)
-  const tx = coreProgram.transaction.initFactory(factoryStateBump, {
+  const tx = coreProgram.transaction.initFactory({
     accounts: {
       owner,
       factoryState,

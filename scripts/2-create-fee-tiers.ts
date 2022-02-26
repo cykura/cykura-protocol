@@ -36,7 +36,7 @@ import keypairFile from './keypair.json';
             [FEE_SEED, u32ToSeed(fee)],
             coreProgram.programId
         );
-        const tx = coreProgram.transaction.enableFeeAmount(feeStateBump, fee, tickSpacing, {
+        const tx = coreProgram.transaction.enableFeeAmount(fee, tickSpacing, {
             accounts: {
                 owner,
                 factoryState,
