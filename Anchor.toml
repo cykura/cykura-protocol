@@ -19,7 +19,7 @@ startup_wait = 20000
 
 [[test.genesis]]
 address = "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s"
-program = "./spl_token_metadata/spl_token_metadata.so"
+program = "./external-programs/spl_token_metadata.so"
 
 [[test.genesis]]
 address = "GokivDYuQXPZCWRkwMhdH2h91KpDQXBEmpgBgs55bnpH"
