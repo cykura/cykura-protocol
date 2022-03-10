@@ -476,8 +476,10 @@ mod test {
         #[should_panic]
         fn reverts_on_overflow_liquidity_gross() {
             let mut tick = TickState::default();
-            tick.update(0, (u64::MAX / 2 - 1) as i64, 0, 0, 0, 0, 0, false, u64::MAX).unwrap();
-            tick.update(0, (u64::MAX / 2 - 1) as i64, 0, 0, 0, 0, 0, false, u64::MAX).unwrap();
+            tick.update(0, (u64::MAX / 2 - 1) as i64, 0, 0, 0, 0, 0, false, u64::MAX)
+                .unwrap();
+            tick.update(0, (u64::MAX / 2 - 1) as i64, 0, 0, 0, 0, 0, false, u64::MAX)
+                .unwrap();
         }
 
         #[test]

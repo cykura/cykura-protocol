@@ -1,5 +1,4 @@
 ///! Helper functions to get most and least significant non-zero bits
-
 use super::big_num::U256;
 
 /// Returns index of the most significant non-zero bit of the number

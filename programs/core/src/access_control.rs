@@ -1,6 +1,6 @@
+use crate::error::ErrorCode;
 use anchor_lang::prelude::*;
 use anchor_spl::token::TokenAccount;
-use crate::error::ErrorCode;
 
 /// Checks whether the transaction time has not crossed the deadline
 ///

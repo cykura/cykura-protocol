@@ -9,9 +9,9 @@ use crate::states::tick::{TickState, TICK_SEED};
 use crate::states::tick_bitmap::{TickBitmapState, BITMAP_SEED};
 use crate::states::tokenized_position::TokenizedPositionState;
 use anchor_lang::prelude::*;
+use anchor_spl::associated_token::get_associated_token_address;
 use anchor_spl::associated_token::AssociatedToken;
 use anchor_spl::token::{Mint, Token, TokenAccount};
-use anchor_spl::associated_token::get_associated_token_address;
 use std::mem::size_of;
 
 #[derive(Accounts)]

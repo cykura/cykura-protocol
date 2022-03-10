@@ -88,12 +88,7 @@ impl PoolState {
     /// * `bump` - The PDA bump for the address
     /// * `next` - Whether to validate the current observation account or the next account
     ///
-    pub fn validate_observation_address(
-        self,
-        key: &Pubkey,
-        bump: u8,
-        next: bool,
-    ) -> Result<()> {
+    pub fn validate_observation_address(self, key: &Pubkey, bump: u8, next: bool) -> Result<()> {
         let index = if next {
             self.next_observation_index()
         } else {
@@ -120,12 +115,7 @@ impl PoolState {
     /// * `bump` - The PDA bump for the address
     /// * `tick` - The tick from which the address should be derived
     ///
-    pub fn validate_tick_address(
-        self,
-        key: &Pubkey,
-        bump: u8,
-        tick: i32,
-    ) -> Result<()> {
+    pub fn validate_tick_address(self, key: &Pubkey, bump: u8, tick: i32) -> Result<()> {
         assert!(
             *key == Pubkey::create_program_address(
                 &[
@@ -137,7 +127,8 @@ impl PoolState {
                     &[bump],
                 ],
                 &CyclosCore::id(),
-            ).unwrap(),
+            )
+            .unwrap(),
         );
         Ok(())
     }
@@ -151,12 +142,7 @@ impl PoolState {
     /// * `bump` - The PDA bump for the address
     /// * `tick` - The tick from which the address should be derived
     ///
-    pub fn validate_bitmap_address(
-        self,
-        key: &Pubkey,
-        bump: u8,
-        word_pos: i16,
-    ) -> Result<()> {
+    pub fn validate_bitmap_address(self, key: &Pubkey, bump: u8, word_pos: i16) -> Result<()> {
         assert!(
             *key == Pubkey::create_program_address(
                 &[
@@ -168,7 +154,8 @@ impl PoolState {
                     &[bump],
                 ],
                 &CyclosCore::id(),
-            ).unwrap(),
+            )
+            .unwrap(),
         );
         Ok(())
     }
@@ -203,7 +190,8 @@ impl PoolState {
                     &[bump],
                 ],
                 &CyclosCore::id(),
-            ).unwrap(),
+            )
+            .unwrap(),
         );
         Ok(())
     }

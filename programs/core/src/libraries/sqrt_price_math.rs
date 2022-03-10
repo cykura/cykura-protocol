@@ -1,5 +1,4 @@
 ///! Helper functions to find price changes for change in token supply and vice versa
-
 use super::big_num::U128;
 use super::fixed_point_32;
 use super::full_math::MulDiv;
@@ -290,12 +289,8 @@ pub fn get_amount_0_delta_signed(
     liquidity: i64,
 ) -> i64 {
     if liquidity < 0 {
-        -(get_amount_0_delta_unsigned(
-            sqrt_ratio_a_x32,
-            sqrt_ratio_b_x32,
-            -liquidity as u64,
-            false,
-        ) as i64)
+        -(get_amount_0_delta_unsigned(sqrt_ratio_a_x32, sqrt_ratio_b_x32, -liquidity as u64, false)
+            as i64)
     } else {
         // TODO check overflow, since i64::MAX < u64::MAX
         get_amount_0_delta_unsigned(sqrt_ratio_a_x32, sqrt_ratio_b_x32, liquidity as u64, true)
@@ -318,12 +313,8 @@ pub fn get_amount_1_delta_signed(
     liquidity: i64,
 ) -> i64 {
     if liquidity < 0 {
-        -(get_amount_1_delta_unsigned(
-            sqrt_ratio_a_x32,
-            sqrt_ratio_b_x32,
-            -liquidity as u64,
-            false,
-        ) as i64)
+        -(get_amount_1_delta_unsigned(sqrt_ratio_a_x32, sqrt_ratio_b_x32, -liquidity as u64, false)
+            as i64)
     } else {
         // TODO check overflow, since i64::MAX < u64::MAX
         get_amount_1_delta_unsigned(sqrt_ratio_a_x32, sqrt_ratio_b_x32, liquidity as u64, true)

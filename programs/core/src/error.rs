@@ -92,7 +92,6 @@ pub enum ErrorCode {
     NotApproved,
 
     // Swap router
-
     #[msg("Too little received")]
-    TooLittleReceived
+    TooLittleReceived,
 }

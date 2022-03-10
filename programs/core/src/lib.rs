@@ -1281,7 +1281,11 @@ pub mod cyclos_core {
                 )?;
                 let next_observation = next_observation_state.load_mut()?;
 
-                pool.validate_observation_address(&next_observation_state.key(), next_observation.bump, true)?;
+                pool.validate_observation_address(
+                    &next_observation_state.key(),
+                    next_observation.bump,
+                    true,
+                )?;
 
                 next_observation
             } else {
@@ -2188,20 +2192,20 @@ pub fn _modify_position<'info>(
             drop(latest_observation);
 
             let next_observation_state;
-            let mut new_observation =
-                if partition_current_timestamp > partition_last_timestamp {
-                    next_observation_state = AccountLoader::<ObservationState>::try_from(&remaining_accounts[0])?;
-                    let next_observation = next_observation_state.load_mut()?;
-                    pool_state.validate_observation_address(
-                        &next_observation_state.key(),
-                        next_observation.bump,
-                        true,
-                    )?;
+            let mut new_observation = if partition_current_timestamp > partition_last_timestamp {
+                next_observation_state =
+                    AccountLoader::<ObservationState>::try_from(&remaining_accounts[0])?;
+                let next_observation = next_observation_state.load_mut()?;
+                pool_state.validate_observation_address(
+                    &next_observation_state.key(),
+                    next_observation.bump,
+                    true,
+                )?;
 
-                    next_observation
-                } else {
-                    last_observation_state.load_mut()?
-                };
+                next_observation
+            } else {
+                last_observation_state.load_mut()?
+            };
 
             pool_state.observation_cardinality_next = new_observation.update(
                 timestamp,
@@ -2239,7 +2243,6 @@ pub fn _modify_position<'info>(
 
     Ok((amount_0, amount_1))
 }
-
 
 /// Updates a position with the given liquidity delta
 ///

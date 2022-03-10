@@ -384,7 +384,7 @@ mod uniswap_tests {
             let b = 31 * 8191;
             let floor_ans = a.mul_div_floor(b, 2).unwrap(); // pass
             println!("floor {}", floor_ans);
-            
+
             let ceil_ans = a.mul_div_ceil(b, 2).unwrap(); // fail
             println!("ceil {}", ceil_ans);
         }
@@ -393,10 +393,7 @@ mod uniswap_tests {
 
         #[test]
         fn all_max_inputs() {
-            assert_eq!(
-                u64::MAX.mul_div_ceil(u64::MAX, u64::MAX).unwrap(),
-                u64::MAX
-            );
+            assert_eq!(u64::MAX.mul_div_ceil(u64::MAX, u64::MAX).unwrap(), u64::MAX);
         }
 
         #[test]

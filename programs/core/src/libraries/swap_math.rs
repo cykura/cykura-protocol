@@ -1,7 +1,7 @@
 // Helper library to find result of a swap within a single tick range, i.e. a single tick
 
-use super::sqrt_price_math;
 use super::full_math::MulDiv;
+use super::sqrt_price_math;
 
 /// Result of a swap step
 #[derive(Default, Debug)]

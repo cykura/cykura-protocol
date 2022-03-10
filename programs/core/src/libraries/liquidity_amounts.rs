@@ -1,7 +1,7 @@
 ///! Liquidity amount functions
 ///! Provides functions for computing liquidity amounts from token amounts and prices
 ///! Implements formulae 6.29 and 6.30
-/// 
+///
 use super::big_num::U128;
 use super::fixed_point_32;
 use super::full_math::MulDiv;

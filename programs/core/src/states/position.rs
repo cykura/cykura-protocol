@@ -1,10 +1,12 @@
+use crate::libraries::full_math::MulDiv;
+use crate::{
+    error::ErrorCode,
+    libraries::{fixed_point_32, liquidity_math},
+};
 ///! Positions represent an owner address' liquidity between a lower and upper tick boundary
 ///! Positions store additional state for tracking fees owed to the position
 ///!
-
 use anchor_lang::prelude::*;
-use crate::{error::ErrorCode, libraries::{liquidity_math, fixed_point_32}};
-use crate::libraries::full_math::MulDiv;
 
 /// Seed to derive account address and signature
 pub const POSITION_SEED: &str = "ps";
@@ -63,15 +65,11 @@ impl PositionState {
 
         // calculate accumulated Fees
         let tokens_owed_0 = (fee_growth_inside_0_x32 - self.fee_growth_inside_0_last_x32)
-            .mul_div_floor(
-                self.liquidity as u64,
-                fixed_point_32::Q32
-            ).unwrap();
+            .mul_div_floor(self.liquidity as u64, fixed_point_32::Q32)
+            .unwrap();
         let tokens_owed_1 = (fee_growth_inside_1_x32 - self.fee_growth_inside_1_last_x32)
-            .mul_div_floor(
-                self.liquidity as u64,
-                fixed_point_32::Q32
-            ).unwrap();
+            .mul_div_floor(self.liquidity as u64, fixed_point_32::Q32)
+            .unwrap();
 
         // Update the position
         if liquidity_delta != 0 {
