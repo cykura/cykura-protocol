@@ -1143,7 +1143,7 @@ pub mod cyclos_core {
                 }
             };
 
-            step.tick_next = (256 * word_pos as i32 + next_initialized_bit.next as i32)
+            step.tick_next = (((word_pos as i32) << 8) + next_initialized_bit.next as i32)
                 * pool.tick_spacing as i32; // convert relative to absolute
             step.initialized = next_initialized_bit.initialized;
 
