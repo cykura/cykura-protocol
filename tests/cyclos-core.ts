@@ -12,8 +12,8 @@ import {
   TICK_SEED,
   u16ToSeed,
   u32ToSeed
-} from '@uniswap/v3-sdk'
-import { CurrencyAmount, Token as UniToken } from '@uniswap/sdk-core'
+} from '@cykura/sdk'
+import { CurrencyAmount, Token as UniToken } from '@cykura/sdk-core'
 import { assert, expect } from 'chai'
 import * as chai from 'chai'
 import chaiAsPromised from 'chai-as-promised'
@@ -200,9 +200,9 @@ describe('cyclos-core', async () => {
       token1 = temp
     }
 
-    uniToken0 = new UniToken(0, token0.publicKey.toString(), 8)
-    uniToken1 = new UniToken(0, token1.publicKey.toString(), 8)
-    uniToken2 = new UniToken(0, token2.publicKey.toString(), 8)
+    uniToken0 = new UniToken(0, token0.publicKey, 8)
+    uniToken1 = new UniToken(0, token1.publicKey, 8)
+    uniToken2 = new UniToken(0, token2.publicKey, 8)
     console.log('Token 0', token0.publicKey.toString())
     console.log('Token 1', token1.publicKey.toString())
     console.log('Token 2', token2.publicKey.toString())

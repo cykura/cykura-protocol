@@ -1,5 +1,7 @@
 {
     "dependencies": {
+        "@cykura/sdk": "^0.1.7",
+        "@cykura/sdk-core": "^0.1.4",
         "@gokiprotocol/client": "^0.6.1",
         "@metaplex/js": "^4.9.0",
         "@project-serum/anchor": "^0.22.0",
