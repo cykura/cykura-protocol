@@ -1074,8 +1074,9 @@ pub mod cyclos_core {
         let latest_observation = last_observation_state.load_mut()?;
         let mut remaining_accounts = ctx.remaining_accounts.iter();
 
-        // cache for previously loaded bitmap account
-        let mut bitmap: Option<TickBitmapState> = None;
+        // cache for the current bitmap account. Cache is cleared on bitmap transitions
+        let mut bitmap_cache: Option<TickBitmapState> = None;
+
         // continue swapping as long as we haven't used the entire input/output and haven't
         // reached the price limit
         while state.amount_specified_remaining != 0 && state.sqrt_price_x32 != sqrt_price_limit_x32
@@ -1084,6 +1085,8 @@ pub mod cyclos_core {
             step.sqrt_price_start_x32 = state.sqrt_price_x32;
 
             let mut compressed = state.tick / pool.tick_spacing as i32;
+
+            // state.tick is the starting tick for the transition
             if state.tick < 0 && state.tick % pool.tick_spacing as i32 != 0 {
                 compressed -= 1; // round towards negative infinity
             }
@@ -1093,22 +1096,12 @@ pub mod cyclos_core {
             }
 
             let Position { word_pos, bit_pos } = tick_bitmap::position(compressed);
-            // msg!(
-            //     "tick {}, compressed {}, word {}",
-            //     state.tick,
-            //     compressed,
-            //     word_pos
-            // );
-            // msg!("word {}, bit {}", word_pos, bit_pos);
-            // default values for the next initialized bit if the bitmap account is not initialized
-            let mut next_initialized_bit = NextBit {
-                next: if zero_for_one { 0 } else { 255 },
-                initialized: false,
-            };
-            // load the next bitmap account if cache is empty, or if we have crossed out of this bitmap
-            if bitmap.is_none() || bitmap.unwrap().word_pos != word_pos {
+
+            // load the next bitmap account if cache is empty (first loop instance), or if we have
+            // crossed out of this bitmap
+            if bitmap_cache.is_none() || bitmap_cache.unwrap().word_pos != word_pos {
                 let bitmap_account = remaining_accounts.next().unwrap();
-                // msg!("validating bitmap for word {}", word_pos);
+                msg!("check bitmap {}", word_pos);
                 // ensure this is a valid PDA, even if account is not initialized
                 assert!(
                     bitmap_account.key()
@@ -1130,10 +1123,25 @@ pub mod cyclos_core {
                     AccountLoader::<TickBitmapState>::try_from(bitmap_account)
                 {
                     let bitmap_state = bitmap_loader.load()?;
-                    next_initialized_bit = bitmap_state.next_initialized_bit(bit_pos, zero_for_one);
-                    bitmap = Some(*bitmap_state.deref());
+                    bitmap_cache = Some(*bitmap_state.deref());
+                } else {
+                    // clear cache if the bitmap account was uninitialized. This way default uninitialized
+                    // values will be returned for the next bit
+                    msg!("cache cleared");
+                    bitmap_cache = None;
                 }
             }
+
+            // what if bitmap_cache is not updated since next account is not initialized?
+            // default values for the next initialized bit if the bitmap account is not initialized
+            let next_initialized_bit = if let Some(bitmap) = bitmap_cache {
+                bitmap.next_initialized_bit(bit_pos, zero_for_one)
+            } else {
+                NextBit {
+                    next: if zero_for_one { 0 } else { 255 },
+                    initialized: false,
+                }
+            };
 
             step.tick_next = (256 * word_pos as i32 + next_initialized_bit.next as i32)
                 * pool.tick_spacing as i32; // convert relative to absolute
@@ -1214,6 +1222,7 @@ pub mod cyclos_core {
                         cache.computed_latest_observation = true;
                     }
 
+                    msg!("loading tick {}", step.tick_next);
                     let tick_loader =
                         AccountLoader::<TickState>::try_from(remaining_accounts.next().unwrap())?;
                     let mut tick_state = tick_loader.load_mut()?;
