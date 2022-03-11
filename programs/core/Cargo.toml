@@ -3,7 +3,7 @@ name = "cyclos-core"
 version = "0.1.0"
 description = "Anchor client and source for Cykura (formerly Cyclos) concentrated liquidity AMM"
 edition = "2021"
-license = "GNU Affero General Public License v3.0"
+license = "	AGPL-3.0-only"
 keywords = ["solana", "anchor", "blockchain"]
 
 [lib]
