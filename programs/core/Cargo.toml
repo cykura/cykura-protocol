@@ -1,8 +1,10 @@
 [package]
 name = "cyclos-core"
 version = "0.1.0"
-description = "Core program for pool management"
+description = "Anchor client and source for Cykura (formerly Cyclos) concentrated liquidity AMM"
 edition = "2021"
+license = "GNU Affero General Public License v3.0"
+keywords = ["solana", "anchor", "blockchain"]
 
 [lib]
 crate-type = ["cdylib", "lib"]
