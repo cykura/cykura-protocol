@@ -9,7 +9,8 @@
         "@saberhq/solana-contrib": "^1.12.44",
         "@saberhq/token-utils": "^1.12.44",
         "@solana/spl-token": "^0.1.8",
-        "@tribecahq/tribeca-sdk": "^0.4.0"
+        "@tribecahq/tribeca-sdk": "^0.4.0",
+        "node-fetch": "^2.6.7"
     },
     "devDependencies": {
         "@types/chai": "^4.2.22",
