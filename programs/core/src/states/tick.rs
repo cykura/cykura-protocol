@@ -77,7 +77,9 @@ impl TickState {
         let liquidity_gross_after =
             liquidity_math::add_delta(liquidity_gross_before, liquidity_delta)?;
 
-        require!(liquidity_gross_after <= max_liquidity, ErrorCode::LO);
+        // Overflow should not happen for sane pools
+        // entire tick range can never be traversed
+        // require!(liquidity_gross_after <= max_liquidity, ErrorCode::LO);
 
         // Either liquidity_gross_after becomes 0 (uninitialized) XOR liquidity_gross_before
         // was zero (initialized)
@@ -231,6 +233,7 @@ pub fn tick_spacing_to_max_liquidity_per_tick(tick_spacing: i32) -> u64 {
     let max_tick = (tick_math::MAX_TICK / tick_spacing) * tick_spacing;
     let num_ticks = ((max_tick - min_tick) / tick_spacing) as u64 + 1;
 
+    println!("num ticks {}", num_ticks);
     u64::MAX / num_ticks
 }
 
@@ -240,6 +243,13 @@ mod test {
 
     mod tick_spacing_to_max_liquidity_per_tick {
         use super::*;
+
+        #[test]
+        fn lowest_fee() {
+            println!("max 1 {}", tick_spacing_to_max_liquidity_per_tick(1));
+            println!("max 10 {}", tick_spacing_to_max_liquidity_per_tick(10));
+            println!("max 60 {}", tick_spacing_to_max_liquidity_per_tick(60));
+        }
 
         #[test]
         fn returns_the_correct_value_for_low_fee() {

@@ -72,7 +72,7 @@ async function main() {
       usdcAccount,
       FAUCET_AUTHORITY.publicKey,
       [],
-      100_000_000_000
+      1_000_000_000_000
     ),
     SPLToken.Token.createAssociatedTokenAccountInstruction(
       SPLToken.ASSOCIATED_TOKEN_PROGRAM_ID,
@@ -88,7 +88,7 @@ async function main() {
       usdtAccount,
       FAUCET_AUTHORITY.publicKey,
       [],
-      100_000_000_000
+      1_000_000_000_000
     ),
     // SPLToken.Token.createAssociatedTokenAccountInstruction(
     //   SPLToken.ASSOCIATED_TOKEN_PROGRAM_ID,
@@ -120,7 +120,7 @@ async function main() {
       cysAccount,
       FAUCET_AUTHORITY.publicKey,
       [],
-      100_000_000_000
+      1_000_000_000_000
     )
   ]
   await provider.send(tx, [FAUCET_AUTHORITY])
