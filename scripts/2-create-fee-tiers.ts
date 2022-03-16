@@ -22,15 +22,27 @@ import keypairFile from './keypair.json';
     const [factoryState, factoryStateBump] = await web3.PublicKey.findProgramAddress([], coreProgram.programId)
 
     const feeTiers = [{
+        // super stable
+        fee: 20,
+        tickSpacing: 1
+    },{
+        // turbo spl
+        fee: 80,
+        tickSpacing: 60
+    },
+    {
         fee: 500,
         tickSpacing: 10
-    },{
+    },
+    {
         fee: 3000,
         tickSpacing: 60
-    },{
+    },
+    {
         fee: 10_000,
         tickSpacing: 200
-    }]
+    }
+    ]
     for (let { fee, tickSpacing } of feeTiers) {
         const [feeState, feeStateBump] = await web3.PublicKey.findProgramAddress(
             [FEE_SEED, u32ToSeed(fee)],
