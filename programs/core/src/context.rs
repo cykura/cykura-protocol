@@ -333,7 +333,6 @@ pub struct InitPositionAccount<'info> {
 #[derive(Accounts)]
 pub struct MintContext<'info> {
     /// Pays to mint liquidity
-    #[account(mut)]
     pub minter: Signer<'info>,
 
     /// The token account spending token_0 to mint the position
@@ -566,7 +565,6 @@ pub struct SwapContext<'info> {
 
     /// The program account of the pool in which the swap will be performed
     /// CHECK: Safety check performed inside function body
-    /// CHECK: Safety check performed inside function body
     #[account(mut)]
     pub pool_state: UncheckedAccount<'info>,
 
@@ -735,7 +733,6 @@ pub struct AddMetaplexMetadata<'info> {
 #[derive(Accounts)]
 pub struct IncreaseLiquidity<'info> {
     /// Pays to mint the position
-    #[account(mut)]
     pub payer: Signer<'info>,
 
     /// Authority PDA for the NFT mint
@@ -808,7 +805,6 @@ pub struct IncreaseLiquidity<'info> {
 #[derive(Accounts)]
 pub struct DecreaseLiquidity<'info> {
     /// The position owner or delegated authority
-    #[account(mut)]
     pub owner_or_delegate: Signer<'info>,
 
     /// The token account for the tokenized position
@@ -866,7 +862,6 @@ pub struct DecreaseLiquidity<'info> {
 #[derive(Accounts)]
 pub struct CollectFromTokenized<'info> {
     /// The position owner or delegated authority
-    #[account(mut)]
     pub owner_or_delegate: Signer<'info>,
 
     /// The token account for the tokenized position
@@ -947,7 +942,6 @@ pub struct CollectFromTokenized<'info> {
 #[derive(Accounts)]
 pub struct ExactInputSingle<'info> {
     /// The user performing the swap
-    #[account(mut)]
     pub signer: Signer<'info>,
 
     /// The factory state to read protocol fees
@@ -992,7 +986,6 @@ pub struct ExactInputSingle<'info> {
 #[derive(Accounts)]
 pub struct ExactInput<'info> {
     /// The user performing the swap
-    #[account(mut)]
     pub signer: Signer<'info>,
 
     /// The factory state to read protocol fees
