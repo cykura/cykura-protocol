@@ -26,6 +26,7 @@ pub struct Initialize<'info> {
         seeds = [],
         bump,
         payer = owner,
+        space = 8 + size_of::<FactoryState>()
     )]
     pub factory_state: AccountLoader<'info, FactoryState>,
 
@@ -102,6 +103,7 @@ pub struct CreateAndInitPool<'info> {
         ],
         bump,
         payer = pool_creator,
+        space = 8 + size_of::<PoolState>()
     )]
     pub pool_state: AccountLoader<'info, PoolState>,
 
@@ -117,6 +119,7 @@ pub struct CreateAndInitPool<'info> {
         ],
         bump,
         payer = pool_creator,
+        space = 8 + size_of::<ObservationState>()
     )]
     pub initial_observation_state: AccountLoader<'info, ObservationState>,
 
@@ -234,7 +237,8 @@ pub struct InitTickAccount<'info> {
             &tick.to_be_bytes()
         ],
         bump,
-        payer = signer
+        payer = signer,
+        space = 8 + size_of::<TickState>()
     )]
     pub tick_state: AccountLoader<'info, TickState>,
 
@@ -279,7 +283,8 @@ pub struct InitBitmapAccount<'info> {
             &word_pos.to_be_bytes()
         ],
         bump,
-        payer = signer
+        payer = signer,
+        space = 8 + size_of::<TickBitmapState>()
     )]
     pub bitmap_state: AccountLoader<'info, TickBitmapState>,
 
@@ -322,7 +327,8 @@ pub struct InitPositionAccount<'info> {
             &tick_upper_state.load()?.tick.to_be_bytes(),
         ],
         bump,
-        payer = signer
+        payer = signer,
+        space = 8 + size_of::<PositionState>()
     )]
     pub position_state: AccountLoader<'info, PositionState>,
 
@@ -647,7 +653,8 @@ pub struct MintTokenizedPosition<'info> {
         init,
         seeds = [POSITION_SEED.as_bytes(), nft_mint.key().as_ref()],
         bump,
-        payer = minter
+        payer = minter,
+        space = 8 + size_of::<TokenizedPositionState>()
     )]
     pub tokenized_position_state: AccountLoader<'info, TokenizedPositionState>,
 

@@ -1,7 +1,15 @@
+anchor_version = "0.23.0"
+
 [features]
 seeds = false
 
 [programs.localnet]
+cyclos_core = "cysPXAjehMpVKUapzbMCCnpFxUFFryEWEaLgnb9NrR8"
+
+[programs.devnet]
+cyclos_core = "cysPXAjehMpVKUapzbMCCnpFxUFFryEWEaLgnb9NrR8"
+
+[programs.mainnet]
 cyclos_core = "cysPXAjehMpVKUapzbMCCnpFxUFFryEWEaLgnb9NrR8"
 
 [registry]
