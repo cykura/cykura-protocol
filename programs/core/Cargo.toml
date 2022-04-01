@@ -1,6 +1,6 @@
 [package]
 name = "cyclos-core"
-version = "0.1.4"
+version = "0.1.5"
 description = "Anchor client and source for Cykura (formerly Cyclos) concentrated liquidity AMM"
 edition = "2021"
 license = "AGPL-3.0-only"

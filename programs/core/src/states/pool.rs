@@ -210,7 +210,7 @@ impl PoolState {
     ///
     /// * `lower` - The lower tick of the range.
     /// * `upper` - The upper tick of the range.
-    /// * `latest_observation` - The latest oracle observation.
+    /// * `latest_observation` - The latest oracle observation. The latest condition must be externally checked.
     ///
     pub fn snapshot_cumulatives_inside(
         self,
@@ -218,8 +218,6 @@ impl PoolState {
         upper: &TickState,
         latest_observation: &ObservationState,
     ) -> SnapshotCumulative {
-        assert!(latest_observation.index == self.observation_index);
-
         if self.tick < lower.tick {
             SnapshotCumulative {
                 tick_cumulative_inside: lower.tick_cumulative_outside
