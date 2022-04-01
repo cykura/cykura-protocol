@@ -3,10 +3,14 @@ use anchor_lang::prelude::*;
 use crate::{
     program::CyclosCore,
     states::{
-        oracle::OBSERVATION_SEED, position::POSITION_SEED, tick::TICK_SEED,
+        oracle::{self, OBSERVATION_SEED},
+        position::POSITION_SEED,
+        tick::TICK_SEED,
         tick_bitmap::BITMAP_SEED,
     },
 };
+
+use super::{oracle::ObservationState, tick::TickState};
 
 /// Seed to derive account address and signature
 pub const POOL_SEED: &str = "p";
@@ -195,6 +199,78 @@ impl PoolState {
         );
         Ok(())
     }
+
+    /// Returns a snapshot of the tick cumulative, seconds per liquidity and seconds inside a tick range
+    ///
+    /// Snapshots must only be compared to other snapshots, taken over a period for which a position existed.
+    /// I.e., snapshots cannot be compared if a position is not held for the entire period between when the first
+    /// snapshot is taken and the second snapshot is taken.
+    ///
+    /// # Arguments
+    ///
+    /// * `lower` - The lower tick of the range.
+    /// * `upper` - The upper tick of the range.
+    /// * `latest_observation` - The latest oracle observation.
+    ///
+    pub fn snapshot_cumulatives_inside(
+        self,
+        lower: &TickState,
+        upper: &TickState,
+        latest_observation: &ObservationState,
+    ) -> SnapshotCumulative {
+        assert!(latest_observation.index == self.observation_index);
+
+        if self.tick < lower.tick {
+            SnapshotCumulative {
+                tick_cumulative_inside: lower.tick_cumulative_outside
+                    - upper.tick_cumulative_outside,
+                seconds_per_liquidity_inside_x32: lower.seconds_per_liquidity_outside_x32
+                    - upper.seconds_per_liquidity_outside_x32,
+                seconds_inside: lower.seconds_outside - upper.seconds_outside,
+            }
+        } else if self.tick < upper.tick {
+            let time = oracle::_block_timestamp();
+            let ObservationState {
+                tick_cumulative,
+                seconds_per_liquidity_cumulative_x32,
+                ..
+            } = if latest_observation.block_timestamp == time {
+                *latest_observation
+            } else {
+                latest_observation.transform(time, self.tick, self.liquidity)
+            };
+
+            SnapshotCumulative {
+                tick_cumulative_inside: tick_cumulative
+                    - lower.tick_cumulative_outside
+                    - upper.tick_cumulative_outside,
+                seconds_per_liquidity_inside_x32: seconds_per_liquidity_cumulative_x32
+                    - lower.seconds_per_liquidity_outside_x32
+                    - upper.seconds_per_liquidity_outside_x32,
+                seconds_inside: time - lower.seconds_outside - upper.seconds_outside,
+            }
+        } else {
+            SnapshotCumulative {
+                tick_cumulative_inside: upper.tick_cumulative_outside
+                    - lower.tick_cumulative_outside,
+                seconds_per_liquidity_inside_x32: upper.seconds_per_liquidity_outside_x32
+                    - lower.seconds_per_liquidity_outside_x32,
+                seconds_inside: upper.seconds_outside - lower.seconds_outside,
+            }
+        }
+    }
+}
+
+/// A snapshot of the tick cumulative, seconds per liquidity and seconds inside a tick range
+pub struct SnapshotCumulative {
+    /// The snapshot of the tick accumulator for the range.
+    pub tick_cumulative_inside: i64,
+
+    /// The snapshot of seconds per liquidity for the range.
+    pub seconds_per_liquidity_inside_x32: u64,
+
+    /// The snapshot of seconds per liquidity for the range.
+    pub seconds_inside: u32,
 }
 
 /// Emitted when a pool is created and initialized with a starting price
