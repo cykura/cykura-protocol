@@ -26,8 +26,8 @@ import {
   MAX_TICK,
   MIN_SQRT_RATIO,
   MIN_TICK,
-  SolanaTickDataProvider,
 } from './utils'
+import SolanaTickDataProvider from './SolanaTickDataProvider'
 import { Transaction } from '@solana/web3.js'
 import JSBI from 'jsbi'
 
@@ -2705,8 +2705,9 @@ describe('cyclos-core', async () => {
         token1: token1.publicKey,
         fee,
       })
-      const { tick: currentTick, sqrtPriceX32: currentSqrtPriceX32, liquidity: currentLiquidity } = await coreProgram.account.poolState.fetch(poolAState)
 
+      const { tick: currentTick, sqrtPriceX32: currentSqrtPriceX32, liquidity: currentLiquidity } = await coreProgram.account.poolState.fetch(poolAState)
+      await tickDataProvider.eagerLoadCache(currentTick, tickSpacing)
       // output is one tick behind actual (8 instead of 9)
       uniPoolA = new Pool(
         uniToken0,
