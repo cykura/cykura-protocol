@@ -123,33 +123,11 @@ pub struct CreateAndInitPool<'info> {
     )]
     pub initial_observation_state: AccountLoader<'info, ObservationState>,
 
-    /// The address that holds pool tokens for token_0
-    #[account(
-        init_if_needed,
-        associated_token::mint = token_0,
-        associated_token::authority = pool_state,
-        payer = pool_creator,
-    )]
-    pub vault_0: Box<Account<'info, TokenAccount>>,
-
-    /// The address that holds pool tokens for token_1
-    #[account(
-        init_if_needed,
-        associated_token::mint = token_1,
-        associated_token::authority = pool_state,
-        payer = pool_creator,
-    )]
-    pub vault_1: Box<Account<'info, TokenAccount>>,
-
     /// To create a new program account
     pub system_program: Program<'info, System>,
 
     /// Sysvar for program account and ATA creation
     pub rent: Sysvar<'info, Rent>,
-
-    /// To create new token accounts for the pool
-    pub token_program: Program<'info, Token>,
-    pub associated_token_program: Program<'info, AssociatedToken>,
 }
 
 #[derive(Accounts)]

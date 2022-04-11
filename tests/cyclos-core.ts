@@ -281,6 +281,44 @@ describe('cyclos-core', async () => {
       poolBState,
       true
     )
+
+    const createAtaTx = new Transaction()
+    createAtaTx.instructions = [
+      Token.createAssociatedTokenAccountInstruction(
+        ASSOCIATED_TOKEN_PROGRAM_ID,
+        TOKEN_PROGRAM_ID,
+        token0.publicKey,
+        vaultA0,
+        poolAState,
+        owner
+      ),
+      Token.createAssociatedTokenAccountInstruction(
+        ASSOCIATED_TOKEN_PROGRAM_ID,
+        TOKEN_PROGRAM_ID,
+        token1.publicKey,
+        vaultA1,
+        poolAState,
+        owner
+      ),
+      Token.createAssociatedTokenAccountInstruction(
+        ASSOCIATED_TOKEN_PROGRAM_ID,
+        TOKEN_PROGRAM_ID,
+        token1.publicKey,
+        vaultB1,
+        poolBState,
+        owner
+      ),
+      Token.createAssociatedTokenAccountInstruction(
+        ASSOCIATED_TOKEN_PROGRAM_ID,
+        TOKEN_PROGRAM_ID,
+        token2.publicKey,
+        vaultB2,
+        poolBState,
+        owner
+      ),
+    ]
+    createAtaTx.recentBlockhash = (await connection.getRecentBlockhash()).blockhash
+    await anchor.getProvider().send(createAtaTx)
   })
 
   describe('#init_factory', () => {
@@ -550,12 +588,8 @@ describe('cyclos-core', async () => {
           feeState,
           poolState: poolAState,
           initialObservationState: initialObservationStateA,
-          vault0: vaultA1,
-          vault1: vaultA0,
           systemProgram: SystemProgram.programId,
           rent: web3.SYSVAR_RENT_PUBKEY,
-          tokenProgram: TOKEN_PROGRAM_ID,
-          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID
         }
       })).to.be.rejectedWith(Error)
     })
@@ -570,12 +604,8 @@ describe('cyclos-core', async () => {
           feeState,
           poolState: poolAState,
           initialObservationState: initialObservationStateA,
-          vault0: vaultA0,
-          vault1: vaultA0,
           systemProgram: SystemProgram.programId,
           rent: web3.SYSVAR_RENT_PUBKEY,
-          tokenProgram: TOKEN_PROGRAM_ID,
-          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID
         }
       })).to.be.rejectedWith(Error)
     })
@@ -594,12 +624,8 @@ describe('cyclos-core', async () => {
           feeState: uninitializedFeeState,
           poolState: poolAState,
           initialObservationState: initialObservationStateA,
-          vault0: vaultA0,
-          vault1: vaultA0,
           systemProgram: SystemProgram.programId,
           rent: web3.SYSVAR_RENT_PUBKEY,
-          tokenProgram: TOKEN_PROGRAM_ID,
-          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID
         }
       })).to.be.rejectedWith(Error)
     })
@@ -613,12 +639,8 @@ describe('cyclos-core', async () => {
           feeState,
           poolState: poolAState,
           initialObservationState: initialObservationStateA,
-          vault0: vaultA0,
-          vault1: vaultA1,
           systemProgram: SystemProgram.programId,
           rent: web3.SYSVAR_RENT_PUBKEY,
-          tokenProgram: TOKEN_PROGRAM_ID,
-          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID
         }
       })).to.be.rejectedWith(Error)
 
@@ -631,12 +653,8 @@ describe('cyclos-core', async () => {
           feeState,
           poolState: poolAState,
           initialObservationState: initialObservationStateA,
-          vault0: vaultA0,
-          vault1: vaultA1,
           systemProgram: SystemProgram.programId,
           rent: web3.SYSVAR_RENT_PUBKEY,
-          tokenProgram: TOKEN_PROGRAM_ID,
-          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID
         }
       })).to.be.rejectedWith(Error)
 
@@ -651,12 +669,8 @@ describe('cyclos-core', async () => {
           feeState,
           poolState: poolAState,
           initialObservationState: initialObservationStateA,
-          vault0: vaultA0,
-          vault1: vaultA1,
           systemProgram: SystemProgram.programId,
           rent: web3.SYSVAR_RENT_PUBKEY,
-          tokenProgram: TOKEN_PROGRAM_ID,
-          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID
         }
       })).to.be.rejectedWith(Error)
 
@@ -669,12 +683,8 @@ describe('cyclos-core', async () => {
           feeState,
           poolState: poolAState,
           initialObservationState: initialObservationStateA,
-          vault0: vaultA0,
-          vault1: vaultA1,
           systemProgram: SystemProgram.programId,
           rent: web3.SYSVAR_RENT_PUBKEY,
-          tokenProgram: TOKEN_PROGRAM_ID,
-          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID
         }
       })).to.be.rejectedWith(Error)
     })
@@ -702,12 +712,8 @@ describe('cyclos-core', async () => {
             feeState,
             poolState: poolAState,
             initialObservationState: initialObservationStateA,
-            vault0: vaultA0,
-            vault1: vaultA1,
             systemProgram: SystemProgram.programId,
             rent: web3.SYSVAR_RENT_PUBKEY,
-            tokenProgram: TOKEN_PROGRAM_ID,
-            associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID
           }
         })
       })
@@ -753,12 +759,8 @@ describe('cyclos-core', async () => {
           feeState,
           poolState: poolAState,
           initialObservationState: initialObservationStateA,
-          vault0: vaultA0,
-          vault1: vaultA1,
           systemProgram: SystemProgram.programId,
           rent: web3.SYSVAR_RENT_PUBKEY,
-          tokenProgram: TOKEN_PROGRAM_ID,
-          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID
         }
       })).to.be.rejectedWith(Error)
     })
@@ -2048,7 +2050,6 @@ describe('cyclos-core', async () => {
     })
 
     it('fails if not called by the owner', async () => {
-      const txTrial = new Transaction()
       const deadline = new BN(Date.now() / 1000 + 10_000)
       await expect(coreProgram.rpc.decreaseLiquidity(
         liquidity,
@@ -2940,12 +2941,8 @@ describe('cyclos-core', async () => {
           feeState,
           poolState: poolBState,
           initialObservationState: initialObservationStateB,
-          vault0: vaultB1,
-          vault1: vaultB2,
           systemProgram: SystemProgram.programId,
           rent: web3.SYSVAR_RENT_PUBKEY,
-          tokenProgram: TOKEN_PROGRAM_ID,
-          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID
         }
       })
       console.log('second pool created')
