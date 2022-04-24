@@ -1872,6 +1872,7 @@ pub mod cyclos_core {
         let mut core_position_owner = ctx.accounts.factory_state.to_account_info().clone();
         core_position_owner.is_signer = true;
 
+        msg!("withdrawing amounts {} {}", amount_0, amount_1);
         msg!("vault balances {} {}", ctx.accounts.vault_0.amount, ctx.accounts.vault_1.amount);
 
         let mut accounts = CollectContext {
