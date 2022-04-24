@@ -526,6 +526,7 @@ pub mod cyclos_core {
             )
         };
         if exact_input {
+            msg!("amount to pay {}, delta 0 {}, delta 1 {}", amount_to_pay, amount_0_delta, amount_1_delta);
             token::transfer(
                 CpiContext::new(
                     ctx.accounts.token_program.to_account_info(),
@@ -1345,6 +1346,7 @@ pub mod cyclos_core {
 
         if zero_for_one {
             if amount_1 < 0 {
+                msg!("paying {}", amount_1.neg());
                 token::transfer(
                     CpiContext::new_with_signer(
                         ctx.accounts.token_program.to_account_info().clone(),
@@ -1378,6 +1380,7 @@ pub mod cyclos_core {
             );
         } else {
             if amount_0 < 0 {
+                msg!("paying {}", amount_0.neg());
                 token::transfer(
                     CpiContext::new_with_signer(
                         ctx.accounts.token_program.to_account_info().clone(),
