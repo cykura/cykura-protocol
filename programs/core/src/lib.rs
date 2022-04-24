@@ -1344,6 +1344,8 @@ pub mod cyclos_core {
         ];
         drop(pool);
 
+        msg!("vault balances {} {}", vault_0.amount, vault_1.amount);
+
         if zero_for_one {
             if amount_1 < 0 {
                 msg!("paying {}", amount_1.neg());
@@ -1869,6 +1871,8 @@ pub mod cyclos_core {
 
         let mut core_position_owner = ctx.accounts.factory_state.to_account_info().clone();
         core_position_owner.is_signer = true;
+
+        msg!("vault balances {} {}", ctx.accounts.vault_0.amount, ctx.accounts.vault_1.amount);
 
         let mut accounts = CollectContext {
             owner: Signer::try_from(&core_position_owner)?,
