@@ -1119,11 +1119,14 @@ pub mod cyclos_core {
                         .0
                 );
 
+                msg!("check if bitmap is initialized");
                 // read from bitmap if account is initialized, else use default values for next initialized bit
                 if let Ok(bitmap_loader) =
                     AccountLoader::<TickBitmapState>::try_from(bitmap_account)
                 {
+                    msg!("bitmap is initialized, loading");
                     let bitmap_state = bitmap_loader.load()?;
+                    msg!("bitmap loaded");
                     bitmap_cache = Some(*bitmap_state.deref());
                 } else {
                     // clear cache if the bitmap account was uninitialized. This way default uninitialized
@@ -1208,6 +1211,7 @@ pub mod cyclos_core {
 
             // shift tick if we reached the next price
             if state.sqrt_price_x32 == step.sqrt_price_next_x32 {
+                msg!("reached next price, transitioning");
                 // if the tick is initialized, run the tick transition
                 if step.initialized {
                     // check for the placeholder value for the oracle observation, which we replace with the
@@ -1255,6 +1259,8 @@ pub mod cyclos_core {
                     }
 
                     state.liquidity = liquidity_math::add_delta(state.liquidity, liquidity_net)?;
+                } else {
+                    msg!("step not initialized");
                 }
 
                 state.tick = if zero_for_one {
@@ -1263,6 +1269,7 @@ pub mod cyclos_core {
                     step.tick_next
                 };
             } else if state.sqrt_price_x32 != step.sqrt_price_start_x32 {
+                msg!("not at next or start price");
                 // recompute unless we're on a lower tick boundary (i.e. already transitioned ticks), and haven't moved
                 state.tick = tick_math::get_tick_at_sqrt_ratio(state.sqrt_price_x32)?;
             }
@@ -1277,10 +1284,12 @@ pub mod cyclos_core {
             // in another partition
             let next_observation_state;
             let mut next_observation = if partition_current_timestamp > partition_last_timestamp {
+                msg!("loading observation");
                 next_observation_state = AccountLoader::<ObservationState>::try_from(
                     &remaining_accounts.next().unwrap(),
                 )?;
                 let next_observation = next_observation_state.load_mut()?;
+                msg!("observation loaded");
 
                 pool.validate_observation_address(
                     &next_observation_state.key(),
