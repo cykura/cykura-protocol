@@ -11,7 +11,7 @@ use anchor_lang::prelude::*;
 /// PDA of `[]`
 ///
 #[account(zero_copy)]
-#[derive(Default)]
+#[derive(Default, PartialEq, Eq)]
 #[repr(packed)]
 pub struct FactoryState {
     /// Bump to identify PDA

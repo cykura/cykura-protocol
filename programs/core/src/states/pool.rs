@@ -20,7 +20,7 @@ pub const POOL_SEED: &str = "p";
 /// PDA of `[POOL_SEED, token_0, token_1, fee]`
 ///
 #[account(zero_copy)]
-#[derive(Default)]
+#[derive(Default, PartialEq, Eq)]
 #[repr(packed)]
 pub struct PoolState {
     /// Bump to identify PDA

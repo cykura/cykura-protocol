@@ -20,7 +20,7 @@ pub const BITMAP_SEED: &str = "b";
 /// PDA of `[BITMAP_SEED, token_0, token_1, fee, word_pos]`
 ///
 #[account(zero_copy)]
-#[derive(Default)]
+#[derive(Default, PartialEq, Eq)]
 #[repr(packed)]
 pub struct TickBitmapState {
     /// Bump to identify PDA
