@@ -12,13 +12,13 @@ pub const TICK_SEED: &str = "t";
 /// PDA of `[TICK_SEED, token_0, token_1, fee, tick]`
 ///
 #[account(zero_copy)]
-#[derive(Default, Debug)]
+#[derive(Default, Debug, PartialEq, Eq)]
 #[repr(packed)]
 pub struct TickState {
     /// Bump to identify PDA
     pub bump: u8,
 
-    /// The price tick whose info is stored in the account
+    /// The price tic   k whose info is stored in the account
     pub tick: i32,
 
     /// The total position liquidity that references this tick

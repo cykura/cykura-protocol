@@ -19,8 +19,9 @@ default = []
 no-log-ix-name = []
 
 [dependencies]
-anchor-lang = "0.22.1"
-anchor-spl = "0.22.1"
+anchor-lang = "0.25.0"
+anchor-spl = "0.25.0"
+spl-associated-token-account = "1.0.5"
 # pinned since Solana needs Rust v1.56.0, while the latest uint crate mandates a newer version
 uint = "=0.9.1"
 metaplex-token-metadata = { version = "0.0.1", features = ["no-entrypoint"] }
